@@ -5,7 +5,7 @@ import { VirtualList } from '../src/components/VirtualList';
 const LARGE_DATASET_SIZE = 10000;
 const ITEM_HEIGHT = 50;
 
-function App() {
+export function VirtualListApp() {
   const [items, setItems] = useState<number[]>([]);
 
   useEffect(() => {

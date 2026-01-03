@@ -1,9 +1,9 @@
 import React from 'react';
 import { createRoot } from '../src/renderer/index';
-import { App } from './virtual-list-app';
+import { VirtualListApp } from './virtual-list-app';
 
 const root = createRoot();
-root.render(React.createElement(App));
+root.render(React.createElement(VirtualListApp));
 
 console.log('Virtual List demo running...');
 console.log('Expecting window with virtual list of 10,000 items');
