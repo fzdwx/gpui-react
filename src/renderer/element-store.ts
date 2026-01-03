@@ -3,22 +3,31 @@ export interface ElementData {
   type: string;
   text?: string;
   children: number[];
+  style?: Record<string, any>;
+  eventHandlers?: Record<string, number>;
 }
 
 class ElementStore {
   private store = new Map<number, ElementData>();
-  private nextId = 2; // Start at 2 to avoid collision with container tag 1
+  private nextId = 2;
   private rootId: number | null = null;
 
-  createElement(type: string, text?: string): number {
+  reset(): void {
+    this.store.clear();
+    this.nextId = 2;
+    this.rootId = null;
+  }
+
+  createElement(type: string, text?: string, style?: Record<string, any>): number {
     const globalId = this.nextId++;
     this.store.set(globalId, {
       globalId,
       type,
       text,
+      style,
       children: [],
     });
-    console.log("createElement:", { type, globalId });
+    console.log("createElement:", { type, globalId, style });
     return globalId;
   }
 

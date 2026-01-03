@@ -11,6 +11,11 @@
   "scripts": {
     "build:rust": "cd rust && cargo build --release",
     "demo": "bun run demo/index.ts",
+    "styled-demo": "bun run demo/styled-index.ts",
+    "flex-demo": "bun run demo/flex-index.ts",
+    "elements-demo": "bun run demo/elements-index.ts",
+    "event-demo": "bun run demo/event-index.ts",
+    "test:": "bun run src/renderer/__tests__/element-store.test.ts",
     "dev": "bun run build:rust && bun run demo"
   },
   "type": "module",

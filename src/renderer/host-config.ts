@@ -1,6 +1,69 @@
 import * as ReactReconciler from "react-reconciler";
 import { elementStore } from "./element-store";
 import { renderFrame, updateElement } from "./gpui-binding";
+import { mapStyleToProps, StyleProps } from "./styles";
+import { EventHandler, MouseEvent, Event } from "./events";
+
+let nextEventId = 0;
+const eventHandlers = new Map<number, EventHandler>();
+
+function registerEventHandler(handler: EventHandler): number {
+  const id = nextEventId++;
+  eventHandlers.set(id, handler);
+  return id;
+}
+
+function extractStyleProps(props: any): StyleProps {
+  const styleProps: StyleProps = {};
+
+  if (props.style) {
+    Object.assign(styleProps, props.style);
+  }
+
+  if (props.className) {
+    console.warn("className not yet supported, use style prop instead");
+  }
+
+  if (props.onClick) {
+    styleProps.onClick = props.onClick;
+  }
+
+  if (props.onHover) {
+    styleProps.onHover = props.onHover;
+  }
+
+  if (props.onMouseEnter) {
+    styleProps.onMouseEnter = props.onMouseEnter;
+  }
+
+  if (props.onMouseLeave) {
+    styleProps.onMouseLeave = props.onMouseLeave;
+  }
+
+  return styleProps;
+}
+
+function extractEventHandlers(props: any): Record<string, number> {
+  const handlers: Record<string, number> = {};
+
+  if (props.onClick) {
+    handlers['onClick'] = registerEventHandler(props.onClick);
+  }
+
+  if (props.onHover) {
+    handlers['onHover'] = registerEventHandler(props.onHover);
+  }
+
+  if (props.onMouseEnter) {
+    handlers['onMouseEnter'] = registerEventHandler(props.onMouseEnter);
+  }
+
+  if (props.onMouseLeave) {
+    handlers['onMouseLeave'] = registerEventHandler(props.onMouseLeave);
+  }
+
+  return handlers;
+}
 
 const config = {
   supportsMutation: true,
@@ -34,8 +97,10 @@ const config = {
   resetTextContent(instance: number): void {},
 
   createTextInstance(text: string): number {
-    const id = elementStore.createElement("text", String(text));
-    console.log("createTextInstance:", { text, id });
+    const styleProps = extractStyleProps({ style: {} });
+    const styles = mapStyleToProps(styleProps);
+    const id = elementStore.createElement("text", String(text), styles);
+    console.log("createTextInstance:", { text, id, styles });
     updateElement(elementStore.getElement(id));
     return id;
   },
@@ -50,8 +115,12 @@ const config = {
   },
 
   createInstance(type: string, props: any): number {
-    const id = elementStore.createElement(type);
-    console.log("createInstance:", { type, id });
+    const styleProps = extractStyleProps(props);
+    const styles = mapStyleToProps(styleProps);
+    const eventHandlers = extractEventHandlers(props);
+    const element = { ...styles, eventHandlers };
+    const id = elementStore.createElement(type, undefined, element);
+    console.log("createInstance:", { type, id, styles, eventHandlers });
     updateElement(elementStore.getElement(id));
     return id;
   },

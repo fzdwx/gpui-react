@@ -121,6 +121,7 @@ pub extern "C" fn gpui_render_frame(
             element_type: element_type.clone(),
             text: text.clone(),
             children: Vec::new(),
+            style: crate::element_store::ElementStyle::default(),
         });
 
         let mut element_map = ELEMENT_MAP.lock().unwrap();
@@ -133,6 +134,7 @@ pub extern "C" fn gpui_render_frame(
                     element_type: "placeholder".to_string(),
                     text: None,
                     children: Vec::new(),
+                    style: crate::element_store::ElementStyle::default(),
                 });
                 element_map.insert(child_id, placeholder);
             }
@@ -155,7 +157,7 @@ pub extern "C" fn gpui_render_frame(
 fn get_root_element() -> Arc<ReactElement> {
     let element_map = ELEMENT_MAP.lock().unwrap();
 
-    let all_ids: std::collections::HashSet<u64> = element_map.keys().cloned().collect();
+    let _all_ids: std::collections::HashSet<u64> = element_map.keys().cloned().collect();
 
     for id in element_map.keys() {
         let mut is_root = true;
@@ -176,6 +178,7 @@ fn get_root_element() -> Arc<ReactElement> {
             element_type: "empty".to_string(),
             text: None,
             children: Vec::new(),
+            style: crate::element_store::ElementStyle::default(),
         })
     })
 }
@@ -213,6 +216,7 @@ fn rebuild_tree(root_id: u64, children: &[u64]) {
             );
             let root_mut = Arc::make_mut(root);
             root_mut.children = child_elements;
+            root_mut.style = crate::element_store::ElementStyle::default();
         }
     } else {
         eprintln!("  root element not found!");
@@ -248,6 +252,105 @@ pub extern "C" fn gpui_update_element(
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
 
+                    let style = if let Some(style_obj) = json.get("style") {
+                        crate::element_store::ElementStyle {
+                            text_color: style_obj
+                                .get("textColor")
+                                .and_then(|v| v.as_u64())
+                                .map(|v| v as u32),
+                            bg_color: style_obj
+                                .get("bgColor")
+                                .and_then(|v| v.as_u64())
+                                .map(|v| v as u32),
+                            border_color: style_obj
+                                .get("borderColor")
+                                .and_then(|v| v.as_u64())
+                                .map(|v| v as u32),
+                            text_size: style_obj
+                                .get("textSize")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            width: style_obj
+                                .get("width")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            height: style_obj
+                                .get("height")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            margin_top: style_obj
+                                .get("marginTop")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            margin_right: style_obj
+                                .get("marginRight")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            margin_bottom: style_obj
+                                .get("marginBottom")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            margin_left: style_obj
+                                .get("marginLeft")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            padding_top: style_obj
+                                .get("paddingTop")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            padding_right: style_obj
+                                .get("paddingRight")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            padding_bottom: style_obj
+                                .get("paddingBottom")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            padding_left: style_obj
+                                .get("paddingLeft")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            display: style_obj
+                                .get("display")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            flex_direction: style_obj
+                                .get("flexDirection")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            justify_content: style_obj
+                                .get("justifyContent")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            align_items: style_obj
+                                .get("alignItems")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            gap: style_obj
+                                .get("gap")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            border_radius: style_obj
+                                .get("borderRadius")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            opacity: style_obj
+                                .get("opacity")
+                                .and_then(|v| v.as_f64())
+                                .map(|v| v as f32),
+                            src: style_obj
+                                .get("src")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            alt: style_obj
+                                .get("alt")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                        }
+                    } else {
+                        crate::element_store::ElementStyle::default()
+                    };
+
                     let mut element_map = ELEMENT_MAP.lock().unwrap();
 
                     let element_type_clone = element_type.clone();
@@ -263,6 +366,7 @@ pub extern "C" fn gpui_update_element(
                         element_type: element_type_clone,
                         text: text_clone,
                         children: Vec::new(),
+                        style: style.clone(),
                     });
                     element_map.insert(id, new_element);
 
@@ -273,6 +377,7 @@ pub extern "C" fn gpui_update_element(
                                 element_type: "placeholder".to_string(),
                                 text: None,
                                 children: Vec::new(),
+                                style: crate::element_store::ElementStyle::default(),
                             });
                             element_map.insert(child_id, placeholder);
                         }
@@ -288,6 +393,7 @@ pub extern "C" fn gpui_update_element(
                     if let Some(existing) = element_map.get_mut(&id) {
                         let mut updated = (**existing).clone();
                         updated.children = child_refs;
+                        updated.style = style.clone();
                         *existing = Arc::new(updated);
                     }
 
