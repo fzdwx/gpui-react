@@ -11,8 +11,10 @@ pub extern "C" fn gpui_batch_update_elements(
     elements_json_ptr: *const c_char,
     result: *mut FfiResult,
 ) {
+    log::debug!("gpui_batch_update_elements: called");
     unsafe {
         if count_ptr.is_null() || elements_json_ptr.is_null() || result.is_null() {
+            log::error!("gpui_batch_update_elements: null pointer detected");
             *result = FfiResult::error("count_ptr or elements_json_ptr or result is null");
             return;
         }
@@ -32,9 +34,11 @@ pub extern "C" fn gpui_batch_update_elements(
             .ok_or_else(|| "Elements must be an array".to_string())
             .unwrap();
 
-        eprintln!("Batch update: Processing {} elements", count);
+        log::info!("Batch update: Processing {} elements", count);
 
-        let mut element_map = crate::ELEMENT_MAP.lock().unwrap();
+        let mut element_map = crate::ELEMENT_MAP
+            .lock()
+            .expect("Failed to acquire ELEMENT_MAP lock in gpui_batch_update_elements");
 
         for (_i, elem_value) in elements_array.iter().enumerate() {
             if let Some(elem_obj) = elem_value.as_object() {
@@ -166,7 +170,7 @@ pub extern "C" fn gpui_batch_update_elements(
             }
         }
 
-        eprintln!("Updating children references...");
+        log::debug!("Updating children references...");
 
         for (_i, elem_value) in elements_array.iter().enumerate() {
             if let Some(elem_obj) = elem_value.as_object() {
@@ -195,8 +199,9 @@ pub extern "C" fn gpui_batch_update_elements(
 
         drop(element_map);
 
-        eprintln!("Children updated for all elements");
+        log::debug!("Children updated for all elements");
 
         *result = FfiResult::success();
+        log::debug!("gpui_batch_update_elements: completed successfully");
     }
 }

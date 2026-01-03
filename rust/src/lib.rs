@@ -3,6 +3,7 @@ mod batch_updates;
 mod element_store;
 mod elements;
 mod ffi_types;
+mod logging;
 
 use std::collections::HashMap;
 use std::ffi::CStr;
@@ -25,25 +26,26 @@ lazy_static::lazy_static! {
 #[no_mangle]
 pub extern "C" fn gpui_init(width: f32, height: f32, result: *mut FfiResult) {
     unsafe {
-        eprintln!("gpui_init: checking initialization...");
+        logging::init_logging();
+        log::info!("gpui_init: checking initialization...");
 
         if GPUI_INITIALIZED.load(Ordering::SeqCst) {
-            eprintln!("gpui_init: already initialized");
+            log::info!("gpui_init: already initialized");
             *result = FfiResult::success();
             return;
         }
 
-        eprintln!("gpui_init: starting GPUI thread...");
-        start_gpui_thread(width,height);
+        log::info!("gpui_init: starting GPUI thread...");
+        start_gpui_thread(width, height);
         GPUI_INITIALIZED.store(true, Ordering::SeqCst);
 
         // Wait a bit for the thread to start
         std::thread::sleep(std::time::Duration::from_millis(500));
 
         if GPUI_THREAD_STARTED.load(Ordering::SeqCst) {
-            eprintln!("gpui_init: GPUI thread started successfully");
+            log::info!("gpui_init: GPUI thread started successfully");
         } else {
-            eprintln!("gpui_init: warning - GPUI thread may not have started");
+            log::warn!("gpui_init: warning - GPUI thread may not have started");
         }
 
         *result = FfiResult::success();
@@ -66,8 +68,10 @@ pub extern "C" fn gpui_render_frame(
     children_ptr: *const u64,
     result_ptr: *mut FfiResult,
 ) {
+    log::debug!("gpui_render_frame: called");
     unsafe {
         if result_ptr.is_null() {
+            log::error!("gpui_render_frame: result_ptr is null");
             return;
         }
 
@@ -110,9 +114,13 @@ pub extern "C" fn gpui_render_frame(
             slice.to_vec()
         };
 
-        eprintln!(
+        log::debug!(
             "gpui_render_frame: id={}, type={}, text={:?}, child_count={}, children={:?}",
-            global_id, element_type, text, child_count, children
+            global_id,
+            element_type,
+            text,
+            child_count,
+            children
         );
 
         // Add ALL elements to the map (not just the root)
@@ -126,7 +134,9 @@ pub extern "C" fn gpui_render_frame(
             event_handlers: None,
         });
 
-        let mut element_map = ELEMENT_MAP.lock().unwrap();
+        let mut element_map = ELEMENT_MAP
+            .lock()
+            .expect("Failed to acquire ELEMENT_MAP lock in gpui_update_element");
         element_map.insert(global_id, element.clone());
 
         for &child_id in &children {
@@ -150,20 +160,25 @@ pub extern "C" fn gpui_render_frame(
 
         rebuild_tree(global_id, &children);
 
-        let mut tree = ELEMENT_TREE.lock().unwrap();
+        let mut tree = ELEMENT_TREE
+            .lock()
+            .expect("Failed to acquire ELEMENT_TREE lock in gpui_render_frame");
         *tree = Some(get_root_element());
 
         RENDER_TRIGGER.fetch_add(1, Ordering::SeqCst);
 
         let result_buf = std::slice::from_raw_parts_mut(result_ptr as *mut u8, 8);
         result_buf[0] = 0;
+        log::debug!("gpui_render_frame: completed successfully");
     }
 }
 
 fn get_root_element() -> Arc<ReactElement> {
     let root_id = ROOT_ELEMENT_ID.load(Ordering::SeqCst);
 
-    let element_map = ELEMENT_MAP.lock().unwrap();
+    let element_map = ELEMENT_MAP
+        .lock()
+        .expect("Failed to acquire ELEMENT_MAP lock in get_root_element");
 
     if root_id == 0 {
         return element_map.values().next().cloned().unwrap_or_else(|| {
@@ -191,33 +206,38 @@ fn get_root_element() -> Arc<ReactElement> {
 }
 
 fn rebuild_tree(root_id: u64, children: &[u64]) {
-    eprintln!("rebuild_tree: root_id={}, children={:?}", root_id, children);
-    let element_map = ELEMENT_MAP.lock().unwrap();
+    log::debug!("rebuild_tree: root_id={}, children={:?}", root_id, children);
+    let element_map = ELEMENT_MAP
+        .lock()
+        .expect("Failed to acquire ELEMENT_MAP lock in rebuild_tree (first lock)");
 
-    eprintln!("  element_map has {} entries", element_map.len());
+    log::trace!("  element_map has {} entries", element_map.len());
     for (id, elem) in element_map.iter() {
-        eprintln!("    id={}, type={}", id, elem.element_type);
+        log::trace!("    id={}, type={}", id, elem.element_type);
     }
 
     if let Some(root) = element_map.get(&root_id) {
-        eprintln!(
+        log::debug!(
             "  found root element: id={}, type={}",
-            root.global_id, root.element_type
+            root.global_id,
+            root.element_type
         );
         let child_elements: Vec<Arc<ReactElement>> = children
             .iter()
             .filter_map(|id| {
-                eprintln!("    looking up child id={}", id);
+                log::trace!("    looking up child id={}", id);
                 element_map.get(id).cloned()
             })
             .collect();
-        eprintln!("  found {} child elements", child_elements.len());
+        log::debug!("  found {} child elements", child_elements.len());
 
         drop(element_map);
 
-        let mut element_map = ELEMENT_MAP.lock().unwrap();
+        let mut element_map = ELEMENT_MAP
+            .lock()
+            .expect("Failed to acquire ELEMENT_MAP lock in rebuild_tree (second lock)");
         if let Some(root) = element_map.get_mut(&root_id) {
-            eprintln!(
+            log::debug!(
                 "  updating root children to {} elements",
                 child_elements.len()
             );
@@ -226,7 +246,7 @@ fn rebuild_tree(root_id: u64, children: &[u64]) {
             root_mut.style = crate::element_store::ElementStyle::default();
         }
     } else {
-        eprintln!("  root element not found!");
+        log::warn!("  root element not found!");
     }
 }
 
@@ -238,13 +258,15 @@ pub extern "C" fn gpui_update_element(
     json_ptr: *const std::os::raw::c_char,
     result_ptr: *mut FfiResult,
 ) {
+    log::debug!("gpui_update_element: called");
     unsafe {
         if result_ptr.is_null() || json_ptr.is_null() {
+            log::error!("gpui_update_element: result_ptr or json_ptr is null");
             return;
         }
 
         let json_str = CStr::from_ptr(json_ptr).to_string_lossy();
-        eprintln!("gpui_update_element: {}", json_str);
+        log::debug!("gpui_update_element: {}", json_str);
 
         match serde_json::from_str::<serde_json::Value>(&json_str) {
             Ok(json) => {
@@ -358,7 +380,9 @@ pub extern "C" fn gpui_update_element(
                         crate::element_store::ElementStyle::default()
                     };
 
-                    let mut element_map = ELEMENT_MAP.lock().unwrap();
+                    let mut element_map = ELEMENT_MAP
+                        .lock()
+                        .expect("Failed to acquire ELEMENT_MAP lock in gpui_render_frame");
 
                     let element_type_clone = element_type.clone();
                     let text_clone = text.clone();
@@ -413,9 +437,10 @@ pub extern "C" fn gpui_update_element(
                 }
             }
             Err(e) => {
-                eprintln!("Failed to parse JSON: {}", e);
+                log::error!("Failed to parse JSON in gpui_update_element: {}", e);
             }
         }
+        log::debug!("gpui_update_element: completed");
     }
 }
 
