@@ -37,11 +37,6 @@ export interface StyleProps {
   onMouseLeave?: (event: MouseEvent) => void;
 }
 
-export interface GpuiStyleValue {
-  type: 'color' | 'size' | 'number';
-  value: any;
-}
-
 /**
  * Parse CSS color string to GPUI RGB value
  * Supports: hex (#RRGGBB, #RGB), rgb(r, g, b), rgba(r, g, b, a), named colors

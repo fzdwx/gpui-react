@@ -23,7 +23,7 @@ lazy_static::lazy_static! {
 }
 
 #[no_mangle]
-pub extern "C" fn gpui_init(_width: f32, _height: f32, result: *mut FfiResult) {
+pub extern "C" fn gpui_init(width: f32, height: f32, result: *mut FfiResult) {
     unsafe {
         eprintln!("gpui_init: checking initialization...");
 
@@ -34,7 +34,7 @@ pub extern "C" fn gpui_init(_width: f32, _height: f32, result: *mut FfiResult) {
         }
 
         eprintln!("gpui_init: starting GPUI thread...");
-        start_gpui_thread();
+        start_gpui_thread(width,height);
         GPUI_INITIALIZED.store(true, Ordering::SeqCst);
 
         // Wait a bit for the thread to start

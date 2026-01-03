@@ -211,7 +211,7 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
     }
 }
 
-pub fn start_gpui_thread() {
+pub fn start_gpui_thread(width: f32, height: f32) {
     eprintln!("start_gpui_thread: spawning thread...");
 
     std::thread::spawn(|| {
@@ -225,8 +225,8 @@ pub fn start_gpui_thread() {
             eprintln!("GPUI thread: app.run() callback entered");
 
             let size = Size {
-                width: px(800.0),
-                height: px(600.0),
+                width: px(width),
+                height: px(height),
             };
             let origin = Point {
                 x: px(100.0),
