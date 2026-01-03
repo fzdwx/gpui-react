@@ -15,6 +15,7 @@ use crate::ffi_types::FfiResult;
 static GPUI_INITIALIZED: AtomicBool = AtomicBool::new(false);
 static RENDER_COUNT: AtomicU64 = AtomicU64::new(0);
 pub static GPUI_THREAD_STARTED: AtomicBool = AtomicBool::new(false);
+static ROOT_ELEMENT_ID: AtomicU64 = AtomicU64::new(0);
 
 // Global map to store all elements by ID
 lazy_static::lazy_static! {
@@ -122,6 +123,7 @@ pub extern "C" fn gpui_render_frame(
             text: text.clone(),
             children: Vec::new(),
             style: crate::element_store::ElementStyle::default(),
+            event_handlers: None,
         });
 
         let mut element_map = ELEMENT_MAP.lock().unwrap();
@@ -135,12 +137,16 @@ pub extern "C" fn gpui_render_frame(
                     text: None,
                     children: Vec::new(),
                     style: crate::element_store::ElementStyle::default(),
+                    event_handlers: None,
                 });
                 element_map.insert(child_id, placeholder);
             }
         }
 
         drop(element_map);
+
+        // Store the root element ID
+        ROOT_ELEMENT_ID.store(global_id, Ordering::SeqCst);
 
         rebuild_tree(global_id, &children);
 
@@ -155,30 +161,31 @@ pub extern "C" fn gpui_render_frame(
 }
 
 fn get_root_element() -> Arc<ReactElement> {
+    let root_id = ROOT_ELEMENT_ID.load(Ordering::SeqCst);
+
     let element_map = ELEMENT_MAP.lock().unwrap();
 
-    let _all_ids: std::collections::HashSet<u64> = element_map.keys().cloned().collect();
-
-    for id in element_map.keys() {
-        let mut is_root = true;
-        for element in element_map.values() {
-            if element.children.iter().any(|c| c.global_id == *id) {
-                is_root = false;
-                break;
-            }
-        }
-        if is_root {
-            return element_map.get(id).unwrap().clone();
-        }
+    if root_id == 0 {
+        return element_map.values().next().cloned().unwrap_or_else(|| {
+            Arc::new(ReactElement {
+                global_id: 0,
+                element_type: "empty".to_string(),
+                text: None,
+                children: Vec::new(),
+                style: crate::element_store::ElementStyle::default(),
+                event_handlers: None,
+            })
+        });
     }
 
-    element_map.values().next().cloned().unwrap_or_else(|| {
+    element_map.get(&root_id).cloned().unwrap_or_else(|| {
         Arc::new(ReactElement {
             global_id: 0,
             element_type: "empty".to_string(),
             text: None,
             children: Vec::new(),
             style: crate::element_store::ElementStyle::default(),
+            event_handlers: None,
         })
     })
 }
@@ -367,6 +374,7 @@ pub extern "C" fn gpui_update_element(
                         text: text_clone,
                         children: Vec::new(),
                         style: style.clone(),
+                        event_handlers: None,
                     });
                     element_map.insert(id, new_element);
 
@@ -378,6 +386,7 @@ pub extern "C" fn gpui_update_element(
                                 text: None,
                                 children: Vec::new(),
                                 style: crate::element_store::ElementStyle::default(),
+                                event_handlers: None,
                             });
                             element_map.insert(child_id, placeholder);
                         }
@@ -396,6 +405,8 @@ pub extern "C" fn gpui_update_element(
                         updated.style = style.clone();
                         *existing = Arc::new(updated);
                     }
+
+                    drop(element_map);
 
                     let result_buf = std::slice::from_raw_parts_mut(result_ptr as *mut u8, 8);
                     result_buf[0] = 0;

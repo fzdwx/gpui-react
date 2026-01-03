@@ -158,7 +158,18 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
             text_element
         }
         "span" => {
-            let text = element.text.clone().unwrap_or_default();
+            let text = if let Some(ref t) = element.text {
+                t.clone()
+            } else {
+                element
+                    .children
+                    .iter()
+                    .filter(|c| c.element_type == "text")
+                    .filter_map(|c| c.text.as_ref())
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join("")
+            };
             eprintln!("  rendering span (inline text): '{}'", text);
 
             let mut span_element = div().child(text);

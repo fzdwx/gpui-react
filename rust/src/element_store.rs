@@ -86,6 +86,7 @@ pub fn parse_element(data: &crate::ffi_types::ElementData) -> Result<Arc<ReactEl
         text,
         children,
         style: crate::element_store::ElementStyle::default(),
+        event_handlers: None,
     }))
 }
 

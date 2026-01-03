@@ -128,11 +128,13 @@ const config = {
   appendInitialChild(parent: number, child: number): void {
     console.log("appendInitialChild:", { parent, child });
     elementStore.appendChild(parent, child);
+    updateElement(elementStore.getElement(parent));
   },
 
   appendChild(parent: number, child: number): void {
     console.log("appendChild:", { parent, child });
     elementStore.appendChild(parent, child);
+    updateElement(elementStore.getElement(parent));
   },
 
   appendChildToContainer(container: any, child: number): void {
