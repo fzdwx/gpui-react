@@ -2,12 +2,9 @@ use gpui::{
     div, prelude::*, px, rgb, Application as GpuiApp, Bounds, Entity, Point, Render, Size, Window,
     WindowBounds, WindowOptions,
 };
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::element_store::{ReactElement, ELEMENT_TREE, RENDER_TRIGGER};
 use crate::GPUI_THREAD_STARTED;
-
-pub static WINDOW_CLOSED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone)]
 struct RootState {
@@ -269,7 +266,6 @@ pub fn start_gpui_thread(width: f32, height: f32) {
         });
 
         log::debug!("GPUI thread: app.run() returned");
-        WINDOW_CLOSED.store(true, Ordering::SeqCst);
     });
 
     log::info!("start_gpui_thread: thread spawned");

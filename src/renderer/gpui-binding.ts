@@ -39,10 +39,6 @@ const lib = dlopen(libPath, {
     args: [FFIType.ptr, FFIType.ptr, FFIType.ptr],
     returns: FFIType.void,
   },
-  gpui_run: {
-    args: [FFIType.ptr],
-    returns: FFIType.void,
-  },
 });
 
 if (!lib.symbols) {
@@ -133,12 +129,12 @@ export function renderFrame(element: any): void {
 
   // Call FFI with all parameters as pointers
   lib.symbols.gpui_render_frame(
-    globalIdPtr,
-    typePtr,
-    textPtr,
-    childCountPtr,
-    childrenPtr,
-    resultBuffer
+      globalIdPtr,
+      typePtr,
+      textPtr,
+      childCountPtr,
+      childrenPtr,
+      resultBuffer
   );
 
   // Check result (first 4 bytes are status)
@@ -177,10 +173,4 @@ export function batchElementUpdates(elements: any[]): void {
   lib.symbols.gpui_batch_update_elements(countPtr, elementsPtr, resultBuffer);
 
   console.log(`=== Batch update completed for ${elements.length} elements ===`);
-}
-
-export function run(): void {
-  const resultBuffer = new Uint8Array(FFI_RESULT_SIZE);
-  lib.symbols.gpui_run(resultBuffer);
-  checkResult(resultBuffer);
 }
