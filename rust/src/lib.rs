@@ -114,6 +114,8 @@ pub extern "C" fn gpui_render_frame(
             global_id, element_type, text, child_count, children
         );
 
+        // Add ALL elements to the map (not just the root)
+        // The root element gets full data, children get placeholder entries
         let element = Arc::new(ReactElement {
             global_id,
             element_type: element_type.clone(),
@@ -123,6 +125,18 @@ pub extern "C" fn gpui_render_frame(
 
         let mut element_map = ELEMENT_MAP.lock().unwrap();
         element_map.insert(global_id, element.clone());
+
+        for &child_id in &children {
+            if !element_map.contains_key(&child_id) {
+                let placeholder = Arc::new(ReactElement {
+                    global_id: child_id,
+                    element_type: "placeholder".to_string(),
+                    text: None,
+                    children: Vec::new(),
+                });
+                element_map.insert(child_id, placeholder);
+            }
+        }
 
         drop(element_map);
 
@@ -167,26 +181,126 @@ fn get_root_element() -> Arc<ReactElement> {
 }
 
 fn rebuild_tree(root_id: u64, children: &[u64]) {
+    eprintln!("rebuild_tree: root_id={}, children={:?}", root_id, children);
     let element_map = ELEMENT_MAP.lock().unwrap();
 
+    eprintln!("  element_map has {} entries", element_map.len());
+    for (id, elem) in element_map.iter() {
+        eprintln!("    id={}, type={}", id, elem.element_type);
+    }
+
     if let Some(root) = element_map.get(&root_id) {
+        eprintln!(
+            "  found root element: id={}, type={}",
+            root.global_id, root.element_type
+        );
         let child_elements: Vec<Arc<ReactElement>> = children
             .iter()
-            .filter_map(|id| element_map.get(id).cloned())
+            .filter_map(|id| {
+                eprintln!("    looking up child id={}", id);
+                element_map.get(id).cloned()
+            })
             .collect();
+        eprintln!("  found {} child elements", child_elements.len());
 
         drop(element_map);
 
         let mut element_map = ELEMENT_MAP.lock().unwrap();
         if let Some(root) = element_map.get_mut(&root_id) {
+            eprintln!(
+                "  updating root children to {} elements",
+                child_elements.len()
+            );
             let root_mut = Arc::make_mut(root);
             root_mut.children = child_elements;
         }
+    } else {
+        eprintln!("  root element not found!");
     }
 }
 
 #[no_mangle]
 pub extern "C" fn gpui_free_result(_result: FfiResult) {}
+
+#[no_mangle]
+pub extern "C" fn gpui_update_element(
+    json_ptr: *const std::os::raw::c_char,
+    result_ptr: *mut FfiResult,
+) {
+    unsafe {
+        if result_ptr.is_null() || json_ptr.is_null() {
+            return;
+        }
+
+        let json_str = CStr::from_ptr(json_ptr).to_string_lossy();
+        eprintln!("gpui_update_element: {}", json_str);
+
+        match serde_json::from_str::<serde_json::Value>(&json_str) {
+            Ok(json) => {
+                if let Some(id) = json.get("globalId").and_then(|v| v.as_u64()) {
+                    let element_type = json
+                        .get("type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let text = json
+                        .get("text")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    let mut element_map = ELEMENT_MAP.lock().unwrap();
+
+                    let element_type_clone = element_type.clone();
+                    let text_clone = text.clone();
+                    let children_data: Vec<u64> = json
+                        .get("children")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().filter_map(|c| c.as_u64()).collect())
+                        .unwrap_or_default();
+
+                    let new_element = Arc::new(ReactElement {
+                        global_id: id,
+                        element_type: element_type_clone,
+                        text: text_clone,
+                        children: Vec::new(),
+                    });
+                    element_map.insert(id, new_element);
+
+                    for &child_id in &children_data {
+                        if !element_map.contains_key(&child_id) {
+                            let placeholder = Arc::new(ReactElement {
+                                global_id: child_id,
+                                element_type: "placeholder".to_string(),
+                                text: None,
+                                children: Vec::new(),
+                            });
+                            element_map.insert(child_id, placeholder);
+                        }
+                    }
+
+                    let mut child_refs: Vec<Arc<ReactElement>> = Vec::new();
+                    for &cid in &children_data {
+                        if let Some(child) = element_map.get(&cid) {
+                            child_refs.push(child.clone());
+                        }
+                    }
+
+                    if let Some(existing) = element_map.get_mut(&id) {
+                        let mut updated = (**existing).clone();
+                        updated.children = child_refs;
+                        *existing = Arc::new(updated);
+                    }
+
+                    let result_buf = std::slice::from_raw_parts_mut(result_ptr as *mut u8, 8);
+                    result_buf[0] = 0;
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to parse JSON: {}", e);
+            }
+        }
+    }
+}
 
 #[no_mangle]
 pub extern "C" fn gpui_trigger_render(_result: *mut FfiResult) {

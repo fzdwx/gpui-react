@@ -1,6 +1,6 @@
 import * as ReactReconciler from "react-reconciler";
 import { elementStore } from "./element-store";
-import { renderFrame } from "./gpui-binding";
+import { renderFrame, updateElement } from "./gpui-binding";
 
 const config = {
   supportsMutation: true,
@@ -36,6 +36,7 @@ const config = {
   createTextInstance(text: string): number {
     const id = elementStore.createElement("text", String(text));
     console.log("createTextInstance:", { text, id });
+    updateElement(elementStore.getElement(id));
     return id;
   },
 
@@ -44,12 +45,14 @@ const config = {
     if (element) {
       element.text = String(newText);
       console.log("commitTextUpdate:", { textInstance, newText });
+      updateElement(element);
     }
   },
 
   createInstance(type: string, props: any): number {
     const id = elementStore.createElement(type);
     console.log("createInstance:", { type, id });
+    updateElement(elementStore.getElement(id));
     return id;
   },
 

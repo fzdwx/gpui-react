@@ -31,6 +31,10 @@ const lib = dlopen(libPath, {
     args: [FFIType.ptr],
     returns: FFIType.void,
   },
+  gpui_update_element: {
+    args: [FFIType.ptr, FFIType.ptr],
+    returns: FFIType.void,
+  },
 });
 
 if (!lib.symbols) {
@@ -139,4 +143,19 @@ export function renderFrame(element: any): void {
   lib.symbols.gpui_trigger_render(triggerBuffer);
 
   console.log("=== renderFrame completed ===");
+}
+
+export function updateElement(element: any): void {
+  // Clear old buffers
+  liveBuffers.length = 0;
+
+  // Serialize element to JSON
+  const jsonString = JSON.stringify(element);
+  const jsonBuffer = new TextEncoder().encode(jsonString + "\0");
+  liveBuffers.push(jsonBuffer.buffer);
+  const jsonPtr = ptr(jsonBuffer);
+
+  const resultBuffer = new Uint8Array(8);
+
+  lib.symbols.gpui_update_element(jsonPtr, resultBuffer);
 }

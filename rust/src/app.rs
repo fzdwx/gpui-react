@@ -37,6 +37,10 @@ impl Render for RootView {
         self.update_state(cx);
 
         let tree = ELEMENT_TREE.lock().unwrap();
+        eprintln!(
+            "RootView.render: tree={:?}",
+            tree.as_ref().map(|e| (e.global_id, &e.element_type))
+        );
 
         // Wrap in a container div to ensure consistent return type
         div().size(px(800.0)).bg(rgb(0x1e1e1e)).child(match &*tree {
@@ -50,6 +54,10 @@ impl Render for RootView {
 
 /// Render a ReactElement to GPUI elements
 fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
+    eprintln!(
+        "render_element_to_gpui: type={}, text={:?}",
+        element.element_type, element.text
+    );
     match element.element_type.as_str() {
         "div" => {
             let children: Vec<gpui::Div> = element
@@ -57,15 +65,18 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
                 .iter()
                 .map(|c| render_element_to_gpui(c))
                 .collect();
+            eprintln!("  div has {} children", children.len());
             div()
                 .flex()
                 .justify_center()
                 .items_center()
                 .bg(rgb(0x2d2d2d))
+                .size(px(400.0))
                 .children(children)
         }
         "text" => {
             let text = element.text.clone().unwrap_or_default();
+            eprintln!("  rendering text: '{}'", text);
             div().child(text).text_color(rgb(0xffffff))
         }
         _ => div().child(format!("[Unknown: {}]", element.element_type)),
