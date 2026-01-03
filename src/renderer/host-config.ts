@@ -1,11 +1,12 @@
 import * as ReactReconciler from "react-reconciler";
 import { elementStore } from "./element-store";
-import { renderFrame, updateElement } from "./gpui-binding";
+import { renderFrame, batchElementUpdates } from "./gpui-binding";
 import { mapStyleToProps, StyleProps } from "./styles";
 import { EventHandler, MouseEvent, Event } from "./events";
 
 let nextEventId = 0;
 const eventHandlers = new Map<number, EventHandler>();
+const pendingUpdates: any[] = [];
 
 function registerEventHandler(handler: EventHandler): number {
   const id = nextEventId++;
@@ -65,6 +66,18 @@ function extractEventHandlers(props: any): Record<string, number> {
   return handlers;
 }
 
+function queueElementUpdate(element: any): void {
+  if (!element) return;
+
+  const existingIndex = pendingUpdates.findIndex((e) => e.globalId === element.globalId);
+
+  if (existingIndex !== -1) {
+    pendingUpdates[existingIndex] = element;
+  } else {
+    pendingUpdates.push(element);
+  }
+}
+
 const config = {
   supportsMutation: true,
 
@@ -85,6 +98,12 @@ const config = {
   },
 
   resetAfterCommit(): void {
+    if (pendingUpdates.length > 0) {
+      console.log(`=== Processing ${pendingUpdates.length} batched updates ===`);
+      batchElementUpdates(pendingUpdates);
+      pendingUpdates.length = 0;
+    }
+
     const root = elementStore.getRoot();
     console.log("resetAfterCommit - root element:", JSON.stringify(root, null, 2));
     renderFrame(root);
@@ -101,7 +120,7 @@ const config = {
     const styles = mapStyleToProps(styleProps);
     const id = elementStore.createElement("text", String(text), styles);
     console.log("createTextInstance:", { text, id, styles });
-    updateElement(elementStore.getElement(id));
+    queueElementUpdate(elementStore.getElement(id));
     return id;
   },
 
@@ -110,7 +129,7 @@ const config = {
     if (element) {
       element.text = String(newText);
       console.log("commitTextUpdate:", { textInstance, newText });
-      updateElement(element);
+      queueElementUpdate(element);
     }
   },
 
@@ -121,20 +140,20 @@ const config = {
     const element = { ...styles, eventHandlers };
     const id = elementStore.createElement(type, undefined, element);
     console.log("createInstance:", { type, id, styles, eventHandlers });
-    updateElement(elementStore.getElement(id));
+    queueElementUpdate(elementStore.getElement(id));
     return id;
   },
 
   appendInitialChild(parent: number, child: number): void {
     console.log("appendInitialChild:", { parent, child });
     elementStore.appendChild(parent, child);
-    updateElement(elementStore.getElement(parent));
+    queueElementUpdate(elementStore.getElement(parent));
   },
 
   appendChild(parent: number, child: number): void {
     console.log("appendChild:", { parent, child });
     elementStore.appendChild(parent, child);
-    updateElement(elementStore.getElement(parent));
+    queueElementUpdate(elementStore.getElement(parent));
   },
 
   appendChildToContainer(container: any, child: number): void {

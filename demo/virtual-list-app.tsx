@@ -64,7 +64,7 @@ function App() {
         items,
         itemHeight: ITEM_HEIGHT,
         containerHeight: 400,
-        renderItem: (item: number, index: number) =>
+        renderItem: (item, index) =>
           React.createElement(
             'div',
             {
@@ -76,10 +76,8 @@ function App() {
               },
             },
             React.createElement('span', {
-              style: { color: '#ffffff', fontSize: '14px' },
-              null,
-              `Item ${item}`
-            })
+              style: { color: '#ffffff', fontSize: '14px' }
+            }, `Item ${item}`)
           ),
         overscan: 10,
       }),

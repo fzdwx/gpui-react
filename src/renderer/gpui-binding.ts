@@ -35,6 +35,10 @@ const lib = dlopen(libPath, {
     args: [FFIType.ptr, FFIType.ptr],
     returns: FFIType.void,
   },
+  gpui_batch_update_elements: {
+    args: [FFIType.ptr, FFIType.ptr, FFIType.ptr],
+    returns: FFIType.void,
+  },
 });
 
 if (!lib.symbols) {
@@ -145,17 +149,28 @@ export function renderFrame(element: any): void {
   console.log("=== renderFrame completed ===");
 }
 
-export function updateElement(element: any): void {
-  // Clear old buffers
+export function batchElementUpdates(elements: any[]): void {
+  if (elements.length === 0) {
+    return;
+  }
+
+  console.log(`=== Batching ${elements.length} element updates ===`);
+
   liveBuffers.length = 0;
 
-  // Serialize element to JSON
-  const jsonString = JSON.stringify(element);
-  const jsonBuffer = new TextEncoder().encode(jsonString + "\0");
-  liveBuffers.push(jsonBuffer.buffer);
-  const jsonPtr = ptr(jsonBuffer);
+  const countBuffer = new ArrayBuffer(8);
+  new DataView(countBuffer).setBigUint64(0, BigInt(elements.length), true);
+  liveBuffers.push(countBuffer);
+  const countPtr = ptr(countBuffer);
+
+  const elementsJsonString = JSON.stringify(elements);
+  const elementsBuffer = new TextEncoder().encode(elementsJsonString + "\0");
+  liveBuffers.push(elementsBuffer.buffer);
+  const elementsPtr = ptr(elementsBuffer);
 
   const resultBuffer = new Uint8Array(8);
 
-  lib.symbols.gpui_update_element(jsonPtr, resultBuffer);
+  lib.symbols.gpui_batch_update_elements(countPtr, elementsPtr, resultBuffer);
+
+  console.log(`=== Batch update completed for ${elements.length} elements ===`);
 }

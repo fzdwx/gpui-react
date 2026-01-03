@@ -1,4 +1,3 @@
-use gpui::{div, prelude::*, px, rgb, IntoElement, SharedString};
 use std::ffi::CStr;
 
 use crate::ffi_types::ElementData;

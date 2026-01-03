@@ -4,8 +4,6 @@ mod element_store;
 mod elements;
 mod ffi_types;
 
-use crate::batch_updates::gpui_batch_update_elements;
-
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -20,9 +18,8 @@ static RENDER_COUNT: AtomicU64 = AtomicU64::new(0);
 pub static GPUI_THREAD_STARTED: AtomicBool = AtomicBool::new(false);
 static ROOT_ELEMENT_ID: AtomicU64 = AtomicU64::new(0);
 
-// Global map to store all elements by ID
 lazy_static::lazy_static! {
-    static ref ELEMENT_MAP: std::sync::Mutex<HashMap<u64, Arc<ReactElement>>> = std::sync::Mutex::new(HashMap::new());
+    pub static ref ELEMENT_MAP: std::sync::Mutex<HashMap<u64, Arc<ReactElement>>> = std::sync::Mutex::new(HashMap::new());
 }
 
 #[no_mangle]
