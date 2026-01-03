@@ -10,7 +10,7 @@ use std::ffi::CStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use crate::app::start_gpui_thread;
+use crate::app::{start_gpui_thread, WINDOW_CLOSED};
 use crate::element_store::{ReactElement, ELEMENT_TREE, RENDER_TRIGGER};
 use crate::ffi_types::FfiResult;
 
@@ -447,4 +447,13 @@ pub extern "C" fn gpui_update_element(
 #[no_mangle]
 pub extern "C" fn gpui_trigger_render(_result: *mut FfiResult) {
     RENDER_COUNT.fetch_add(1, Ordering::SeqCst);
+}
+
+#[no_mangle]
+pub extern "C" fn gpui_run(_result: *mut FfiResult) {
+    log::info!("gpui_run: waiting for window to close...");
+    while !WINDOW_CLOSED.load(Ordering::SeqCst) {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    log::info!("gpui_run: window closed, exiting...");
 }

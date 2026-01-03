@@ -1,10 +1,11 @@
 import * as React from "react";
 import { reconciler } from "./host-config";
-import { init, createWindow } from "./gpui-binding";
+import { init, createWindow, run } from "./gpui-binding";
 
 export type Root = {
   render: (children: React.ReactNode) => void;
   unmount: () => void;
+  run: () => void;
 };
 
 export function createRoot(): Root {
@@ -35,6 +36,9 @@ export function createRoot(): Root {
     },
     unmount() {
       reconciler.updateContainer(null, rootContainer, null, null, () => {});
+    },
+    run() {
+      run();
     },
   };
 }

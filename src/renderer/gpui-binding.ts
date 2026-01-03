@@ -39,6 +39,10 @@ const lib = dlopen(libPath, {
     args: [FFIType.ptr, FFIType.ptr, FFIType.ptr],
     returns: FFIType.void,
   },
+  gpui_run: {
+    args: [FFIType.ptr],
+    returns: FFIType.void,
+  },
 });
 
 if (!lib.symbols) {
@@ -173,4 +177,10 @@ export function batchElementUpdates(elements: any[]): void {
   lib.symbols.gpui_batch_update_elements(countPtr, elementsPtr, resultBuffer);
 
   console.log(`=== Batch update completed for ${elements.length} elements ===`);
+}
+
+export function run(): void {
+  const resultBuffer = new Uint8Array(FFI_RESULT_SIZE);
+  lib.symbols.gpui_run(resultBuffer);
+  checkResult(resultBuffer);
 }

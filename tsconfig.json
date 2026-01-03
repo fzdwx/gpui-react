@@ -11,6 +11,8 @@
     "declaration": true,
     "declarationMap": true,
     "outDir": "./dist",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "types": [
                 "bun-types"
             ]

@@ -11,13 +11,9 @@ root.render(
 
 console.log("Flexbox demo running...");
 console.log("Expecting window with flex layouts");
+console.log("Window will stay open until you close it...");
 
-setTimeout(() => {
-  console.log("Done! The flexbox window should be visible.");
-  process.exit(0);
-}, 10000);
+root.run();
 
-process.on("SIGINT", () => {
-  console.log("\nShutting down...");
-  process.exit(0);
-});
+console.log("Window closed, exiting...");
+process.exit(0);
