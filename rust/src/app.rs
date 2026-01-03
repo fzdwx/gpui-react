@@ -34,28 +34,38 @@ impl Render for RootView {
         _window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) -> impl gpui::IntoElement {
+        let render_start = std::time::Instant::now();
         self.update_state(cx);
 
-        let tree = ELEMENT_TREE.lock().unwrap();
-        eprintln!(
+        let tree = ELEMENT_TREE
+            .lock()
+            .expect("Failed to acquire ELEMENT_TREE lock in RootView.render");
+        log::debug!(
             "RootView.render: tree={:?}",
             tree.as_ref().map(|e| (e.global_id, &e.element_type))
         );
 
-        div().size(px(800.0)).bg(rgb(0x1e1e1e)).child(match &*tree {
+        let result = div().size(px(800.0)).bg(rgb(0x1e1e1e)).child(match &*tree {
             Some(element) => render_element_to_gpui(&element),
             None => div()
                 .child("Waiting for React...")
                 .text_color(rgb(0x888888)),
-        })
+        });
+
+        let render_duration = render_start.elapsed();
+        log::debug!("RootView.render completed in {:?}", render_duration);
+
+        result
     }
 }
 
 /// Render a ReactElement to GPUI elements
 fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
-    eprintln!(
+    log::debug!(
         "render_element_to_gpui: type={}, text={:?}, style={:?}",
-        element.element_type, element.text, element.style
+        element.element_type,
+        element.text,
+        element.style
     );
 
     match element.element_type.as_str() {
@@ -65,7 +75,7 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
                 .iter()
                 .map(|c| render_element_to_gpui(c))
                 .collect();
-            eprintln!("  div has {} children", children.len());
+            log::trace!("  div has {} children", children.len());
 
             let is_flex = element.style.display.as_ref().map(|s| s.as_str()) == Some("flex");
 
@@ -141,7 +151,7 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
         }
         "text" => {
             let text = element.text.clone().unwrap_or_default();
-            eprintln!("  rendering text: '{}'", text);
+            log::trace!("  rendering text: '{}'", text);
 
             let mut text_element = div().child(text);
 
@@ -170,7 +180,7 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
                     .collect::<Vec<_>>()
                     .join("")
             };
-            eprintln!("  rendering span (inline text): '{}'", text);
+            log::trace!("  rendering span (inline text): '{}'", text);
 
             let mut span_element = div().child(text);
 
@@ -187,7 +197,7 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
             span_element
         }
         "img" => {
-            eprintln!("  rendering img");
+            log::trace!("  rendering img");
 
             let mut img_element = if let Some(ref src) = element.style.src {
                 div().child(format!("[Image: {}]", src))
@@ -212,17 +222,17 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
 }
 
 pub fn start_gpui_thread(width: f32, height: f32) {
-    eprintln!("start_gpui_thread: spawning thread...");
+    log::info!("start_gpui_thread: spawning thread...");
 
     std::thread::spawn(move || {
-        eprintln!("GPUI thread: starting...");
+        log::info!("GPUI thread: starting...");
         GPUI_THREAD_STARTED.store(true, std::sync::atomic::Ordering::SeqCst);
 
         let app = GpuiApp::new();
-        eprintln!("GPUI thread: app created");
+        log::debug!("GPUI thread: app created");
 
         app.run(move |cx: &mut gpui::App| {
-            eprintln!("GPUI thread: app.run() callback entered");
+            log::debug!("GPUI thread: app.run() callback entered");
 
             let size = Size {
                 width: px(width),
@@ -243,7 +253,7 @@ pub fn start_gpui_thread(width: f32, height: f32) {
                     ..Default::default()
                 },
                 |_window, cx| {
-                    eprintln!("GPUI thread: creating RootView");
+                    log::debug!("GPUI thread: creating RootView");
                     let state = cx.new(|_| RootState { render_count: 0 });
                     cx.new(|_| RootView {
                         state,
@@ -252,11 +262,11 @@ pub fn start_gpui_thread(width: f32, height: f32) {
                 },
             );
 
-            eprintln!("GPUI thread: window opened successfully!");
+            log::info!("GPUI thread: window opened successfully!");
         });
 
-        eprintln!("GPUI thread: app.run() returned");
+        log::debug!("GPUI thread: app.run() returned");
     });
 
-    eprintln!("start_gpui_thread: thread spawned");
+    log::info!("start_gpui_thread: thread spawned");
 }

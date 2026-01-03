@@ -72,7 +72,9 @@ pub fn parse_element(data: &crate::ffi_types::ElementData) -> Result<Arc<ReactEl
     let mut children = Vec::new();
     for i in 0..data.child_count {
         let child_id = unsafe { *data.children_ptr.offset(i as isize) };
-        let child_tree = ELEMENT_TREE.lock().unwrap();
+        let child_tree = ELEMENT_TREE
+            .lock()
+            .expect("Failed to acquire ELEMENT_TREE lock in parse_element");
         if let Some(ref root) = *child_tree {
             if let Some(child) = find_element_by_id(root, child_id) {
                 children.push(child.clone());
@@ -105,12 +107,14 @@ fn find_element_by_id(element: &Arc<ReactElement>, id: u64) -> Option<Arc<ReactE
 pub fn set_element_tree(data: &crate::ffi_types::ElementData) {
     match parse_element(data) {
         Ok(element) => {
-            let mut tree = ELEMENT_TREE.lock().unwrap();
+            let mut tree = ELEMENT_TREE
+                .lock()
+                .expect("Failed to acquire ELEMENT_TREE lock in set_element_tree");
             *tree = Some(element);
             RENDER_TRIGGER.fetch_add(1, Ordering::SeqCst);
         }
         Err(e) => {
-            eprintln!("Failed to parse element: {}", e);
+            log::error!("Failed to parse element in set_element_tree: {}", e);
         }
     }
 }
