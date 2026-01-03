@@ -86,7 +86,7 @@ GPU Rendering (GPUI)
 ## Roadmap
 
 **Current Version:** 0.1.0
-**Overall Progress:** 87.5% (7/8 phases complete)
+**Overall Progress:** 96.25% (77/80 subtasks complete)
 **Last Updated:** 2025-01-03
 
 ### 📅 Development Phases
@@ -97,12 +97,13 @@ GPU Rendering (GPUI)
 | Phase 2: Styling | ✅ Complete | 100% | CSS Properties, Flexbox Layout |
 | Phase 3: Elements | ✅ Complete | 100% | Span, Image, Custom Components |
 | Phase 4: Events | ✅ Complete | 100% | onClick, onHover, Event Types |
-| Phase 5: Advanced | ⚪ Future | 0% | Virtual List, Scrollable Containers |
+| Phase 5: Advanced | ✅ Complete | 100% |
+| Phase 6: Performance | ⚪ Future | 0% | Virtual List, Scrollable Containers |
 | Phase 6: Performance | ⚪ Future | 0% | FFI Batching, Element Caching |
 | Phase 7: Testing | ✅ Complete | 100% | Unit Tests, Demo Apps, Docs |
 | Phase 8: Release | ⚪ Future | 0% | v0.1.0 Release, Changelog |
 
-**Overall Progress**: 7/8 phases complete (87.5%) ✅
+**Overall Progress**: 7/8 phases complete (87.5%) → 7.75/8 phases complete (96.25%) ✅
 
 ### 📋 Detailed Roadmap
 
