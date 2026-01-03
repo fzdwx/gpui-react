@@ -1,7 +1,10 @@
 mod app;
+mod batch_updates;
 mod element_store;
 mod elements;
 mod ffi_types;
+
+use crate::batch_updates::gpui_batch_update_elements;
 
 use std::collections::HashMap;
 use std::ffi::CStr;

@@ -8,6 +8,14 @@ interface VirtualListProps<T> {
   overscan?: number;
 }
 
+interface VirtualListProps<T> {
+  items: T[];
+  itemHeight: number;
+  containerHeight: number;
+  renderItem: (item: T, index: number) => React.ReactNode;
+  overscan?: number;
+}
+
 export function VirtualList<T>({
   items,
   itemHeight,

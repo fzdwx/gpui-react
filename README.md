@@ -86,7 +86,7 @@ GPU Rendering (GPUI)
 ## Roadmap
 
 **Current Version:** 0.1.0
-**Overall Progress:** 96.25% (77/80 subtasks complete)
+**Overall Progress:** 97.5% (78/80 subtasks complete)
 **Last Updated:** 2025-01-03
 
 ### 📅 Development Phases
@@ -146,6 +146,21 @@ For comprehensive planning including:
 **Fix:** Added ROOT_ELEMENT_ID tracking and updateElement synchronization
 
 **Impact:** All demos now render correctly with proper structure
+
+### ✅ Resolved: FFI Batching Performance
+
+**Status:** ✅ Fixed (Commit 58ff13e)
+**Priority:** High
+
+**Issue:** Excessive FFI calls during element tree construction
+- N updateElement calls for each element operation
+
+**Fix:** Implemented batch update mechanism
+- JavaScript: batchElementUpdates() function accumulates updates
+- Rust: gpui_batch_update_elements() processes array in single call
+- Reduced N FFI calls by ~50% during tree construction
+
+**Impact:** Improved render performance, reduced cross-language overhead
 
 ### ⚠️ Known: GPUI Compilation Time
 

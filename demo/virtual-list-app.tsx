@@ -1,14 +1,14 @@
-import React from 'react';
-import { createRoot } from '../renderer/index';
-import { VirtualList } from '../components/VirtualList';
+import React, { useState, useEffect } from 'react';
+import { createRoot } from '../src/renderer/index';
+import { VirtualList } from '../src/components/VirtualList';
 
 const LARGE_DATASET_SIZE = 10000;
 const ITEM_HEIGHT = 50;
 
 function App() {
-  const [items, setItems] = React.useState<number[]>([]);
+  const [items, setItems] = useState<number[]>([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const generateItems = () => {
       const newItems = Array.from({ length: LARGE_DATASET_SIZE }, (_, i) => i + 1);
       setItems(newItems);
