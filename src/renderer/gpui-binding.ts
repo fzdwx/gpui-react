@@ -6,6 +6,9 @@ const libPath = join(import.meta.dir, "../../rust/target/release", libName);
 
 console.log(`Loading GPUI library from: ${libPath}`);
 
+// Keep buffers alive - they must not be garbage collected while FFI call is in flight
+const liveBuffers: ArrayBuffer[] = [];
+
 const lib = dlopen(libPath, {
   gpui_init: {
     args: [FFIType.f32, FFIType.f32, FFIType.ptr],
@@ -67,23 +70,32 @@ export function renderFrame(element: any): void {
   console.log("=== renderFrame called ===");
   console.log("Element:", JSON.stringify(element, null, 2));
 
+  // Clear old buffers (they're only needed during the FFI call)
+  liveBuffers.length = 0;
+
   // Create buffers for each parameter
   const globalIdBuffer = new ArrayBuffer(8);
-  new DataView(globalIdBuffer).setBigUint64(0, BigInt(element.globalId));
+  new DataView(globalIdBuffer).setBigUint64(0, BigInt(element.globalId), true); // little-endian
+  liveBuffers.push(globalIdBuffer);
   const globalIdPtr = ptr(globalIdBuffer);
 
-  const typeBuffer = new TextEncoder().encode(element.type);
+  const typeBuffer = new TextEncoder().encode(element.type + "\0"); // null-terminate
+  liveBuffers.push(typeBuffer.buffer);
   const typePtr = ptr(typeBuffer);
+
   const textContent = element.text || " ";
-  const textBuffer = new TextEncoder().encode(textContent);
+  const textBuffer = new TextEncoder().encode(textContent + "\0"); // null-terminate
+  liveBuffers.push(textBuffer.buffer);
   const textPtr = ptr(textBuffer);
+
   const childrenArray = element.children || [];
-  
+
   // Create child count buffer (8 bytes)
   const childCountBuffer = new ArrayBuffer(8);
-  new DataView(childCountBuffer).setBigUint64(0, BigInt(childrenArray.length));
+  new DataView(childCountBuffer).setBigUint64(0, BigInt(childrenArray.length), true); // little-endian
+  liveBuffers.push(childCountBuffer);
   const childCountPtr = ptr(childCountBuffer);
-   
+
   // Create children buffer with child IDs
   const childrenByteLength = childrenArray.length * 8;
   const childrenBuffer = new ArrayBuffer(childrenByteLength);
@@ -93,6 +105,7 @@ export function renderFrame(element: any): void {
       childrenView[i] = BigInt(childrenArray[i]);
     }
   }
+  liveBuffers.push(childrenBuffer);
   const childrenPtr = ptr(childrenBuffer);
 
   console.log("FFI params:", {

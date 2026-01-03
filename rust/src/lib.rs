@@ -14,6 +14,7 @@ use crate::ffi_types::FfiResult;
 
 static GPUI_INITIALIZED: AtomicBool = AtomicBool::new(false);
 static RENDER_COUNT: AtomicU64 = AtomicU64::new(0);
+pub static GPUI_THREAD_STARTED: AtomicBool = AtomicBool::new(false);
 
 // Global map to store all elements by ID
 lazy_static::lazy_static! {
@@ -23,10 +24,27 @@ lazy_static::lazy_static! {
 #[no_mangle]
 pub extern "C" fn gpui_init(_width: f32, _height: f32, result: *mut FfiResult) {
     unsafe {
-        if !GPUI_INITIALIZED.load(Ordering::SeqCst) {
-            start_gpui_thread();
-            GPUI_INITIALIZED.store(true, Ordering::SeqCst);
+        eprintln!("gpui_init: checking initialization...");
+
+        if GPUI_INITIALIZED.load(Ordering::SeqCst) {
+            eprintln!("gpui_init: already initialized");
+            *result = FfiResult::success();
+            return;
         }
+
+        eprintln!("gpui_init: starting GPUI thread...");
+        start_gpui_thread();
+        GPUI_INITIALIZED.store(true, Ordering::SeqCst);
+
+        // Wait a bit for the thread to start
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        if GPUI_THREAD_STARTED.load(Ordering::SeqCst) {
+            eprintln!("gpui_init: GPUI thread started successfully");
+        } else {
+            eprintln!("gpui_init: warning - GPUI thread may not have started");
+        }
+
         *result = FfiResult::success();
     }
 }
@@ -52,46 +70,48 @@ pub extern "C" fn gpui_render_frame(
             return;
         }
 
-        let global_id = if !global_id_ptr.is_null() {
+        // Read global_id (little-endian u64 from 8-byte buffer)
+        let global_id = if global_id_ptr.is_null() {
+            0
+        } else {
             let buf = std::slice::from_raw_parts(global_id_ptr, 8);
             u64::from_le_bytes([
                 buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
             ])
-        } else {
-            0
         };
 
-        let child_count = if !child_count_ptr.is_null() {
+        // Read child_count (little-endian u64 from 8-byte buffer)
+        let child_count = if child_count_ptr.is_null() {
+            0
+        } else {
             let buf = std::slice::from_raw_parts(child_count_ptr, 8);
             u64::from_le_bytes([
                 buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
             ]) as usize
-        } else {
-            0
         };
 
-        let element_type = if !type_ptr.is_null() {
-            CStr::from_ptr(type_ptr).to_string_lossy().to_string()
-        } else {
+        let element_type = if type_ptr.is_null() {
             String::from("unknown")
+        } else {
+            CStr::from_ptr(type_ptr).to_string_lossy().to_string()
         };
 
-        let text = if !text_ptr.is_null() {
-            Some(CStr::from_ptr(text_ptr).to_string_lossy().to_string())
-        } else {
+        let text = if text_ptr.is_null() {
             None
+        } else {
+            Some(CStr::from_ptr(text_ptr).to_string_lossy().to_string())
         };
 
-        let children: Vec<u64> = if !children_ptr.is_null() && child_count > 0 {
-            let children_slice = std::slice::from_raw_parts(children_ptr, child_count);
-            children_slice.to_vec()
-        } else {
+        let children: Vec<u64> = if children_ptr.is_null() || child_count == 0 {
             Vec::new()
+        } else {
+            let slice = std::slice::from_raw_parts(children_ptr, child_count);
+            slice.to_vec()
         };
 
         eprintln!(
-            "gpui_render_frame: id={}, type={}, text={:?}, children={:?}",
-            global_id, element_type, text, children
+            "gpui_render_frame: id={}, type={}, text={:?}, child_count={}, children={:?}",
+            global_id, element_type, text, child_count, children
         );
 
         let element = Arc::new(ReactElement {
