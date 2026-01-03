@@ -155,23 +155,47 @@ pub extern "C" fn gpui_batch_update_elements(
 
                 let element = Arc::new(ReactElement {
                     global_id,
-                    element_type: element_type.clone(),
+                    element_type,
                     text,
                     children: Vec::new(),
                     style,
                     event_handlers: None,
                 });
 
-                element_map.insert(global_id, element);
+                element_map.insert(global_id, element.clone());
+            }
+        }
 
-                eprintln!(
-                    "Batch update: Updated element {} ({})",
-                    global_id, element_type
-                );
+        eprintln!("Updating children references...");
+
+        for (_i, elem_value) in elements_array.iter().enumerate() {
+            if let Some(elem_obj) = elem_value.as_object() {
+                if let Some(global_id) = elem_obj.get("globalId").and_then(|v| v.as_u64()) {
+                    if let Some(children_arr) = elem_obj.get("children").and_then(|v| v.as_array())
+                    {
+                        let children_ids: Vec<u64> =
+                            children_arr.iter().filter_map(|c| c.as_u64()).collect();
+
+                        let mut child_refs: Vec<Arc<ReactElement>> = Vec::new();
+
+                        for &cid in &children_ids {
+                            if let Some(child) = element_map.get(&cid) {
+                                child_refs.push(child.clone() as Arc<ReactElement>);
+                            }
+                        }
+
+                        if let Some(element) = element_map.get_mut(&global_id) {
+                            let element_mut = Arc::make_mut(element);
+                            element_mut.children = child_refs;
+                        }
+                    }
+                }
             }
         }
 
         drop(element_map);
+
+        eprintln!("Children updated for all elements");
 
         *result = FfiResult::success();
     }

@@ -214,7 +214,7 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
 pub fn start_gpui_thread(width: f32, height: f32) {
     eprintln!("start_gpui_thread: spawning thread...");
 
-    std::thread::spawn(|| {
+    std::thread::spawn(move || {
         eprintln!("GPUI thread: starting...");
         GPUI_THREAD_STARTED.store(true, std::sync::atomic::Ordering::SeqCst);
 
