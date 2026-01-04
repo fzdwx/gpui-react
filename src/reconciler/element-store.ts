@@ -5,6 +5,7 @@ export interface ElementData {
   children: number[];
   style?: Record<string, any>;
   eventHandlers?: Record<string, number>;
+  store: ElementStore;  // Reference back to the store for accessing element data
 }
 
 export class ElementStore {
@@ -20,13 +21,15 @@ export class ElementStore {
 
   createElement(type: string, text?: string, style?: Record<string, any>): number {
     const globalId = this.nextId++;
-    this.store.set(globalId, {
+    const element: ElementData = {
       globalId,
       type,
       text,
       style,
       children: [],
-    });
+      store: this,
+    };
+    this.store.set(globalId, element);
     console.log("createElement:", { type, globalId, style });
     return globalId;
   }

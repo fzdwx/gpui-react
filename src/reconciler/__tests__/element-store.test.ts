@@ -1,4 +1,6 @@
-import { elementStore } from "../element-store";
+import { ElementStore } from "../element-store";
+
+const elementStore = new ElementStore();
 
 console.log("Running element store tests...");
 

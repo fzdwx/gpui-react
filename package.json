@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "module": "src/index.ts",
   "devDependencies": {
-    "@types/react": "18.2.0",
-    "@types/react-reconciler": "^0.32.3",
+    "@types/react": "^19.0.0",
+    "@types/react-reconciler": "^0.32.0",
     "bun-types": "latest",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "react": ">=19.0.0"
   },
   "scripts": {
     "build:rust": "cd rust && cargo build --release",
@@ -20,7 +21,6 @@
   },
   "type": "module",
   "dependencies": {
-    "react": "18.2.0",
-    "react-reconciler": "0.29.0"
+    "react-reconciler": "^0.32.0"
   }
 }

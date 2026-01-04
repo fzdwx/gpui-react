@@ -1,9 +1,10 @@
 import * as ReactReconciler from "react-reconciler";
-import {ElementStore} from "./element-store";
+import {ElementStore, ElementData} from "./element-store";
 import {renderFrame, batchElementUpdates} from "./gpui-binding";
 import {mapStyleToProps, StyleProps} from "./styles";
 import {EventHandler, MouseEvent, Event} from "./events";
 import {HostConfig, OpaqueHandle} from "react-reconciler";
+import {DefaultEventPriority, NoEventPriority} from "react-reconciler/constants";
 
 // Import ReactContext from react-reconciler namespace
 type ReactContext<T> = ReactReconciler.ReactContext<T>;
@@ -11,9 +12,7 @@ type ReactContext<T> = ReactReconciler.ReactContext<T>;
 // Type parameters for HostConfig
 type Type = string;              // Element type ("div", "text", etc.)
 type Props = any;                // Component props
-type Container = ElementStore;            // Root container
-type Instance = number;          // Element instance ID
-type TextInstance = number;      // Text element instance ID
+type Container = ElementStore;   // Root container
 type SuspenseInstance = never;   // Not supported
 type HydratableInstance = never; // Not supported
 type FormInstance = never;       // Not supported
@@ -24,6 +23,26 @@ type TimeoutHandle = number;     // setTimeout return type
 type NoTimeout = -1;             // Invalid timeout constant
 type TransitionStatus = any;     // Transition status
 type EventPriority = number;     // Event priority type
+
+// Instance type - self-contained object with store reference
+export interface Instance {
+    id: number;
+    type: string;
+    text?: string;
+    children: Instance[];
+    style?: Record<string, any>;
+    eventHandlers?: Record<string, number>;
+    store: ElementStore;
+}
+
+// TextInstance type - same structure for text nodes
+export interface TextInstance {
+    id: number;
+    type: "text";
+    text: string;
+    children: [];
+    store: ElementStore;
+}
 
 let nextEventId = 0;
 const eventHandlers = new Map<number, EventHandler>();
@@ -99,6 +118,7 @@ function queueElementUpdate(element: any): void {
     }
 }
 
+let currentUpdatePriority = 0;
 export const hostConfig: HostConfig<
     Type,
     Props,
@@ -169,15 +189,24 @@ export const hostConfig: HostConfig<
         const styles = mapStyleToProps(styleProps);
         const id = rootContainer.createElement("text", String(text), styles);
         console.log("createTextInstance:", {text, id, styles});
+
+        // Return self-contained TextInstance object with store reference
+        const instance: TextInstance = {
+            id,
+            type: "text",
+            text: String(text),
+            children: [],
+            store: rootContainer,
+        };
         queueElementUpdate(rootContainer.getElement(id));
-        return id;
+        return instance;
     },
 
     commitTextUpdate(textInstance: TextInstance, oldText: string, newText: string): void {
-        const element = rootContainer.getElement(textInstance);
+        textInstance.text = String(newText);
+        console.log("commitTextUpdate:", {textInstance, newText});
+        const element = textInstance.store.getElement(textInstance.id);
         if (element) {
-            element.text = String(newText);
-            console.log("commitTextUpdate:", {textInstance, newText});
             queueElementUpdate(element);
         }
     },
@@ -192,30 +221,44 @@ export const hostConfig: HostConfig<
         const styleProps = extractStyleProps(props);
         const styles = mapStyleToProps(styleProps);
         const eventHandlers = extractEventHandlers(props);
-        const element = {...styles, eventHandlers};
-        const id = rootContainer.createElement(type, undefined, element);
+        const id = rootContainer.createElement(type, undefined, {...styles, eventHandlers});
         console.log("createInstance:", {type, id, styles, eventHandlers});
+
+        // Return self-contained Instance object with store reference
+        const instance: Instance = {
+            id,
+            type,
+            children: [],
+            style: styles,
+            eventHandlers,
+            store: rootContainer,
+        };
         queueElementUpdate(rootContainer.getElement(id));
-        return id;
+        return instance;
     },
 
     appendInitialChild(parentInstance: Instance, child: Instance | TextInstance): void {
         console.log("appendInitialChild:", {parent: parentInstance, child});
-        rootContainer.appendChild(parentInstance, child);
-        queueElementUpdate(rootContainer.getElement(parentInstance));
+        // Add to local children array
+        parentInstance.children.push(child as Instance);
+        // Also update the store
+        parentInstance.store.appendChild(parentInstance.id, (child as Instance).id);
+        queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
     appendChild(parentInstance: Instance, child: Instance | TextInstance): void {
         console.log("appendChild:", {parent: parentInstance, child});
-        rootContainer.appendChild(parentInstance, child);
-        queueElementUpdate(rootContainer.getElement(parentInstance));
+        // Add to local children array
+        parentInstance.children.push(child as Instance);
+        // Also update the store
+        parentInstance.store.appendChild(parentInstance.id, (child as Instance).id);
+        queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
     appendChildToContainer(container: Container, child: Instance | TextInstance): void {
         console.log("appendChildToContainer:", {container, child});
         // Track the first child as the root element
-        rootContainer.setContainerChild(child);
-        // Don't append to a fake element 1 - just track the root
+        container.setContainerChild((child as Instance).id);
     },
 
     insertBefore(
@@ -223,15 +266,16 @@ export const hostConfig: HostConfig<
         child: Instance | TextInstance,
         beforeChild: Instance | TextInstance,
     ): void {
-        const parentEl = rootContainer.getElement(parentInstance);
-        if (!parentEl) return;
+        const childInstance = child as Instance;
+        const beforeChildInstance = beforeChild as Instance;
 
-        const beforeIndex = parentEl.children.indexOf(beforeChild);
+        const beforeIndex = parentInstance.children.indexOf(beforeChildInstance);
         if (beforeIndex !== -1) {
-            parentEl.children.splice(beforeIndex, 0, child);
+            parentInstance.children.splice(beforeIndex, 0, childInstance);
         } else {
-            parentEl.children.push(child);
+            parentInstance.children.push(childInstance);
         }
+        queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
     insertInContainerBefore(
@@ -244,19 +288,19 @@ export const hostConfig: HostConfig<
     },
 
     removeChild(parentInstance: Instance, child: Instance | TextInstance): void {
-        const parentEl = rootContainer.getElement(parentInstance);
-        if (!parentEl) return;
-
-        const index = parentEl.children.indexOf(child);
+        const childInstance = child as Instance;
+        const index = parentInstance.children.indexOf(childInstance);
         if (index !== -1) {
-            parentEl.children.splice(index, 1);
+            parentInstance.children.splice(index, 1);
         }
+        parentInstance.store.removeChild(parentInstance.id, childInstance.id);
+        queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
     removeChildFromContainer(container: Container, child: Instance | TextInstance): void {
         console.log("removeChildFromContainer:", {container, child});
-        // The child is being removed from the container - it should be the root element
-        // For now, just log it since we don't have a parent-child relationship at container level
+        const childInstance = child as Instance;
+        container.removeChild(container.getRoot().globalId, childInstance.id);
     },
 
     commitUpdate(
@@ -266,9 +310,12 @@ export const hostConfig: HostConfig<
         nextProps: Props,
         internalHandle: OpaqueHandle,
     ): void {
-        const element = rootContainer.getElement(instance);
-        if (element && nextProps && typeof nextProps.children === "string") {
-            element.text = nextProps.children;
+        if (nextProps && typeof nextProps.children === "string") {
+            instance.text = String(nextProps.children);
+            const element = instance.store.getElement(instance.id);
+            if (element) {
+                queueElementUpdate(element);
+            }
         }
     },
 
@@ -329,17 +376,6 @@ export const hostConfig: HostConfig<
 
     HostTransitionContext: null as any as ReactContext<TransitionStatus>,
 
-    setCurrentUpdatePriority(newPriority: EventPriority): void {
-    },
-
-    getCurrentUpdatePriority(): EventPriority {
-        return 0;
-    },
-
-    resolveUpdatePriority(): EventPriority {
-        return 0;
-    },
-
     resetFormInstance(form: FormInstance): void {
     },
 
@@ -380,4 +416,18 @@ export const hostConfig: HostConfig<
         | null {
         return null;
     },
-};
+
+    setCurrentUpdatePriority(newPriority: number) {
+        currentUpdatePriority = newPriority
+    },
+
+    getCurrentUpdatePriority: () => currentUpdatePriority,
+
+    resolveUpdatePriority() {
+        if (currentUpdatePriority !== NoEventPriority) {
+            return currentUpdatePriority
+        }
+
+        return DefaultEventPriority
+    },
+}

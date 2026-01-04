@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useState} from "react";
 
 let clickCount = 0;
 
@@ -7,6 +7,11 @@ export function EventApp() {
     clickCount++;
     console.log(`Button clicked! Count: ${clickCount}`);
   }
+  let text=  "123123123123"
+
+  setTimeout(()=>{
+    text=  "hello world"
+  },1000)
 
   return (
     <div style={{
@@ -22,7 +27,7 @@ export function EventApp() {
         fontSize: 24,
         fontWeight: "bold"
       }}>
-        Click the button below:
+        {text}
       </div>
       <div style={{
         backgroundColor: "#ff6b6b",

@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-01-04 09:14:00
-**Commit:** 3ac410a
+**Generated:** 2026-01-04 15:45:00
+**Commit:** d095190
 **Branch:** main
 
 ## OVERVIEW
@@ -10,7 +10,7 @@ React renderer for GPUI (Zed's GPU-accelerated UI) using Bun FFI. Architecture: 
 ## STRUCTURE
 ```
 gpui-react/
-├── demo/              # Demo applications (10 files)
+├── demo/              # Demo apps (10 files)
 ├── rust/              # Rust FFI library
 │   └── src/        # Rust source (8 files)
 ├── src/renderer/      # React reconciler + FFI bindings (7 files)
@@ -25,9 +25,9 @@ gpui-react/
 | Element management | src/renderer/element-store.ts | JS-side element data |
 | FFI bindings | src/renderer/gpui-binding.ts | Bun FFI calls to Rust |
 | Rust FFI exports | rust/src/lib.rs | gpui_init, gpui_render_frame, gpui_update_element |
-| GPUI rendering | rust/src/app.rs | RootView + render_element_to_gpui |
+| GPUI rendering | rust/src/renderer.rs | RootView + render_element_to_gpui |
 | Element data model | rust/src/element_store.rs | ReactElement + ElementStyle |
-| Run demo | bun run demo/{flex,styled,elements,event}-demo | | |
+| Run demo | bun run demo/{flex,styled,elements,event}-demo | |
 
 ## CONVENTIONS
 - **Rust nested:** Rust code in rust/ subdirectory (not root src/)
@@ -49,11 +49,11 @@ gpui-react/
 ## COMMANDS
 ```bash
 cd rust && cargo build --release  # Build Rust library (2-5 min first time)
-bun run demo                            # Run basic demo
-bun run elements-demo                   # Run span/div elements demo
-bun run flex-demo                      # Run flexbox demo
-bun run styled-demo                    # Run styling demo
-bun run event-demo                    # Run event handling demo
+bun run demo                      # Run basic demo
+bun run elements-demo             # Run span/div elements demo
+bun run flex-demo                 # Run flexbox demo
+bun run styled-demo               # Run styling demo
+bun run event-demo                # Run event handling demo
 ```
 
 ## NOTES
