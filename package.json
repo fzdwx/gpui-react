@@ -15,7 +15,6 @@
     "flex-demo": "bun run demo/flex-index.ts",
     "elements-demo": "bun run demo/elements-index.ts",
     "event-demo": "bun run demo/event-index.ts",
-    "virtual-list-demo": "bun run demo/virtual-list-index.ts",
     "test:": "bun run src/renderer/__tests__/element-store.test.ts",
     "dev": "bun run build:rust && bun run demo"
   },

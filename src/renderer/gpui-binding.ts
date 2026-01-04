@@ -31,10 +31,6 @@ const lib = dlopen(libPath, {
     args: [FFIType.ptr],
     returns: FFIType.void,
   },
-  gpui_update_element: {
-    args: [FFIType.ptr, FFIType.ptr],
-    returns: FFIType.void,
-  },
   gpui_batch_update_elements: {
     args: [FFIType.ptr, FFIType.ptr, FFIType.ptr],
     returns: FFIType.void,

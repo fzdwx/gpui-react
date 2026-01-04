@@ -1,11 +1,25 @@
-# PROJECT KNOWLEDGE BASE
+# RUST/SRC - Rust FFI Library
 
-**Generated:** 2026-01-03
-**Commit:** main
+**Generated:** 2026-01-04 09:14:00
+**Commit:** 3ac410a
+**Branch:** main
 **Scope:** rust/src only
 
 ## OVERVIEW
 Rust FFI library for GPUI integration - handles React element tree rendering to GPU-accelerated UI.
+
+## STRUCTURE
+```
+rust/src/
+├── lib.rs              # FFI exports (gpui_init, gpui_render_frame, gpui_update_element)
+├── app.rs              # GPUI rendering (RootView, render_element_to_gpui)
+├── element_store.rs    # Element data model (ReactElement, ElementStyle)
+├── ffi_types.rs        # FFI type definitions
+├── elements.rs         # Element rendering helpers
+├── batch_updates.rs    # Batch update handling
+├── global_state.rs     # Global state management
+└── logging.rs          # Logging configuration
+```
 
 ## WHERE TO LOOK
 | Task | File | Notes |

@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2025-01-03 16:20:00
-**Commit:** 21b71c68
+**Generated:** 2026-01-04 09:14:00
+**Commit:** 3ac410a
 **Branch:** main
 
 ## OVERVIEW
@@ -10,12 +10,12 @@ React renderer for GPUI (Zed's GPU-accelerated UI) using Bun FFI. Architecture: 
 ## STRUCTURE
 ```
 gpui-react/
-├── demo/              # Demo applications (11 files)
-├── rust/              # Rust FFI library (2 files)
-│   └── src/        # Rust source (5 files)
-├── src/renderer/      # React reconciler + FFI bindings (6 files)
+├── demo/              # Demo applications (10 files)
+├── rust/              # Rust FFI library
+│   └── src/        # Rust source (8 files)
+├── src/renderer/      # React reconciler + FFI bindings (7 files)
 │   └── __tests__/   # Manual tests
-└── docs/             # Plans + roadmap
+└── dist/             # TypeScript build output
 ```
 
 ## WHERE TO LOOK
@@ -27,7 +27,7 @@ gpui-react/
 | Rust FFI exports | rust/src/lib.rs | gpui_init, gpui_render_frame, gpui_update_element |
 | GPUI rendering | rust/src/app.rs | RootView + render_element_to_gpui |
 | Element data model | rust/src/element_store.rs | ReactElement + ElementStyle |
-| Run demo | bun run demo/{flex,styled,elements}-demo | | |
+| Run demo | bun run demo/{flex,styled,elements,event}-demo | | |
 
 ## CONVENTIONS
 - **Rust nested:** Rust code in rust/ subdirectory (not root src/)
@@ -53,6 +53,7 @@ bun run demo                            # Run basic demo
 bun run elements-demo                   # Run span/div elements demo
 bun run flex-demo                      # Run flexbox demo
 bun run styled-demo                    # Run styling demo
+bun run event-demo                    # Run event handling demo
 ```
 
 ## NOTES

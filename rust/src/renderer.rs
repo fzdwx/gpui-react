@@ -2,9 +2,9 @@ use gpui::{
     div, prelude::*, px, rgb, Application as GpuiApp, Bounds, Entity, Point, Render, Size, Window,
     WindowBounds, WindowOptions,
 };
-
-use crate::element_store::{ReactElement, ELEMENT_TREE, RENDER_TRIGGER};
-use crate::GPUI_THREAD_STARTED;
+use crate::element::ReactElement;
+use crate::global_state::GLOBAL_STATE;
+use crate::window_state::WINDOW_STATE;
 
 #[derive(Clone)]
 struct RootState {
@@ -18,7 +18,7 @@ struct RootView {
 
 impl RootView {
     fn update_state(&mut self, cx: &mut gpui::Context<Self>) {
-        let trigger = RENDER_TRIGGER.load(std::sync::atomic::Ordering::SeqCst);
+        let trigger = WINDOW_STATE.get_render_trigger();
         if trigger != self.last_render {
             self.last_render = trigger;
             self.state.update(cx, |state, _| {
@@ -37,9 +37,10 @@ impl Render for RootView {
         let render_start = std::time::Instant::now();
         self.update_state(cx);
 
-        let tree = ELEMENT_TREE
+        let tree = WINDOW_STATE
+            .element_tree
             .lock()
-            .expect("Failed to acquire ELEMENT_TREE lock in RootView.render");
+            .expect("Failed to acquire element_tree lock in RootView.render");
         log::debug!(
             "RootView.render: tree={:?}",
             tree.as_ref().map(|e| (e.global_id, &e.element_type))
@@ -226,7 +227,7 @@ pub fn start_gpui_thread(width: f32, height: f32) {
 
     std::thread::spawn(move || {
         log::info!("GPUI thread: starting...");
-        GPUI_THREAD_STARTED.store(true, std::sync::atomic::Ordering::SeqCst);
+        GLOBAL_STATE.set_thread_started(true);
 
         let app = GpuiApp::new();
         log::debug!("GPUI thread: app created");

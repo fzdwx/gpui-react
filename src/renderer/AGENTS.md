@@ -1,10 +1,23 @@
 # SRC/RENDERER - React Reconciler + FFI Bindings
 
-**Generated:** 2025-01-03 16:30:00
+**Generated:** 2026-01-04 09:14:00
+**Commit:** 3ac410a
 **Branch:** main
 
 ## OVERVIEW
-React-to-GPUI bridge: reconciler config, element store, Bun FFI bindings (6 files).
+React-to-GPUI bridge: reconciler config, element store, Bun FFI bindings (7 files).
+
+## STRUCTURE
+```
+src/renderer/
+├── index.ts            # Public API (createRoot, init, createWindow)
+├── host-config.ts      # React reconciler host config
+├── element-store.ts    # JS-side element data store
+├── gpui-binding.ts     # Bun FFI bindings to Rust
+├── styles.ts           # Style mapping utilities
+├── events.ts           # Event type definitions
+└── __tests__/         # Manual tests
+```
 
 ## WHERE TO LOOK
 | Task | Location | Notes |
