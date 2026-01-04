@@ -170,10 +170,19 @@ export const hostConfig: HostConfig<
         const root = containerInfo.getRoot();
         console.log("resetAfterCommit - root element:", JSON.stringify(root, null, 2));
         renderFrame(root);
+
+        // Force GPUI to re-render by using setImmediate to ensure event loop processes
+        // GPUI is event-driven, so we need to ensure it processes state changes
+        setImmediate(() => {
+            // Additional trigger to ensure GPUI picks up changes
+            if (typeof window !== 'undefined' && (window as any).__gpuiTrigger) {
+                (window as any).__gpuiTrigger();
+            }
+        });
     },
 
     shouldSetTextContent(type: Type, props: Props): boolean {
-        return false; // Force React to call createTextInstance for text children
+        return false; // Let React use createTextInstance/commitTextUpdate for text
     },
 
     resetTextContent(instance: Instance): void {
@@ -204,11 +213,13 @@ export const hostConfig: HostConfig<
 
     commitTextUpdate(textInstance: TextInstance, oldText: string, newText: string): void {
         textInstance.text = String(newText);
-        console.log("commitTextUpdate:", {textInstance, newText});
+        console.log("commitTextUpdate: old=%s new=%s", oldText, newText);
         const element = textInstance.store.getElement(textInstance.id);
         if (element) {
+            element.text = String(newText);  // Sync to ElementStore
             queueElementUpdate(element);
         }
+        console.log("commitTextUpdate: pendingUpdates now has %d items", pendingUpdates.length);
     },
 
     createInstance(
@@ -257,8 +268,11 @@ export const hostConfig: HostConfig<
 
     appendChildToContainer(container: Container, child: Instance | TextInstance): void {
         console.log("appendChildToContainer:", {container, child});
+        const childInstance = child as Instance;
         // Track the first child as the root element
-        container.setContainerChild((child as Instance).id);
+        container.setContainerChild(childInstance.id);
+        // Queue the child (not root) for update so it gets rendered
+        queueElementUpdate(container.getElement(childInstance.id));
     },
 
     insertBefore(

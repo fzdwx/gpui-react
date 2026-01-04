@@ -1,6 +1,7 @@
 mod element;
 mod ffi_types;
 mod global_state;
+mod host_command;
 mod logging;
 mod renderer;
 mod window_state;
@@ -11,6 +12,7 @@ use std::sync::Arc;
 use crate::element::ReactElement;
 use crate::ffi_types::FfiResult;
 use crate::global_state::GLOBAL_STATE;
+use crate::host_command::{send_host_command, HostCommand};
 use crate::renderer::start_gpui_thread;
 use crate::window_state::WINDOW_STATE;
 
@@ -30,9 +32,6 @@ pub extern "C" fn gpui_init(width: f32, height: f32, result: *mut FfiResult) {
         start_gpui_thread(width, height);
         GLOBAL_STATE.set_initialized(true);
 
-        // Wait a bit for the thread to start
-        // std::thread::sleep(std::time::Duration::from_millis(500));
-
         if GLOBAL_STATE.is_thread_started() {
             log::info!("gpui_init: GPUI thread started successfully");
         } else {
@@ -44,7 +43,10 @@ pub extern "C" fn gpui_init(width: f32, height: f32, result: *mut FfiResult) {
 }
 
 #[no_mangle]
-pub extern "C" fn gpui_create_window(_width: f32, _height: f32, result: *mut FfiResult) {
+pub extern "C" fn gpui_create_window(width: f32, height: f32, result: *mut FfiResult) {
+    // Trigger command bus to create window asynchronously
+    send_host_command(HostCommand::CreateWindow { width, height });
+    
     unsafe {
         *result = FfiResult::success();
     }
@@ -154,7 +156,8 @@ pub extern "C" fn gpui_render_frame(
 
         WINDOW_STATE.update_element_tree();
 
-        WINDOW_STATE.trigger_render();
+        // Send trigger_render command to force GPUI to pick up changes
+        send_host_command(HostCommand::TriggerRender);
 
         let result_buf = std::slice::from_raw_parts_mut(result_ptr as *mut u8, 8);
         result_buf[0] = 0;
@@ -168,6 +171,7 @@ pub extern "C" fn gpui_free_result(_result: FfiResult) {}
 #[no_mangle]
 pub extern "C" fn gpui_trigger_render(_result: *mut FfiResult) {
     WINDOW_STATE.increment_render_count();
+    send_host_command(HostCommand::TriggerRender);
 }
 
 #[no_mangle]
@@ -367,8 +371,19 @@ pub extern "C" fn gpui_batch_update_elements(
 
         log::debug!("Children updated for all elements");
 
+        // Update the element tree so render picks up changes
+        WINDOW_STATE.update_element_tree();
+
+        // Send trigger_render command
+        send_host_command(HostCommand::TriggerRender);
+
+        let trigger = WINDOW_STATE.get_render_count();
+        log::debug!(
+            "Triggering render, current count: {}",
+            trigger
+        );
+
         *result = FfiResult::success();
         log::debug!("gpui_batch_update_elements: completed successfully");
     }
 }
-

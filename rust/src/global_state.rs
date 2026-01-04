@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use gpui::{Global, Window};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 /// 全局状态结构体 - 只包含真正全局的状态
 pub struct GlobalState {
@@ -7,13 +8,19 @@ pub struct GlobalState {
 
     /// GPUI 线程是否已启动
     gpui_thread_started: AtomicBool,
+
+    /// 当前窗口
+    current_window: AtomicU64,
 }
+
+impl Global for GlobalState {}
 
 impl GlobalState {
     pub fn new() -> Self {
         Self {
             gpui_initialized: AtomicBool::new(false),
             gpui_thread_started: AtomicBool::new(false),
+            current_window: AtomicU64::new(0),
         }
     }
 
@@ -35,6 +42,16 @@ impl GlobalState {
     /// 设置 GPUI 线程启动状态
     pub fn set_thread_started(&self, value: bool) {
         self.gpui_thread_started.store(value, Ordering::SeqCst);
+    }
+
+    /// 获取当前窗口 ID
+    pub fn get_current_window(&self) -> u64 {
+        self.current_window.load(Ordering::SeqCst)
+    }
+
+    /// 设置当前窗口 ID
+    pub fn set_current_window(&self, window_id: u64) {
+        self.current_window.store(window_id, Ordering::SeqCst);
     }
 }
 

@@ -1,63 +1,58 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-01-04 15:45:00
-**Commit:** d095190
-**Branch:** main
+**Generated:** 2026-01-04
+**Mode:** --create-new
 
 ## OVERVIEW
-React renderer for GPUI (Zed's GPU-accelerated UI) using Bun FFI. Architecture: React → Reconciler → Element Store → Bun FFI → Rust → GPUI → GPU.
+React renderer for GPUI (Zed's GPU-accelerated UI) using Bun native FFI. Architecture: React → Reconciler → Element Store → Bun FFI → Rust → GPUI → GPU.
 
 ## STRUCTURE
 ```
 gpui-react/
-├── demo/              # Demo apps (10 files)
 ├── rust/              # Rust FFI library
-│   └── src/        # Rust source (8 files)
-├── src/renderer/      # React reconciler + FFI bindings (7 files)
-│   └── __tests__/   # Manual tests
-└── dist/             # TypeScript build output
+│   └── src/        # 9 files: FFI exports, GPUI rendering
+├── src/renderer/     # 9 files: React reconciler, FFI bindings
+└── demo/             # Demo apps
 ```
 
 ## WHERE TO LOOK
 | Task | Location | Notes |
 |------|----------|-------|
-| Reconciler host config | src/renderer/host-config.ts | React-to-GPUI bridge |
+| React reconciler | src/renderer/host-config.ts | React-to-GPUI bridge |
 | Element management | src/renderer/element-store.ts | JS-side element data |
-| FFI bindings | src/renderer/gpui-binding.ts | Bun FFI calls to Rust |
-| Rust FFI exports | rust/src/lib.rs | gpui_init, gpui_render_frame, gpui_update_element |
-| GPUI rendering | rust/src/renderer.rs | RootView + render_element_to_gpui |
-| Element data model | rust/src/element_store.rs | ReactElement + ElementStyle |
-| Run demo | bun run demo/{flex,styled,elements,event}-demo | |
+| Bun FFI bindings | src/renderer/gpui-binding.ts | dlopen, FFIType, pointers |
+| Rust FFI exports | rust/src/lib.rs | gpui_init, gpui_trigger_render |
+| GPUI rendering | rust/src/renderer.rs | RootView, render_element_to_gpui |
+| Commands | rust/src/host_command.rs | async_channel command bus |
+| Window state | rust/src/window_state.rs | ElementTree, render_count |
 
 ## CONVENTIONS
-- **Rust nested:** Rust code in rust/ subdirectory (not root src/)
-- **FFI sync:** After appendChild, call updateElement() to sync children to Rust
-- **Root tracking:** ROOT_ELEMENT_ID in lib.rs tracks root element (HashMap iteration is non-deterministic)
-- **Manual tests:** Console.log assertions instead of test framework
-- **No CI/CD:** Build/test via npm scripts, no GitHub Actions
+- **Rust subdir:** Rust code in rust/src/ (not root src/)
+- **FFI sync:** Call `send_host_command(TriggerRender)` after batch updates
+- **Root tracking:** ROOT_ELEMENT_ID AtomicU64 (HashMap iteration is non-deterministic)
+- **Manual tests:** Console.log assertions, no test framework
+- **No CI/CD:** Build/test via npm scripts
 
 ## ANTI-PATTERNS (THIS PROJECT)
 - Don't iterate HashMap to find root - use ROOT_ELEMENT_ID
-- Don't call updateElement only on create - call after appendChild too
-- Don't render span children - collect text from child text elements
+- Don't skip updateElement after appendChild - children won't sync to Rust
+- Don't render span.text - collect from child text elements
+- Don't create ReactElement without event_handlers: None - required field
+- Don't call gpui_render_frame without rebuild_tree first
 
 ## UNIQUE STYLES
-- React reconciler wraps GPUI directly via Bun FFI
-- Span elements contain text elements as children (text in child.text, not span.text)
-- Two-phase rendering: React builds element tree → Rust tracks by ID → GPUI renders
+- Native Bun FFI (not wasm-bindgen) - no browser compatibility
+- Two-phase: React builds tree → Rust tracks by ID → GPUI renders
+- Span elements contain text elements as children (text in child.text)
+- Command bus: async_channel → GPUI App thread → window.refresh()
 
 ## COMMANDS
 ```bash
-cd rust && cargo build --release  # Build Rust library (2-5 min first time)
-bun run demo                      # Run basic demo
-bun run elements-demo             # Run span/div elements demo
-bun run flex-demo                 # Run flexbox demo
-bun run styled-demo               # Run styling demo
-bun run event-demo                # Run event handling demo
+cd rust && cargo build --release      # Build Rust library
+bun run demo                         # Run basic demo
+bun run event-demo                   # Run event handling demo
 ```
 
 ## NOTES
-- GPUI compilation is slow (downloads 3GB+ on first build)
-- Root element selection was buggy - now tracked with ROOT_ELEMENT_ID AtomicU64
-- Span rendering must collect text from children.text array
-- Always add event_handlers: None to ReactElement structs
+- GPUI compilation downloads 3GB+ on first build
+- Root element selection buggy - now tracked with ROOT_ELEMENT_ID

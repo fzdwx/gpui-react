@@ -100,8 +100,8 @@ export function renderFrame(element: any): void {
   liveBuffers.push(childCountBuffer);
   const childCountPtr = ptr(childCountBuffer);
 
-  // Create children buffer with child IDs
-  const childrenByteLength = childrenArray.length * 8;
+  // Create children buffer with child IDs (use min 8 bytes to avoid empty buffer issue)
+  const childrenByteLength = Math.max(childrenArray.length * 8, 8);
   const childrenBuffer = new ArrayBuffer(childrenByteLength);
   if (childrenArray.length > 0) {
     const childrenView = new BigUint64Array(childrenBuffer);
@@ -160,6 +160,7 @@ export function batchElementUpdates(elements: any[]): void {
   const countPtr = ptr(countBuffer);
 
   const elementsJsonString = JSON.stringify(elements);
+  console.log("batchElementUpdates - elements JSON:", elementsJsonString.substring(0, 500));
   const elementsBuffer = new TextEncoder().encode(elementsJsonString + "\0");
   liveBuffers.push(elementsBuffer.buffer);
   const elementsPtr = ptr(elementsBuffer);
@@ -167,6 +168,10 @@ export function batchElementUpdates(elements: any[]): void {
   const resultBuffer = new Uint8Array(8);
 
   lib.symbols.gpui_batch_update_elements(countPtr, elementsPtr, resultBuffer);
+
+  // Send trigger_render command to force GPUI to pick up state changes
+  const triggerBuffer = new Uint8Array(8);
+  lib.symbols.gpui_trigger_render(triggerBuffer);
 
   console.log(`=== Batch update completed for ${elements.length} elements ===`);
 }

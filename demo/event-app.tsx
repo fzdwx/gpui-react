@@ -1,4 +1,4 @@
-import React, {useState} from "react";
+import React, {useState, useEffect} from "react";
 
 let clickCount = 0;
 
@@ -7,11 +7,43 @@ export function EventApp() {
     clickCount++;
     console.log(`Button clicked! Count: ${clickCount}`);
   }
-  let text=  "123123123123"
+  let [text,setText] = useState("123123123123");
 
-  setTimeout(()=>{
-    text=  "hello world"
-  },1000)
+  useEffect(() => {
+    const timer = setTimeout(()=>{
+      console.log("测试定时1111111112111111111111111111111");
+      setText(`hello world 4${new Date()}`)
+      console.log("测试定时222222222222222222222")
+    },1000)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(()=>{
+      console.log("测试定时1111111112111111111111111111111");
+      setText(`hello world 4${new Date()}`)
+      console.log("测试定时222222222222222222222")
+    },3000)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(()=>{
+      console.log("测试定时1111111112111111111111111111111");
+      setText(`hello world 4${new Date()}`)
+      console.log("测试定时222222222222222222222")
+    },4000)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [])
 
   return (
     <div style={{

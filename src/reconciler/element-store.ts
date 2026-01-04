@@ -5,8 +5,11 @@ export interface ElementData {
   children: number[];
   style?: Record<string, any>;
   eventHandlers?: Record<string, number>;
-  store: ElementStore;  // Reference back to the store for accessing element data
+  // Note: store is non-enumerable to avoid serialization issues
 }
+
+// Symbol for private store reference
+const STORE_SYMBOL = Symbol('store');
 
 export class ElementStore {
   private store = new Map<number, ElementData>();
@@ -27,11 +30,17 @@ export class ElementStore {
       text,
       style,
       children: [],
-      store: this,
     };
+    // Store reference using non-enumerable property to avoid serialization
+    Object.defineProperty(element, STORE_SYMBOL, { value: this, writable: false, enumerable: false });
     this.store.set(globalId, element);
     console.log("createElement:", { type, globalId, style });
     return globalId;
+  }
+
+  // Get store reference from element (non-enumerable)
+  getStore(element: ElementData): ElementStore | undefined {
+    return (element as any)[STORE_SYMBOL];
   }
 
   appendChild(parentId: number, childId: number): void {

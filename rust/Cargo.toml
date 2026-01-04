@@ -15,3 +15,6 @@ serde_json = "1.0"
 lazy_static = "1.4"
 log = "0.4"
 logforth = "0.18"
+async-channel = "2.3"
+tokio = { version = "1", features = ["full"] }
+thiserror = "2"

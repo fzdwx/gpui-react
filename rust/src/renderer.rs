@@ -1,10 +1,11 @@
+use crate::element::ReactElement;
+use crate::global_state::GLOBAL_STATE;
+use crate::host_command;
+use crate::window_state::WINDOW_STATE;
 use gpui::{
     div, prelude::*, px, rgb, Application as GpuiApp, Bounds, Entity, Point, Render, Size, Window,
     WindowBounds, WindowOptions,
 };
-use crate::element::ReactElement;
-use crate::global_state::GLOBAL_STATE;
-use crate::window_state::WINDOW_STATE;
 
 #[derive(Clone)]
 struct RootState {
@@ -18,10 +19,21 @@ struct RootView {
 
 impl RootView {
     fn update_state(&mut self, cx: &mut gpui::Context<Self>) {
-        let trigger = WINDOW_STATE.get_render_trigger();
+        let trigger = WINDOW_STATE.get_render_count();
+        log::trace!(
+            "update_state: trigger={}, last_render={}",
+            trigger,
+            self.last_render
+        );
+
         if trigger != self.last_render {
+            log::debug!(
+                "update_state: trigger changed from {} to {}",
+                self.last_render,
+                trigger
+            );
             self.last_render = trigger;
-            self.state.update(cx, |state, _| {
+            self.state.update(cx, |state, _cx| {
                 state.render_count = trigger;
             });
         }
@@ -234,19 +246,42 @@ pub fn start_gpui_thread(width: f32, height: f32) {
 
         app.run(move |cx: &mut gpui::App| {
             log::debug!("GPUI thread: app.run() callback entered");
+            host_command::init(cx);
 
-            let size = Size {
-                width: px(width),
-                height: px(height),
+            log::info!("GPUI thread: initialized, window creation via gpui_create_window");
+        });
+
+        log::debug!("GPUI thread: app.run() returned");
+    });
+
+    log::info!("start_gpui_thread: thread spawned");
+}
+
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_WINDOW_ID: AtomicU64 = AtomicU64::new(1);
+
+pub fn handle_on_app_thread(command: crate::host_command::HostCommand, app: &mut gpui::App) {
+    log::trace!("handle_on_app_thread: {:?}", command);
+
+    match command {
+        crate::host_command::HostCommand::CreateWindow { width, height } => {
+            let size = gpui::Size {
+                width: gpui::px(width),
+                height: gpui::px(height),
             };
-            let origin = Point {
-                x: px(100.0),
-                y: px(100.0),
+            let origin = gpui::Point {
+                x: gpui::px(100.0),
+                y: gpui::px(100.0),
             };
-            let bounds = Bounds { origin, size };
-            let _window = cx.open_window(
-                WindowOptions {
-                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+            let bounds = gpui::Bounds { origin, size };
+
+            let window_id = NEXT_WINDOW_ID.fetch_add(1, Ordering::SeqCst);
+            crate::global_state::GLOBAL_STATE.set_current_window(window_id);
+
+            let _window = app.open_window(
+                gpui::WindowOptions {
+                    window_bounds: Some(gpui::WindowBounds::Windowed(bounds)),
                     titlebar: Some(gpui::TitlebarOptions {
                         title: Some("React-GPUI".into()),
                         ..Default::default()
@@ -254,7 +289,6 @@ pub fn start_gpui_thread(width: f32, height: f32) {
                     ..Default::default()
                 },
                 |_window, cx| {
-                    log::debug!("GPUI thread: creating RootView");
                     let state = cx.new(|_| RootState { render_count: 0 });
                     cx.new(|_| RootView {
                         state,
@@ -263,11 +297,21 @@ pub fn start_gpui_thread(width: f32, height: f32) {
                 },
             );
 
-            log::info!("GPUI thread: window opened successfully!");
-        });
+            log::info!("Created window with id: {}", window_id);
+        }
+        crate::host_command::HostCommand::RefreshWindow
+        | crate::host_command::HostCommand::TriggerRender
+        | crate::host_command::HostCommand::UpdateElementTree => {
+            WINDOW_STATE.update_element_tree();
 
-        log::debug!("GPUI thread: app.run() returned");
-    });
-
-    log::info!("start_gpui_thread: thread spawned");
+            if let Some(window) = app.windows().first() {
+                window.update(app, |_, window, _cx| {
+                    log::trace!("Calling window.refresh()");
+                    window.refresh();
+                });
+            } else {
+                log::warn!("No windows found to refresh");
+            }
+        }
+    }
 }

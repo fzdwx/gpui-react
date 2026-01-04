@@ -1,8 +1,5 @@
 # RUST/SRC - Rust FFI Library
 
-**Generated:** 2026-01-04 15:45:00
-**Commit:** d095190
-**Branch:** main
 **Scope:** rust/src only
 
 ## OVERVIEW
@@ -11,35 +8,30 @@ Rust FFI library for GPUI integration - handles React element tree rendering to 
 ## STRUCTURE
 ```
 rust/src/
-├── lib.rs              # FFI exports (gpui_init, gpui_render_frame, gpui_update_element)
-├── app.rs              # GPUI rendering (RootView, render_element_to_gpui)
-├── element_store.rs    # Element data model (ReactElement, ElementStyle)
-├── ffi_types.rs        # FFI type definitions
-├── elements.rs         # Element rendering helpers
-├── batch_updates.rs    # Batch update handling
-├── global_state.rs     # Global state management
-└── logging.rs          # Logging configuration
+├── lib.rs              # FFI exports (gpui_init, gpui_trigger_render)
+├── renderer.rs         # RootView, render_element_to_gpui
+├── element.rs          # ReactElement, ElementStyle
+├── host_command.rs     # async_channel command bus
+└── window_state.rs    # ElementTree, render_count
 ```
 
 ## WHERE TO LOOK
 | Task | File | Notes |
 |------|------|-------|
-| FFI exports | lib.rs | gpui_init, gpui_render_frame, gpui_update_element, gpui_trigger_render |
-| GPUI rendering | app.rs | RootView, render_element_to_gpui (div/text/span/img) |
-| Element data | element_store.rs | ReactElement struct, ElementStyle, ELEMENT_TREE global |
-| Span rendering | app.rs | Collect text from child text elements (not span.text) |
-| Tree rebuild | lib.rs | rebuild_tree() updates element.children from child refs |
+| FFI exports | lib.rs | gpui_init, gpui_trigger_render, gpui_batch_update_elements |
+| GPUI rendering | renderer.rs | render_element_to_gpui (div/text/span/img) |
+| Command bus | host_command.rs | init(cx), send_host_command(TriggerRender) |
+| Window state | window_state.rs | update_element_tree(), render_count |
 
 ## CONVENTIONS
-- **Root tracking**: ROOT_ELEMENT_ID AtomicU64 (HashMap iteration was non-deterministic)
-- **Event handlers**: All ReactElement structs require event_handlers: None field
-- **Tree rebuild**: After appendChild, call rebuild_tree() to sync children to ELEMENT_MAP
-- **Span text**: Collect from child text elements, not span.text directly
-- **Arc wrapping**: Elements stored as Arc<ReactElement> in ELEMENT_MAP and ELEMENT_TREE
-- **Render trigger**: RENDER_TRIGGER AtomicU64 signals GPUI to re-render
+- **Root tracking:** ROOT_ELEMENT_ID AtomicU64 (HashMap iteration was non-deterministic)
+- **Event handlers:** All ReactElement structs require event_handlers: None field
+- **Span text:** Collect from child text elements, not span.text directly
+- **Arc wrapping:** Elements stored as Arc<ReactElement>
+- **Render trigger:** RENDER_TRIGGER AtomicU64 signals GPUI to re-render
 
 ## ANTI-PATTERNS (THIS PROJECT)
-- Don't iterate HashMap to find root - use ROOT_ELEMENT_ID (commit: fixed root selection bug)
-- Don't render span.text - collect from child text elements (span contains text children)
+- Don't iterate HashMap to find root - use ROOT_ELEMENT_ID
+- Don't render span.text - collect from child text elements
 - Don't create ReactElement without event_handlers: None - required field
-- Don't call gpui_render_frame without calling rebuild_tree first - children won't sync
+- Don't call gpui_render_frame without rebuild_tree first
