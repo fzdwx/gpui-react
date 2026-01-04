@@ -7,7 +7,7 @@ export interface ElementData {
   eventHandlers?: Record<string, number>;
 }
 
-class ElementStore {
+export class ElementStore {
   private store = new Map<number, ElementData>();
   private nextId = 2;
   private rootId: number | null = null;
@@ -67,5 +67,3 @@ class ElementStore {
     return this.store.get(this.rootId)!;
   }
 }
-
-export const elementStore = new ElementStore();

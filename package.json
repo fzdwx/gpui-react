@@ -1,7 +1,7 @@
 {
   "name": "gpui-react",
   "version": "0.1.0",
-  "module": "src/reconciler/index.ts",
+  "module": "src/index.ts",
   "devDependencies": {
     "@types/react": "18.2.0",
     "@types/react-reconciler": "^0.32.3",

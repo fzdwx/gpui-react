@@ -1,243 +1,383 @@
 import * as ReactReconciler from "react-reconciler";
-import { elementStore } from "./element-store";
-import { renderFrame, batchElementUpdates } from "./gpui-binding";
-import { mapStyleToProps, StyleProps } from "./styles";
-import { EventHandler, MouseEvent, Event } from "./events";
+import {ElementStore} from "./element-store";
+import {renderFrame, batchElementUpdates} from "./gpui-binding";
+import {mapStyleToProps, StyleProps} from "./styles";
+import {EventHandler, MouseEvent, Event} from "./events";
+import {HostConfig, OpaqueHandle} from "react-reconciler";
+
+// Import ReactContext from react-reconciler namespace
+type ReactContext<T> = ReactReconciler.ReactContext<T>;
+
+// Type parameters for HostConfig
+type Type = string;              // Element type ("div", "text", etc.)
+type Props = any;                // Component props
+type Container = ElementStore;            // Root container
+type Instance = number;          // Element instance ID
+type TextInstance = number;      // Text element instance ID
+type SuspenseInstance = never;   // Not supported
+type HydratableInstance = never; // Not supported
+type FormInstance = never;       // Not supported
+type PublicInstance = Element;   // Public instance (DOM Element for compatibility)
+type HostContext = null;         // No context needed
+type ChildSet = never;           // Not using persistent mode
+type TimeoutHandle = number;     // setTimeout return type
+type NoTimeout = -1;             // Invalid timeout constant
+type TransitionStatus = any;     // Transition status
+type EventPriority = number;     // Event priority type
 
 let nextEventId = 0;
 const eventHandlers = new Map<number, EventHandler>();
 const pendingUpdates: any[] = [];
 
 function registerEventHandler(handler: EventHandler): number {
-  const id = nextEventId++;
-  eventHandlers.set(id, handler);
-  return id;
+    const id = nextEventId++;
+    eventHandlers.set(id, handler);
+    return id;
 }
 
 function extractStyleProps(props: any): StyleProps {
-  const styleProps: StyleProps = {};
+    const styleProps: StyleProps = {};
 
-  if (props.style) {
-    Object.assign(styleProps, props.style);
-  }
+    if (props.style) {
+        Object.assign(styleProps, props.style);
+    }
 
-  if (props.className) {
-    console.warn("className not yet supported, use style prop instead");
-  }
+    if (props.className) {
+        console.warn("className not yet supported, use style prop instead");
+    }
 
-  if (props.onClick) {
-    styleProps.onClick = props.onClick;
-  }
+    if (props.onClick) {
+        styleProps.onClick = props.onClick;
+    }
 
-  if (props.onHover) {
-    styleProps.onHover = props.onHover;
-  }
+    if (props.onHover) {
+        styleProps.onHover = props.onHover;
+    }
 
-  if (props.onMouseEnter) {
-    styleProps.onMouseEnter = props.onMouseEnter;
-  }
+    if (props.onMouseEnter) {
+        styleProps.onMouseEnter = props.onMouseEnter;
+    }
 
-  if (props.onMouseLeave) {
-    styleProps.onMouseLeave = props.onMouseLeave;
-  }
+    if (props.onMouseLeave) {
+        styleProps.onMouseLeave = props.onMouseLeave;
+    }
 
-  return styleProps;
+    return styleProps;
 }
 
 function extractEventHandlers(props: any): Record<string, number> {
-  const handlers: Record<string, number> = {};
+    const handlers: Record<string, number> = {};
 
-  if (props.onClick) {
-    handlers['onClick'] = registerEventHandler(props.onClick);
-  }
+    if (props.onClick) {
+        handlers['onClick'] = registerEventHandler(props.onClick);
+    }
 
-  if (props.onHover) {
-    handlers['onHover'] = registerEventHandler(props.onHover);
-  }
+    if (props.onHover) {
+        handlers['onHover'] = registerEventHandler(props.onHover);
+    }
 
-  if (props.onMouseEnter) {
-    handlers['onMouseEnter'] = registerEventHandler(props.onMouseEnter);
-  }
+    if (props.onMouseEnter) {
+        handlers['onMouseEnter'] = registerEventHandler(props.onMouseEnter);
+    }
 
-  if (props.onMouseLeave) {
-    handlers['onMouseLeave'] = registerEventHandler(props.onMouseLeave);
-  }
+    if (props.onMouseLeave) {
+        handlers['onMouseLeave'] = registerEventHandler(props.onMouseLeave);
+    }
 
-  return handlers;
+    return handlers;
 }
 
 function queueElementUpdate(element: any): void {
-  if (!element) return;
+    if (!element) return;
 
-  const existingIndex = pendingUpdates.findIndex((e) => e.globalId === element.globalId);
+    const existingIndex = pendingUpdates.findIndex((e) => e.globalId === element.globalId);
 
-  if (existingIndex !== -1) {
-    pendingUpdates[existingIndex] = element;
-  } else {
-    pendingUpdates.push(element);
-  }
+    if (existingIndex !== -1) {
+        pendingUpdates[existingIndex] = element;
+    } else {
+        pendingUpdates.push(element);
+    }
 }
 
-const config = {
-  supportsMutation: true,
+export const hostConfig: HostConfig<
+    Type,
+    Props,
+    Container,
+    Instance,
+    TextInstance,
+    SuspenseInstance,
+    HydratableInstance,
+    FormInstance,
+    PublicInstance,
+    HostContext,
+    ChildSet,
+    TimeoutHandle,
+    NoTimeout,
+    TransitionStatus
+> = {
+    supportsMutation: true,
+    supportsPersistence: false,
+    supportsHydration: false,
+    isPrimaryRenderer: true,
 
-  getPublicInstance(instance: number): Element {
-    return document.createElement("div");
-  },
+    getPublicInstance(instance: Instance | TextInstance): PublicInstance {
+        return document.createElement("div");
+    },
 
-  getRootHostContext(): null {
-    return null;
-  },
+    getRootHostContext(rootContainer: Container): HostContext | null {
+        return null;
+    },
 
-  getChildHostContext(): null {
-    return null;
-  },
+    getChildHostContext(
+        parentHostContext: HostContext,
+        type: Type,
+        rootContainer: Container,
+    ): HostContext {
+        return null;
+    },
 
-  prepareForCommit(): any {
-    return null;
-  },
+    prepareForCommit(containerInfo: Container): Record<string, any> | null {
+        return null;
+    },
 
-  resetAfterCommit(): void {
-    if (pendingUpdates.length > 0) {
-      console.log(`=== Processing ${pendingUpdates.length} batched updates ===`);
-      batchElementUpdates(pendingUpdates);
-      pendingUpdates.length = 0;
-    }
+    resetAfterCommit(containerInfo: Container): void {
+        if (pendingUpdates.length > 0) {
+            console.log(`=== Processing ${pendingUpdates.length} batched updates ===`);
+            batchElementUpdates(pendingUpdates);
+            pendingUpdates.length = 0;
+        }
 
-    const root = elementStore.getRoot();
-    console.log("resetAfterCommit - root element:", JSON.stringify(root, null, 2));
-    renderFrame(root);
-  },
+        const root = containerInfo.getRoot();
+        console.log("resetAfterCommit - root element:", JSON.stringify(root, null, 2));
+        renderFrame(root);
+    },
 
-  shouldSetTextContent(type: string, props: any): boolean {
-    return false; // Force React to call createTextInstance for text children
-  },
+    shouldSetTextContent(type: Type, props: Props): boolean {
+        return false; // Force React to call createTextInstance for text children
+    },
 
-  resetTextContent(instance: number): void {},
+    resetTextContent(instance: Instance): void {
+    },
 
-  createTextInstance(text: string): number {
-    const styleProps = extractStyleProps({ style: {} });
-    const styles = mapStyleToProps(styleProps);
-    const id = elementStore.createElement("text", String(text), styles);
-    console.log("createTextInstance:", { text, id, styles });
-    queueElementUpdate(elementStore.getElement(id));
-    return id;
-  },
+    createTextInstance(
+        text: string,
+        rootContainer: Container,
+        hostContext: HostContext,
+        internalHandle: OpaqueHandle,
+    ): TextInstance {
+        const styleProps = extractStyleProps({style: {}});
+        const styles = mapStyleToProps(styleProps);
+        const id = rootContainer.createElement("text", String(text), styles);
+        console.log("createTextInstance:", {text, id, styles});
+        queueElementUpdate(rootContainer.getElement(id));
+        return id;
+    },
 
-  commitTextUpdate(textInstance: number, oldText: string, newText: string): void {
-    const element = elementStore.getElement(textInstance);
-    if (element) {
-      element.text = String(newText);
-      console.log("commitTextUpdate:", { textInstance, newText });
-      queueElementUpdate(element);
-    }
-  },
+    commitTextUpdate(textInstance: TextInstance, oldText: string, newText: string): void {
+        const element = rootContainer.getElement(textInstance);
+        if (element) {
+            element.text = String(newText);
+            console.log("commitTextUpdate:", {textInstance, newText});
+            queueElementUpdate(element);
+        }
+    },
 
-  createInstance(type: string, props: any): number {
-    const styleProps = extractStyleProps(props);
-    const styles = mapStyleToProps(styleProps);
-    const eventHandlers = extractEventHandlers(props);
-    const element = { ...styles, eventHandlers };
-    const id = elementStore.createElement(type, undefined, element);
-    console.log("createInstance:", { type, id, styles, eventHandlers });
-    queueElementUpdate(elementStore.getElement(id));
-    return id;
-  },
+    createInstance(
+        type: Type,
+        props: Props,
+        rootContainer: Container,
+        hostContext: HostContext,
+        internalHandle: OpaqueHandle,
+    ): Instance {
+        const styleProps = extractStyleProps(props);
+        const styles = mapStyleToProps(styleProps);
+        const eventHandlers = extractEventHandlers(props);
+        const element = {...styles, eventHandlers};
+        const id = rootContainer.createElement(type, undefined, element);
+        console.log("createInstance:", {type, id, styles, eventHandlers});
+        queueElementUpdate(rootContainer.getElement(id));
+        return id;
+    },
 
-  appendInitialChild(parent: number, child: number): void {
-    console.log("appendInitialChild:", { parent, child });
-    elementStore.appendChild(parent, child);
-    queueElementUpdate(elementStore.getElement(parent));
-  },
+    appendInitialChild(parentInstance: Instance, child: Instance | TextInstance): void {
+        console.log("appendInitialChild:", {parent: parentInstance, child});
+        rootContainer.appendChild(parentInstance, child);
+        queueElementUpdate(rootContainer.getElement(parentInstance));
+    },
 
-  appendChild(parent: number, child: number): void {
-    console.log("appendChild:", { parent, child });
-    elementStore.appendChild(parent, child);
-    queueElementUpdate(elementStore.getElement(parent));
-  },
+    appendChild(parentInstance: Instance, child: Instance | TextInstance): void {
+        console.log("appendChild:", {parent: parentInstance, child});
+        rootContainer.appendChild(parentInstance, child);
+        queueElementUpdate(rootContainer.getElement(parentInstance));
+    },
 
-  appendChildToContainer(container: any, child: number): void {
-    console.log("appendChildToContainer:", { container, child });
-    // Track the first child as the root element
-    elementStore.setContainerChild(child);
-    // Don't append to a fake element 1 - just track the root
-  },
+    appendChildToContainer(container: Container, child: Instance | TextInstance): void {
+        console.log("appendChildToContainer:", {container, child});
+        // Track the first child as the root element
+        rootContainer.setContainerChild(child);
+        // Don't append to a fake element 1 - just track the root
+    },
 
-  insertBefore(parent: number, child: number, beforeChild: number): void {
-    const parentEl = elementStore.getElement(parent);
-    if (!parentEl) return;
+    insertBefore(
+        parentInstance: Instance,
+        child: Instance | TextInstance,
+        beforeChild: Instance | TextInstance,
+    ): void {
+        const parentEl = rootContainer.getElement(parentInstance);
+        if (!parentEl) return;
 
-    const beforeIndex = parentEl.children.indexOf(beforeChild);
-    if (beforeIndex !== -1) {
-      parentEl.children.splice(beforeIndex, 0, child);
-    } else {
-      parentEl.children.push(child);
-    }
-  },
+        const beforeIndex = parentEl.children.indexOf(beforeChild);
+        if (beforeIndex !== -1) {
+            parentEl.children.splice(beforeIndex, 0, child);
+        } else {
+            parentEl.children.push(child);
+        }
+    },
 
-  insertInContainerBefore(container: any, child: number, beforeChild: number): void {
-    // For now, just track that we're inserting before
-    console.log("insertInContainerBefore:", { child, beforeChild });
-  },
+    insertInContainerBefore(
+        container: Container,
+        child: Instance | TextInstance,
+        beforeChild: Instance | TextInstance,
+    ): void {
+        // For now, just track that we're inserting before
+        console.log("insertInContainerBefore:", {child, beforeChild});
+    },
 
-  removeChild(parent: number, child: number): void {
-    const parentEl = elementStore.getElement(parent);
-    if (!parentEl) return;
+    removeChild(parentInstance: Instance, child: Instance | TextInstance): void {
+        const parentEl = rootContainer.getElement(parentInstance);
+        if (!parentEl) return;
 
-    const index = parentEl.children.indexOf(child);
-    if (index !== -1) {
-      parentEl.children.splice(index, 1);
-    }
-  },
+        const index = parentEl.children.indexOf(child);
+        if (index !== -1) {
+            parentEl.children.splice(index, 1);
+        }
+    },
 
-  removeChildFromContainer(container: any, child: number): void {
-    console.log("removeChildFromContainer:", { container, child });
-    // The child is being removed from the container - it should be the root element
-    // For now, just log it since we don't have a parent-child relationship at container level
-  },
+    removeChildFromContainer(container: Container, child: Instance | TextInstance): void {
+        console.log("removeChildFromContainer:", {container, child});
+        // The child is being removed from the container - it should be the root element
+        // For now, just log it since we don't have a parent-child relationship at container level
+    },
 
-  commitUpdate(instance: number, updatePayload: any, type: string, oldProps: any, newProps: any): void {
-    const element = elementStore.getElement(instance);
-    if (element && newProps && typeof newProps.children === "string") {
-      element.text = newProps.children;
-    }
-  },
+    commitUpdate(
+        instance: Instance,
+        type: Type,
+        prevProps: Props,
+        nextProps: Props,
+        internalHandle: OpaqueHandle,
+    ): void {
+        const element = rootContainer.getElement(instance);
+        if (element && nextProps && typeof nextProps.children === "string") {
+            element.text = nextProps.children;
+        }
+    },
 
-  finalizeInitialChildren(instance: number, type: string, props: any): boolean {
-    return false;
-  },
+    finalizeInitialChildren(
+        instance: Instance,
+        type: Type,
+        props: Props,
+        rootContainer: Container,
+        hostContext: HostContext,
+    ): boolean {
+        return false;
+    },
 
-  prepareUpdate(instance: number, type: string, oldProps: any, newProps: any, rootContainerInstance: any, currentHostContext: null): any {
-    return newProps;
-  },
+    clearContainer(container: Container): void {
+    },
 
-  clearContainer(container: any): void {},
+    hideInstance(instance: Instance): void {
+    },
 
-  hideInstance(instance: number): void {},
+    unhideInstance(instance: Instance, props: Props): void {
+    },
 
-  unhideInstance(instance: number, props: any): void {},
+    detachDeletedInstance(instance: Instance): void {
+        console.log("detachDeletedInstance:", {instance});
+    },
 
-  detachDeletedInstance(instance: number): void {
-    console.log("detachDeletedInstance:", { instance });
-  },
+    prepareScopeUpdate(scopeInstance: any, instance: any): void {
+    },
 
-  prepareScopeUpdate(scopeInstance: any, instance: any): void {},
+    getInstanceFromScope(scopeInstance: any): Instance | null {
+        return null;
+    },
 
-  getInstanceFromScope(scopeInstance: any): number {
-    return 0;
-  },
+    scheduleTimeout(fn: (...args: unknown[]) => unknown, delay?: number): TimeoutHandle {
+        return setTimeout(fn, delay) as unknown as number;
+    },
 
-  scheduleTimeout(fn: any, delay?: number): any {
-    return setTimeout(fn, delay);
-  },
+    cancelTimeout(id: TimeoutHandle): void {
+        clearTimeout(id);
+    },
 
-  cancelTimeout(id: number): void {
-    clearTimeout(id);
-  },
+    noTimeout: -1,
 
-  noTimeout: -1,
+    preparePortalMount(containerInfo: Container): void {
+    },
+
+    getInstanceFromNode(node: any): null {
+        return null;
+    },
+
+    beforeActiveInstanceBlur(): void {
+    },
+
+    afterActiveInstanceBlur(): void {
+    },
+
+    NotPendingTransition: null,
+
+    HostTransitionContext: null as any as ReactContext<TransitionStatus>,
+
+    setCurrentUpdatePriority(newPriority: EventPriority): void {
+    },
+
+    getCurrentUpdatePriority(): EventPriority {
+        return 0;
+    },
+
+    resolveUpdatePriority(): EventPriority {
+        return 0;
+    },
+
+    resetFormInstance(form: FormInstance): void {
+    },
+
+    requestPostPaintCallback(callback: (time: number) => void): void {
+    },
+
+    shouldAttemptEagerTransition(): boolean {
+        return false;
+    },
+
+    trackSchedulerEvent(): void {
+    },
+
+    resolveEventType(): null | string {
+        return null;
+    },
+
+    resolveEventTimeStamp(): number {
+        return Date.now();
+    },
+
+    maySuspendCommit(type: Type, props: Props): boolean {
+        return false;
+    },
+
+    preloadInstance(type: Type, props: Props): boolean {
+        return false;
+    },
+
+    startSuspendingCommit(): void {
+    },
+
+    suspendInstance(type: Type, props: Props): void {
+    },
+
+    waitForCommitToBeReady():
+        | ((initiateCommit: (...args: unknown[]) => unknown) => (...args: unknown[]) => unknown)
+        | null {
+        return null;
+    },
 };
-
-const reconciler = (ReactReconciler as any).default(config);
-
-export { reconciler };
