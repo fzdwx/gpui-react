@@ -1,11 +1,12 @@
 import {dlopen, FFIType, suffix, ptr} from "bun:ffi";
 import {join} from "path";
 import {sleep} from "bun";
+import {info, debug, trace, error as logError} from "./logging";
 
 const libName = `libgpui_renderer.${suffix}`;
 const libPath = join(import.meta.dir, "../../rust/target/release", libName);
 
-console.log(`Loading GPUI library from: ${libPath}`);
+info(`Loading GPUI library from: ${libPath}`);
 
 const liveBuffers: ArrayBuffer[] = [];
 
@@ -88,13 +89,13 @@ export function createWindow(width: number, height: number): number {
     const resultBuffer = new Uint8Array(FFI_RESULT_SIZE);
     lib.symbols.gpui_create_window(width, height, resultBuffer);
     currentWindowId = checkWindowCreateResult(resultBuffer);
-    console.log(`Created window with id: ${currentWindowId}`);
+    info(`Created window with id: ${currentWindowId}`);
     return currentWindowId;
 }
 
 export function renderFrame(windowId: number, element: any): void {
-    console.log("=== renderFrame called ===");
-    console.log("Element:", JSON.stringify(element, null, 2));
+    trace("renderFrame called");
+    debug("Element", element);
 
     liveBuffers.length = 0;
 
@@ -135,7 +136,7 @@ export function renderFrame(windowId: number, element: any): void {
     liveBuffers.push(childrenBuffer);
     const childrenPtr = ptr(childrenBuffer);
 
-    console.log("FFI params:", {
+    debug("FFI params", {
         windowId,
         globalId: element.globalId,
         type: element.type,
@@ -161,7 +162,7 @@ export function renderFrame(windowId: number, element: any): void {
         throw new Error(`GPUI render failed with status: ${status}`);
     }
 
-    console.log("=== renderFrame completed ===");
+    trace("renderFrame completed");
 }
 
 export function triggerRender(windowId: number): void {
@@ -179,7 +180,7 @@ export function batchElementUpdates(windowId: number, elements: any[]): void {
         return;
     }
 
-    console.log(`=== Batching ${elements.length} element updates for window ${windowId} ===`);
+    info(`Batching ${elements.length} element updates for window ${windowId}`);
 
     liveBuffers.length = 0;
 
@@ -194,7 +195,7 @@ export function batchElementUpdates(windowId: number, elements: any[]): void {
     const countPtr = ptr(countBuffer);
 
     const elementsJsonString = JSON.stringify(elements);
-    console.log("batchElementUpdates - elements JSON:", elementsJsonString.substring(0, 500));
+    debug("batchElementUpdates - elements JSON", elementsJsonString.substring(0, 500));
     const elementsBuffer = new TextEncoder().encode(elementsJsonString + "\0");
     liveBuffers.push(elementsBuffer.buffer);
     const elementsPtr = ptr(elementsBuffer);
@@ -206,7 +207,7 @@ export function batchElementUpdates(windowId: number, elements: any[]): void {
     const triggerBuffer = new Uint8Array(8);
     lib.symbols.gpui_trigger_render(windowIdPtr, triggerBuffer);
 
-    console.log(`=== Batch update completed for ${elements.length} elements ===`);
+    info(`Batch update completed for ${elements.length} elements`);
 }
 
 function waitGpuiReady() {

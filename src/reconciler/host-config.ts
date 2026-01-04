@@ -5,26 +5,24 @@ import {mapStyleToProps, StyleProps} from "./styles";
 import {EventHandler, MouseEvent, Event} from "./events";
 import {HostConfig, OpaqueHandle} from "react-reconciler";
 import {DefaultEventPriority, NoEventPriority} from "react-reconciler/constants";
+import {trace, debug, info, warn} from "./logging";
 
-// Import ReactContext from react-reconciler namespace
 type ReactContext<T> = ReactReconciler.ReactContext<T>;
 
-// Type parameters for HostConfig
-type Type = string;              // Element type ("div", "text", etc.)
-type Props = any;                // Component props
-type Container = ElementStore;   // Root container
-type SuspenseInstance = never;   // Not supported
-type HydratableInstance = never; // Not supported
-type FormInstance = never;       // Not supported
-type PublicInstance = Element;   // Public instance (DOM Element for compatibility)
-type HostContext = object;       // Host context object for React validation
-type ChildSet = never;           // Not using persistent mode
-type TimeoutHandle = number;     // setTimeout return type
-type NoTimeout = -1;             // Invalid timeout constant
-type TransitionStatus = any;     // Transition status
-type EventPriority = number;     // Event priority type
+type Type = string;
+type Props = any;
+type Container = ElementStore;
+type SuspenseInstance = never;
+type HydratableInstance = never;
+type FormInstance = never;
+type PublicInstance = Element;
+type HostContext = object;
+type ChildSet = never;
+type TimeoutHandle = number;
+type NoTimeout = -1;
+type TransitionStatus = any;
+type EventPriority = number;
 
-// Instance type - self-contained object with store reference
 export interface Instance {
     id: number;
     type: string;
@@ -35,7 +33,6 @@ export interface Instance {
     store: ElementStore;
 }
 
-// TextInstance type - same structure for text nodes
 export interface TextInstance {
     id: number;
     type: "text";
@@ -62,7 +59,7 @@ function extractStyleProps(props: any): StyleProps {
     }
 
     if (props.className) {
-        console.warn("className not yet supported, use style prop instead");
+        warn("className not yet supported, use style prop instead");
     }
 
     if (props.onClick) {
@@ -140,7 +137,7 @@ export const hostConfig: HostConfig<
     supportsHydration: false,
     isPrimaryRenderer: true,
 
-    getPublicInstance(instance: Instance | TextInstance): PublicInstance {
+    getPublicInstance(_instance: Instance | TextInstance): PublicInstance {
         return document.createElement("div");
     },
 
@@ -162,44 +159,40 @@ export const hostConfig: HostConfig<
 
     resetAfterCommit(containerInfo: Container): void {
         if (pendingUpdates.length > 0) {
-            console.log(`=== Processing ${pendingUpdates.length} batched updates ===`);
+            info(`Processing ${pendingUpdates.length} batched updates`);
             batchElementUpdates(currentWindowId, pendingUpdates);
             pendingUpdates.length = 0;
         }
 
         const root = containerInfo.getRoot();
-        console.log("resetAfterCommit - root element:", JSON.stringify(root, null, 2));
+        trace("resetAfterCommit - root element", root);
         renderFrame(currentWindowId, root);
 
-        // Force GPUI to re-render by using setImmediate to ensure event loop processes
-        // GPUI is event-driven, so we need to ensure it processes state changes
         setImmediate(() => {
-            // Additional trigger to ensure GPUI picks up changes
             if (typeof window !== 'undefined' && (window as any).__gpuiTrigger) {
                 (window as any).__gpuiTrigger();
             }
         });
     },
 
-    shouldSetTextContent(type: Type, props: Props): boolean {
-        return false; // Let React use createTextInstance/commitTextUpdate for text
+    shouldSetTextContent(_type: Type, _props: Props): boolean {
+        return false;
     },
 
-    resetTextContent(instance: Instance): void {
+    resetTextContent(_instance: Instance): void {
     },
 
     createTextInstance(
         text: string,
         rootContainer: Container,
-        hostContext: HostContext,
-        internalHandle: OpaqueHandle,
+        _hostContext: HostContext,
+        _internalHandle: OpaqueHandle,
     ): TextInstance {
         const styleProps = extractStyleProps({style: {}});
         const styles = mapStyleToProps(styleProps);
         const id = rootContainer.createElement("text", String(text), styles);
-        console.log("createTextInstance:", {text, id, styles});
+        trace("createTextInstance", {text, id, styles});
 
-        // Return self-contained TextInstance object with store reference
         const instance: TextInstance = {
             id,
             type: "text",
@@ -213,29 +206,27 @@ export const hostConfig: HostConfig<
 
     commitTextUpdate(textInstance: TextInstance, oldText: string, newText: string): void {
         textInstance.text = String(newText);
-        console.log("commitTextUpdate: old=%s new=%s", oldText, newText);
+        trace("commitTextUpdate", {oldText, newText});
         const element = textInstance.store.getElement(textInstance.id);
         if (element) {
-            element.text = String(newText);  // Sync to ElementStore
+            element.text = String(newText);
             queueElementUpdate(element);
         }
-        console.log("commitTextUpdate: pendingUpdates now has %d items", pendingUpdates.length);
     },
 
     createInstance(
         type: Type,
         props: Props,
         rootContainer: Container,
-        hostContext: HostContext,
-        internalHandle: OpaqueHandle,
+        _hostContext: HostContext,
+        _internalHandle: OpaqueHandle,
     ): Instance {
         const styleProps = extractStyleProps(props);
         const styles = mapStyleToProps(styleProps);
         const eventHandlers = extractEventHandlers(props);
         const id = rootContainer.createElement(type, undefined, {...styles, eventHandlers});
-        console.log("createInstance:", {type, id, styles, eventHandlers});
+        trace("createInstance", {type, id, styles, eventHandlers});
 
-        // Return self-contained Instance object with store reference
         const instance: Instance = {
             id,
             type,
@@ -249,29 +240,23 @@ export const hostConfig: HostConfig<
     },
 
     appendInitialChild(parentInstance: Instance, child: Instance | TextInstance): void {
-        console.log("appendInitialChild:", {parent: parentInstance, child});
-        // Add to local children array
+        trace("appendInitialChild", {parent: parentInstance, child});
         parentInstance.children.push(child as Instance);
-        // Also update the store
         parentInstance.store.appendChild(parentInstance.id, (child as Instance).id);
         queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
     appendChild(parentInstance: Instance, child: Instance | TextInstance): void {
-        console.log("appendChild:", {parent: parentInstance, child});
-        // Add to local children array
+        trace("appendChild", {parent: parentInstance, child});
         parentInstance.children.push(child as Instance);
-        // Also update the store
         parentInstance.store.appendChild(parentInstance.id, (child as Instance).id);
         queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
     appendChildToContainer(container: Container, child: Instance | TextInstance): void {
-        console.log("appendChildToContainer:", {container, child});
+        trace("appendChildToContainer", {container, child});
         const childInstance = child as Instance;
-        // Track the first child as the root element
         container.setContainerChild(childInstance.id);
-        // Queue the child (not root) for update so it gets rendered
         queueElementUpdate(container.getElement(childInstance.id));
     },
 
@@ -293,12 +278,11 @@ export const hostConfig: HostConfig<
     },
 
     insertInContainerBefore(
-        container: Container,
+        _container: Container,
         child: Instance | TextInstance,
         beforeChild: Instance | TextInstance,
     ): void {
-        // For now, just track that we're inserting before
-        console.log("insertInContainerBefore:", {child, beforeChild});
+        trace("insertInContainerBefore", {child, beforeChild});
     },
 
     removeChild(parentInstance: Instance, child: Instance | TextInstance): void {
@@ -311,18 +295,18 @@ export const hostConfig: HostConfig<
         queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
-    removeChildFromContainer(container: Container, child: Instance | TextInstance): void {
-        console.log("removeChildFromContainer:", {container, child});
+    removeChildFromContainer(_container: Container, child: Instance | TextInstance): void {
+        trace("removeChildFromContainer", {container: _container, child});
         const childInstance = child as Instance;
-        container.removeChild(container.getRoot().globalId, childInstance.id);
+        _container.removeChild(_container.getRoot().globalId, childInstance.id);
     },
 
     commitUpdate(
         instance: Instance,
-        type: Type,
-        prevProps: Props,
+        _type: Type,
+        _prevProps: Props,
         nextProps: Props,
-        internalHandle: OpaqueHandle,
+        _internalHandle: OpaqueHandle,
     ): void {
         if (nextProps && typeof nextProps.children === "string") {
             instance.text = String(nextProps.children);
@@ -334,32 +318,32 @@ export const hostConfig: HostConfig<
     },
 
     finalizeInitialChildren(
-        instance: Instance,
-        type: Type,
-        props: Props,
-        rootContainer: Container,
-        hostContext: HostContext,
+        _instance: Instance,
+        _type: Type,
+        _props: Props,
+        _rootContainer: Container,
+        _hostContext: HostContext,
     ): boolean {
         return false;
     },
 
-    clearContainer(container: Container): void {
+    clearContainer(_container: Container): void {
     },
 
-    hideInstance(instance: Instance): void {
+    hideInstance(_instance: Instance): void {
     },
 
-    unhideInstance(instance: Instance, props: Props): void {
+    unhideInstance(_instance: Instance, _props: Props): void {
     },
 
     detachDeletedInstance(instance: Instance): void {
-        console.log("detachDeletedInstance:", {instance});
+        trace("detachDeletedInstance", {instance});
     },
 
-    prepareScopeUpdate(scopeInstance: any, instance: any): void {
+    prepareScopeUpdate(_scopeInstance: any, _instance: any): void {
     },
 
-    getInstanceFromScope(scopeInstance: any): Instance | null {
+    getInstanceFromScope(_scopeInstance: any): Instance | null {
         return null;
     },
 
@@ -373,10 +357,10 @@ export const hostConfig: HostConfig<
 
     noTimeout: -1,
 
-    preparePortalMount(containerInfo: Container): void {
+    preparePortalMount(_containerInfo: Container): void {
     },
 
-    getInstanceFromNode(node: any): null {
+    getInstanceFromNode(_node: any): null {
         return null;
     },
 
@@ -390,10 +374,10 @@ export const hostConfig: HostConfig<
 
     HostTransitionContext: null as any as ReactContext<TransitionStatus>,
 
-    resetFormInstance(form: FormInstance): void {
+    resetFormInstance(_form: FormInstance): void {
     },
 
-    requestPostPaintCallback(callback: (time: number) => void): void {
+    requestPostPaintCallback(_callback: (time: number) => void): void {
     },
 
     shouldAttemptEagerTransition(): boolean {
@@ -411,18 +395,18 @@ export const hostConfig: HostConfig<
         return Date.now();
     },
 
-    maySuspendCommit(type: Type, props: Props): boolean {
+    maySuspendCommit(_type: Type, _props: Props): boolean {
         return false;
     },
 
-    preloadInstance(type: Type, props: Props): boolean {
+    preloadInstance(_type: Type, _props: Props): boolean {
         return false;
     },
 
     startSuspendingCommit(): void {
     },
 
-    suspendInstance(type: Type, props: Props): void {
+    suspendInstance(_type: Type, _props: Props): void {
     },
 
     waitForCommitToBeReady():
@@ -432,16 +416,16 @@ export const hostConfig: HostConfig<
     },
 
     setCurrentUpdatePriority(newPriority: number) {
-        currentUpdatePriority = newPriority
+        currentUpdatePriority = newPriority;
     },
 
     getCurrentUpdatePriority: () => currentUpdatePriority,
 
     resolveUpdatePriority() {
         if (currentUpdatePriority !== NoEventPriority) {
-            return currentUpdatePriority
+            return currentUpdatePriority;
         }
 
-        return DefaultEventPriority
+        return DefaultEventPriority;
     },
 }

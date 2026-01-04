@@ -3,6 +3,7 @@ import {hostConfig} from "./host-config";
 import React from "react";
 import {ConcurrentRoot} from "react-reconciler/constants";
 import {ElementData, ElementStore} from "./element-store";
+import {error} from "./logging";
 
 export const reconciler = ReactReconciler(hostConfig)
 
@@ -14,11 +15,10 @@ export function _render(element: React.ReactNode, root: ElementStore) {
         null,
         false,
         null,
-        "",
-        console.error,
-        console.error,
-        console.error,
-        console.error,
+        error,
+        error,
+        error,
+        error,
         null,
     )
 

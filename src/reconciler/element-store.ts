@@ -1,3 +1,5 @@
+import {trace, debug} from "./logging";
+
 export interface ElementData {
   globalId: number;
   type: string;
@@ -5,10 +7,8 @@ export interface ElementData {
   children: number[];
   style?: Record<string, any>;
   eventHandlers?: Record<string, number>;
-  // Note: store is non-enumerable to avoid serialization issues
 }
 
-// Symbol for private store reference
 const STORE_SYMBOL = Symbol('store');
 
 export class ElementStore {
@@ -31,14 +31,12 @@ export class ElementStore {
       style,
       children: [],
     };
-    // Store reference using non-enumerable property to avoid serialization
     Object.defineProperty(element, STORE_SYMBOL, { value: this, writable: false, enumerable: false });
     this.store.set(globalId, element);
-    console.log("createElement:", { type, globalId, style });
+    trace("createElement", { type, globalId, style });
     return globalId;
   }
 
-  // Get store reference from element (non-enumerable)
   getStore(element: ElementData): ElementStore | undefined {
     return (element as any)[STORE_SYMBOL];
   }
@@ -47,7 +45,7 @@ export class ElementStore {
     const parent = this.store.get(parentId);
     if (!parent) throw new Error(`Parent element ${parentId} not found`);
     parent.children.push(childId);
-    console.log("appendChild:", { parentId, childId });
+    trace("appendChild", { parentId, childId });
   }
 
   removeChild(parentId: number, childId: number): void {
@@ -56,15 +54,14 @@ export class ElementStore {
     const index = parent.children.indexOf(childId);
     if (index !== -1) {
       parent.children.splice(index, 1);
-      console.log("removeChild:", { parentId, childId });
+      trace("removeChild", { parentId, childId });
     }
   }
 
   setContainerChild(childId: number): void {
-    // First child appended to container is the root
     if (this.rootId === null) {
       this.rootId = childId;
-      console.log("setContainerChild - rootId:", this.rootId);
+      trace("setContainerChild - rootId", this.rootId);
     }
   }
 

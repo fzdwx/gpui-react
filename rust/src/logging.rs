@@ -5,13 +5,6 @@ use std::sync::Once;
 
 static INIT: Once = Once::new();
 
-/// Initialize logging system with logforth.
-/// This function is idempotent - it will only initialize once.
-/// Configuration:
-/// - ERROR and WARN logs go to stderr
-/// - INFO, DEBUG, and TRACE logs go to stdout
-/// - Log level is controlled via RUST_LOG environment variable
-/// - Timestamps are displayed in local timezone (e.g., 2024-08-11 22:44:57.172 +08:00)
 pub fn init_logging() {
     INIT.call_once(|| {
         let env_filter_stdout = filter::EnvFilter::from_default_env();
