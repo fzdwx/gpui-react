@@ -1,9 +1,10 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 
 use gpui::{App, AsyncApp};
 
 use crate::global_state::GLOBAL_STATE;
+use crate::window_state::WINDOW_STATE;
 
 #[derive(Debug)]
 pub enum HostCommand {
@@ -31,11 +32,16 @@ pub enum CommandError {
 struct Inner {
     sender: async_channel::Sender<Command>,
     shutdown: AtomicBool,
+    ready: AtomicBool,
 }
 
 impl Inner {
     fn is_shutting_down(&self) -> bool {
         self.shutdown.load(Ordering::SeqCst)
+    }
+
+    fn is_ready(&self) -> bool {
+        self.ready.load(Ordering::SeqCst)
     }
 }
 
@@ -68,13 +74,18 @@ pub fn init(cx: &mut App) {
     let inner = Arc::new(Inner {
         sender,
         shutdown: AtomicBool::new(false),
+        ready: AtomicBool::new(false),
     });
 
     if BUS.set(inner.clone()).is_ok() {
+        let inner_for_spawn = inner.clone();
         cx.spawn(async move |cx: &mut AsyncApp| {
-            run_loop(inner, receiver, cx).await;
+            run_loop(inner_for_spawn, receiver, cx).await;
         })
         .detach();
+
+        // Mark bus as ready immediately after setting up the task
+        inner.ready.store(true, Ordering::SeqCst);
     }
 }
 
@@ -85,7 +96,7 @@ async fn run_loop(inner: Arc<Inner>, receiver: async_channel::Receiver<Command>,
         }
 
         let result = match command {
-            Command::Host(cmd) => cx.update(|app| crate::renderer::handle_on_app_thread(cmd, app)),
+            Command::Host(cmd) => cx.update(|app| handle_on_app_thread(cmd, app)),
             Command::Shutdown => {
                 inner.shutdown.store(true, Ordering::SeqCst);
                 break;
@@ -100,10 +111,70 @@ async fn run_loop(inner: Arc<Inner>, receiver: async_channel::Receiver<Command>,
     while receiver.try_recv().is_ok() {}
 }
 
+pub fn handle_on_app_thread(command: crate::host_command::HostCommand, app: &mut gpui::App) {
+    log::trace!("handle_on_app_thread: {:?}", command);
+
+    match command {
+        crate::host_command::HostCommand::CreateWindow { width, height } => {
+            let size = gpui::Size {
+                width: gpui::px(width),
+                height: gpui::px(height),
+            };
+            let origin = gpui::Point {
+                x: gpui::px(100.0),
+                y: gpui::px(100.0),
+            };
+            let bounds = gpui::Bounds { origin, size };
+
+            let window_id = crate::renderer::NEXT_WINDOW_ID.fetch_add(1, Ordering::SeqCst);
+            crate::global_state::GLOBAL_STATE.set_current_window(window_id);
+
+            let _window = app.open_window(
+                gpui::WindowOptions {
+                    window_bounds: Some(gpui::WindowBounds::Windowed(bounds)),
+                    titlebar: Some(gpui::TitlebarOptions {
+                        title: Some("R22222eact-GPUI".into()),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+                |_window, cx| {
+                    let state = cx.new(|_| crate::renderer::RootState { render_count: 0 });
+                    cx.new(|_| crate::renderer::RootView {
+                        state,
+                        last_render: 0,
+                    })
+                },
+            );
+
+            log::info!("Created window with id: {}", window_id);
+        }
+        HostCommand::RefreshWindow
+        | HostCommand::TriggerRender
+        | HostCommand::UpdateElementTree => {
+            WINDOW_STATE.update_element_tree();
+
+            if let Some(window) = app.windows().first() {
+                window.update(app, |_, window, _cx| {
+                    log::trace!("Calling window.refresh()");
+                    window.refresh();
+                });
+            } else {
+                log::warn!("No windows found to refresh");
+            }
+        }
+    }
+}
+
+
 pub fn sender() -> Result<CommandSender, CommandError> {
     BUS.get()
         .map(|inner| CommandSender { inner: inner.clone() })
         .ok_or(CommandError::NotInitialized)
+}
+
+pub fn is_bus_ready() -> bool {
+    BUS.get().map(|inner| inner.is_ready()).unwrap_or(false)
 }
 
 pub fn send_host_command(command: HostCommand) {

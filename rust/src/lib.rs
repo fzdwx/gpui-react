@@ -12,7 +12,7 @@ use std::sync::Arc;
 use crate::element::ReactElement;
 use crate::ffi_types::FfiResult;
 use crate::global_state::GLOBAL_STATE;
-use crate::host_command::{send_host_command, HostCommand};
+use crate::host_command::{is_bus_ready, send_host_command, HostCommand};
 use crate::renderer::start_gpui_thread;
 use crate::window_state::WINDOW_STATE;
 
@@ -167,6 +167,11 @@ pub extern "C" fn gpui_render_frame(
 
 #[no_mangle]
 pub extern "C" fn gpui_free_result(_result: FfiResult) {}
+
+#[no_mangle]
+pub extern "C" fn gpui_is_ready() -> bool {
+    is_bus_ready()
+}
 
 #[no_mangle]
 pub extern "C" fn gpui_trigger_render(_result: *mut FfiResult) {
