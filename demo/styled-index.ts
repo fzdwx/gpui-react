@@ -1,5 +1,5 @@
 import React from "react";
-import { createRoot } from "../src/renderer/index";
+import { createRoot } from "../src/reconciler/index";
 import { StyledApp } from "./styled-app";
 
 const root = createRoot();

@@ -1,5 +1,5 @@
 import React from "react";
-import { createRoot } from "../src/renderer/index";
+import { createRoot } from "../src/reconciler/index";
 import { ElementsApp } from "./elements-app";
 
 const root = createRoot();

@@ -31,7 +31,7 @@ pub extern "C" fn gpui_init(width: f32, height: f32, result: *mut FfiResult) {
         GLOBAL_STATE.set_initialized(true);
 
         // Wait a bit for the thread to start
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        // std::thread::sleep(std::time::Duration::from_millis(500));
 
         if GLOBAL_STATE.is_thread_started() {
             log::info!("gpui_init: GPUI thread started successfully");

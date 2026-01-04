@@ -649,7 +649,7 @@ GPU Rendering
 ### Project Documentation
 - [README.md](./README.md) - Project overview and getting started
 - [AGENTS.md](./AGENTS.md) - Root knowledge base (63 lines)
-- [src/renderer/AGENTS.md](./src/renderer/AGENTS.md) - React renderer layer (32 lines)
+- [src/renderer/AGENTS.md](src/reconciler/AGENTS.md) - React renderer layer (32 lines)
 - [rust/src/AGENTS.md](./rust/src/AGENTS.md) - Rust FFI layer (32 lines)
 - [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) - Development roadmap (archived)
 - [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) - Implementation details (archived)

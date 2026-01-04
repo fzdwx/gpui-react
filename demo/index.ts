@@ -1,5 +1,5 @@
 import React from "react";
-import { createRoot } from "../src/renderer/index";
+import { createRoot } from "../src/reconciler/index";
 
 const root = createRoot();
 root.render(React.createElement("div", null, "hello world"));
