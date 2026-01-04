@@ -1,16 +1,14 @@
-use gpui::{Global, Window};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use gpui::Global;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
 
-/// 全局状态结构体 - 只包含真正全局的状态
+use crate::window_state::WindowState;
+
 pub struct GlobalState {
-    /// GPUI 是否已初始化
     gpui_initialized: AtomicBool,
-
-    /// GPUI 线程是否已启动
     gpui_thread_started: AtomicBool,
-
-    /// 当前窗口
-    current_window: AtomicU64,
+    window_states: RwLock<HashMap<u64, Arc<WindowState>>>,
 }
 
 impl Global for GlobalState {}
@@ -20,38 +18,51 @@ impl GlobalState {
         Self {
             gpui_initialized: AtomicBool::new(false),
             gpui_thread_started: AtomicBool::new(false),
-            current_window: AtomicU64::new(0),
+            window_states: RwLock::new(HashMap::new()),
         }
     }
 
-    /// 检查 GPUI 是否已初始化
     pub fn is_initialized(&self) -> bool {
         self.gpui_initialized.load(Ordering::SeqCst)
     }
 
-    /// 设置 GPUI 初始化状态
     pub fn set_initialized(&self, value: bool) {
         self.gpui_initialized.store(value, Ordering::SeqCst);
     }
 
-    /// 检查 GPUI 线程是否已启动
     pub fn is_thread_started(&self) -> bool {
         self.gpui_thread_started.load(Ordering::SeqCst)
     }
 
-    /// 设置 GPUI 线程启动状态
     pub fn set_thread_started(&self, value: bool) {
         self.gpui_thread_started.store(value, Ordering::SeqCst);
     }
 
-    /// 获取当前窗口 ID
-    pub fn get_current_window(&self) -> u64 {
-        self.current_window.load(Ordering::SeqCst)
+    pub fn get_window_state(&self, window_id: u64) -> Arc<WindowState> {
+        let mut states = self
+            .window_states
+            .write()
+            .expect("Failed to acquire window_states write lock");
+        states
+            .entry(window_id)
+            .or_insert_with(|| Arc::new(WindowState::new()))
+            .clone()
     }
 
-    /// 设置当前窗口 ID
-    pub fn set_current_window(&self, window_id: u64) {
-        self.current_window.store(window_id, Ordering::SeqCst);
+    pub fn get_window_state_ref(&self, window_id: u64) -> Option<Arc<WindowState>> {
+        let states = self
+            .window_states
+            .read()
+            .expect("Failed to acquire window_states read lock");
+        states.get(&window_id).cloned()
+    }
+
+    pub fn remove_window_state(&self, window_id: u64) {
+        let mut states = self
+            .window_states
+            .write()
+            .expect("Failed to acquire window_states write lock");
+        states.remove(&window_id);
     }
 }
 
@@ -62,6 +73,5 @@ impl Default for GlobalState {
 }
 
 lazy_static::lazy_static! {
-    /// 全局状态实例
     pub static ref GLOBAL_STATE: GlobalState = GlobalState::new();
 }

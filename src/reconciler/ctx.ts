@@ -1,11 +1,11 @@
 import {createContext, useContext} from "react";
 
 interface AppContext {
-    windowsID:number
+    windowId: number
 }
 
 export const AppContext = createContext<AppContext>({
-    windowsID:0
+    windowId: 0
 })
 
 export const useAppContext = () => {

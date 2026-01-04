@@ -118,6 +118,3 @@ impl Default for WindowState {
         Self::new()
     }
 }
-
-pub static WINDOW_STATE: std::sync::LazyLock<WindowState> =
-    std::sync::LazyLock::new(|| WindowState::new());

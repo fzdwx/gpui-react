@@ -12,7 +12,8 @@ export type Root = {
 export function createRoot(): Root {
     let container: null = null
     init(800, 600);
-    createWindow(800, 600);
+    const windowId = createWindow(800, 600);
+    console.log("Created window with id:", windowId);
 
     const elementStore = new ElementStore();
     return {
@@ -20,7 +21,7 @@ export function createRoot(): Root {
             container = _render(
                 React.createElement(
                     AppContext.Provider,
-                    {value: {windowsID: 1}},
+                    {value: {windowId}},
                     node,
                 ),
                 elementStore,

@@ -1,25 +1,25 @@
 use crate::element::ReactElement;
 use crate::global_state::GLOBAL_STATE;
 use crate::host_command;
-use crate::window_state::WINDOW_STATE;
 use gpui::{
     div, prelude::*, px, rgb, Application as GpuiApp, Bounds, Entity, Point, Render, Size, Window,
     WindowBounds, WindowOptions,
 };
 
-#[derive(Clone)]
-struct RootState {
+pub struct RootState {
     pub render_count: u64,
 }
 
-struct RootView {
-    state: Entity<RootState>,
+pub struct RootView {
+    pub state: Entity<RootState>,
     pub last_render: u64,
+    pub window_id: u64,
 }
 
 impl RootView {
     fn update_state(&mut self, cx: &mut gpui::Context<Self>) {
-        let trigger = WINDOW_STATE.get_render_count();
+        let window_state = GLOBAL_STATE.get_window_state(self.window_id);
+        let trigger = window_state.get_render_count();
         log::trace!(
             "update_state: trigger={}, last_render={}",
             trigger,
@@ -49,7 +49,8 @@ impl Render for RootView {
         let render_start = std::time::Instant::now();
         self.update_state(cx);
 
-        let tree = WINDOW_STATE
+        let window_state = GLOBAL_STATE.get_window_state(self.window_id);
+        let tree = window_state
             .element_tree
             .lock()
             .expect("Failed to acquire element_tree lock in RootView.render");
@@ -72,7 +73,6 @@ impl Render for RootView {
     }
 }
 
-/// Render a ReactElement to GPUI elements
 fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
     log::debug!(
         "render_element_to_gpui: type={}, text={:?}, style={:?}",
@@ -259,5 +259,4 @@ pub fn start_gpui_thread(width: f32, height: f32) {
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-static NEXT_WINDOW_ID: AtomicU64 = AtomicU64::new(1);
-
+pub static NEXT_WINDOW_ID: AtomicU64 = AtomicU64::new(1);

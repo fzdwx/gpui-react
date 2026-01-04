@@ -1,14 +1,13 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
 
-use gpui::{App, AsyncApp};
+use gpui::{App, AppContext, AsyncApp};
 
 use crate::global_state::GLOBAL_STATE;
-use crate::window_state::WINDOW_STATE;
 
 #[derive(Debug)]
 pub enum HostCommand {
-    CreateWindow { width: f32, height: f32 },
+    CreateWindow { width: f32, height: f32, window_id: u64 },
     RefreshWindow,
     TriggerRender,
     UpdateElementTree,
@@ -84,7 +83,6 @@ pub fn init(cx: &mut App) {
         })
         .detach();
 
-        // Mark bus as ready immediately after setting up the task
         inner.ready.store(true, Ordering::SeqCst);
     }
 }
@@ -115,7 +113,7 @@ pub fn handle_on_app_thread(command: crate::host_command::HostCommand, app: &mut
     log::trace!("handle_on_app_thread: {:?}", command);
 
     match command {
-        crate::host_command::HostCommand::CreateWindow { width, height } => {
+        crate::host_command::HostCommand::CreateWindow { width, height, window_id } => {
             let size = gpui::Size {
                 width: gpui::px(width),
                 height: gpui::px(height),
@@ -125,9 +123,6 @@ pub fn handle_on_app_thread(command: crate::host_command::HostCommand, app: &mut
                 y: gpui::px(100.0),
             };
             let bounds = gpui::Bounds { origin, size };
-
-            let window_id = crate::renderer::NEXT_WINDOW_ID.fetch_add(1, Ordering::SeqCst);
-            crate::global_state::GLOBAL_STATE.set_current_window(window_id);
 
             let _window = app.open_window(
                 gpui::WindowOptions {
@@ -143,6 +138,7 @@ pub fn handle_on_app_thread(command: crate::host_command::HostCommand, app: &mut
                     cx.new(|_| crate::renderer::RootView {
                         state,
                         last_render: 0,
+                        window_id,
                     })
                 },
             );
@@ -152,8 +148,6 @@ pub fn handle_on_app_thread(command: crate::host_command::HostCommand, app: &mut
         HostCommand::RefreshWindow
         | HostCommand::TriggerRender
         | HostCommand::UpdateElementTree => {
-            WINDOW_STATE.update_element_tree();
-
             if let Some(window) = app.windows().first() {
                 window.update(app, |_, window, _cx| {
                     log::trace!("Calling window.refresh()");
@@ -166,7 +160,6 @@ pub fn handle_on_app_thread(command: crate::host_command::HostCommand, app: &mut
     }
 }
 
-
 pub fn sender() -> Result<CommandSender, CommandError> {
     BUS.get()
         .map(|inner| CommandSender { inner: inner.clone() })
@@ -178,7 +171,6 @@ pub fn is_bus_ready() -> bool {
 }
 
 pub fn send_host_command(command: HostCommand) {
-    // Retry a few times if bus not ready yet
     for _ in 0..100 {
         if let Ok(s) = sender() {
             let _ = s.send_host(command);
@@ -186,12 +178,7 @@ pub fn send_host_command(command: HostCommand) {
         }
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
-    // Last try without retry
     if let Ok(s) = sender() {
         let _ = s.send_host(command);
     }
-}
-
-pub fn get_current_window() -> u64 {
-    GLOBAL_STATE.get_current_window()
 }

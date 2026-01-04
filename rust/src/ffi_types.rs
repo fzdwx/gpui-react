@@ -23,20 +23,37 @@ impl FfiResult {
     }
 }
 
-// ElementData struct with explicit padding to match JavaScript layout
-// JavaScript layout (40 bytes total):
-// 0-8: global_id (u64)
-// 8-16: type_ptr (u64)
-// 16-24: text_ptr (u64)
-// 24-28: child_count (u32)
-// 28-32: padding (4 bytes, for 8-byte alignment)
-// 32-40: children_ptr (u64)
+#[repr(C)]
+pub struct WindowCreateResult {
+    pub status: i32,
+    pub window_id: u64,
+    pub error_msg: *mut c_char,
+}
+
+impl WindowCreateResult {
+    pub fn success(window_id: u64) -> Self {
+        WindowCreateResult {
+            status: 0,
+            window_id,
+            error_msg: std::ptr::null_mut(),
+        }
+    }
+
+    pub fn error(message: &str) -> Self {
+        WindowCreateResult {
+            status: 1,
+            window_id: 0,
+            error_msg: CString::new(message).unwrap().into_raw(),
+        }
+    }
+}
+
 #[repr(C)]
 pub struct ElementData {
     pub global_id: u64,
     pub type_ptr: *const c_char,
     pub text_ptr: *const c_char,
     pub child_count: u32,
-    pub _padding: u32, // Explicit padding for alignment
+    pub _padding: u32,
     pub children_ptr: *const u64,
 }

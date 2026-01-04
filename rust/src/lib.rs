@@ -7,14 +7,14 @@ mod renderer;
 mod window_state;
 
 use std::ffi::{c_char, CStr};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use crate::element::ReactElement;
-use crate::ffi_types::FfiResult;
+use crate::ffi_types::{FfiResult, WindowCreateResult};
 use crate::global_state::GLOBAL_STATE;
 use crate::host_command::{is_bus_ready, send_host_command, HostCommand};
 use crate::renderer::start_gpui_thread;
-use crate::window_state::WINDOW_STATE;
 
 #[no_mangle]
 pub extern "C" fn gpui_init(width: f32, height: f32, result: *mut FfiResult) {
@@ -43,17 +43,33 @@ pub extern "C" fn gpui_init(width: f32, height: f32, result: *mut FfiResult) {
 }
 
 #[no_mangle]
-pub extern "C" fn gpui_create_window(width: f32, height: f32, result: *mut FfiResult) {
-    // Trigger command bus to create window asynchronously
-    send_host_command(HostCommand::CreateWindow { width, height });
-    
+pub extern "C" fn gpui_create_window(
+    width: f32,
+    height: f32,
+    result: *mut WindowCreateResult,
+) {
+    let window_id = crate::renderer::NEXT_WINDOW_ID.fetch_add(1, Ordering::SeqCst);
+
+    let _ = GLOBAL_STATE.get_window_state(window_id);
+
+    send_host_command(HostCommand::CreateWindow {
+        width,
+        height,
+        window_id,
+    });
+
     unsafe {
-        *result = FfiResult::success();
+        if result.is_null() {
+            log::error!("gpui_create_window: result is null");
+            return;
+        }
+        *result = WindowCreateResult::success(window_id);
     }
 }
 
 #[no_mangle]
 pub extern "C" fn gpui_render_frame(
+    window_id_ptr: *const u8,
     global_id_ptr: *const u8,
     type_ptr: *const std::os::raw::c_char,
     text_ptr: *const std::os::raw::c_char,
@@ -68,7 +84,15 @@ pub extern "C" fn gpui_render_frame(
             return;
         }
 
-        // Read global_id (little-endian u64 from 8-byte buffer)
+        let window_id = if window_id_ptr.is_null() {
+            0
+        } else {
+            let buf = std::slice::from_raw_parts(window_id_ptr, 8);
+            u64::from_le_bytes([
+                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+            ])
+        };
+
         let global_id = if global_id_ptr.is_null() {
             0
         } else {
@@ -78,7 +102,6 @@ pub extern "C" fn gpui_render_frame(
             ])
         };
 
-        // Read child_count (little-endian u64 from 8-byte buffer)
         let child_count = if child_count_ptr.is_null() {
             0
         } else {
@@ -108,7 +131,8 @@ pub extern "C" fn gpui_render_frame(
         };
 
         log::debug!(
-            "gpui_render_frame: id={}, type={}, text={:?}, child_count={}, children={:?}",
+            "gpui_render_frame: window_id={}, id={}, type={}, text={:?}, child_count={}, children={:?}",
+            window_id,
             global_id,
             element_type,
             text,
@@ -116,8 +140,8 @@ pub extern "C" fn gpui_render_frame(
             children
         );
 
-        // Add ALL elements to the map (not just the root)
-        // The root element gets full data, children get placeholder entries
+        let window_state = GLOBAL_STATE.get_window_state(window_id);
+
         let element = Arc::new(ReactElement {
             global_id,
             element_type: element_type.clone(),
@@ -127,7 +151,7 @@ pub extern "C" fn gpui_render_frame(
             event_handlers: None,
         });
 
-        let mut element_map = WINDOW_STATE
+        let mut element_map = window_state
             .element_map
             .lock()
             .expect("Failed to acquire element_map lock in gpui_render_frame");
@@ -149,14 +173,12 @@ pub extern "C" fn gpui_render_frame(
 
         drop(element_map);
 
-        // Store the root element ID
-        WINDOW_STATE.set_root_element_id(global_id);
+        window_state.set_root_element_id(global_id);
 
-        WINDOW_STATE.rebuild_tree(global_id, &children);
+        window_state.rebuild_tree(global_id, &children);
 
-        WINDOW_STATE.update_element_tree();
+        window_state.update_element_tree();
 
-        // Send trigger_render command to force GPUI to pick up changes
         send_host_command(HostCommand::TriggerRender);
 
         let result_buf = std::slice::from_raw_parts_mut(result_ptr as *mut u8, 8);
@@ -174,13 +196,26 @@ pub extern "C" fn gpui_is_ready() -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn gpui_trigger_render(_result: *mut FfiResult) {
-    WINDOW_STATE.increment_render_count();
+pub extern "C" fn gpui_trigger_render(window_id_ptr: *const u8, _result: *mut FfiResult) {
+    unsafe {
+        let window_id = if window_id_ptr.is_null() {
+            0
+        } else {
+            let buf = std::slice::from_raw_parts(window_id_ptr, 8);
+            u64::from_le_bytes([
+                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+            ])
+        };
+
+        let window_state = GLOBAL_STATE.get_window_state(window_id);
+        window_state.increment_render_count();
+    }
     send_host_command(HostCommand::TriggerRender);
 }
 
 #[no_mangle]
 pub extern "C" fn gpui_batch_update_elements(
+    window_id_ptr: *const u8,
     count_ptr: *const u8,
     elements_json_ptr: *const c_char,
     result: *mut FfiResult,
@@ -192,6 +227,15 @@ pub extern "C" fn gpui_batch_update_elements(
             *result = FfiResult::error("count_ptr or elements_json_ptr or result is null");
             return;
         }
+
+        let window_id = if window_id_ptr.is_null() {
+            0
+        } else {
+            let buf = std::slice::from_raw_parts(window_id_ptr, 8);
+            u64::from_le_bytes([
+                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+            ])
+        };
 
         let count = std::ptr::read_volatile(count_ptr) as u64;
         let elements_json_str = CStr::from_ptr(elements_json_ptr)
@@ -208,9 +252,11 @@ pub extern "C" fn gpui_batch_update_elements(
             .ok_or_else(|| "Elements must be an array".to_string())
             .unwrap();
 
-        log::info!("Batch update: Processing {} elements", count);
+        log::info!("Batch update: Processing {} elements for window {}", count, window_id);
 
-        let mut element_map = WINDOW_STATE
+        let window_state = GLOBAL_STATE.get_window_state(window_id);
+
+        let mut element_map = window_state
             .element_map
             .lock()
             .expect("Failed to acquire element_map lock in gpui_batch_update_elements");
@@ -376,13 +422,11 @@ pub extern "C" fn gpui_batch_update_elements(
 
         log::debug!("Children updated for all elements");
 
-        // Update the element tree so render picks up changes
-        WINDOW_STATE.update_element_tree();
+        window_state.update_element_tree();
 
-        // Send trigger_render command
         send_host_command(HostCommand::TriggerRender);
 
-        let trigger = WINDOW_STATE.get_render_count();
+        let trigger = window_state.get_render_count();
         log::debug!(
             "Triggering render, current count: {}",
             trigger

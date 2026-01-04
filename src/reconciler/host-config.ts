@@ -1,6 +1,6 @@
 import * as ReactReconciler from "react-reconciler";
 import {ElementStore, ElementData} from "./element-store";
-import {renderFrame, batchElementUpdates} from "./gpui-binding";
+import {renderFrame, batchElementUpdates, currentWindowId} from "./gpui-binding";
 import {mapStyleToProps, StyleProps} from "./styles";
 import {EventHandler, MouseEvent, Event} from "./events";
 import {HostConfig, OpaqueHandle} from "react-reconciler";
@@ -144,32 +144,32 @@ export const hostConfig: HostConfig<
         return document.createElement("div");
     },
 
-    getRootHostContext(rootContainer: Container): HostContext | null {
-        return null;
+    getRootHostContext(_rootContainer: Container): HostContext | null {
+        return {};
     },
 
     getChildHostContext(
-        parentHostContext: HostContext,
-        type: Type,
-        rootContainer: Container,
+        _parentHostContext: HostContext,
+        _type: Type,
+        _rootContainer: Container,
     ): HostContext {
-        return null;
+        return {};
     },
 
-    prepareForCommit(containerInfo: Container): Record<string, any> | null {
-        return null;
+    prepareForCommit(_containerInfo: Container): Record<string, any> | null {
+        return {};
     },
 
     resetAfterCommit(containerInfo: Container): void {
         if (pendingUpdates.length > 0) {
             console.log(`=== Processing ${pendingUpdates.length} batched updates ===`);
-            batchElementUpdates(pendingUpdates);
+            batchElementUpdates(currentWindowId, pendingUpdates);
             pendingUpdates.length = 0;
         }
 
         const root = containerInfo.getRoot();
         console.log("resetAfterCommit - root element:", JSON.stringify(root, null, 2));
-        renderFrame(root);
+        renderFrame(currentWindowId, root);
 
         // Force GPUI to re-render by using setImmediate to ensure event loop processes
         // GPUI is event-driven, so we need to ensure it processes state changes
