@@ -99,9 +99,9 @@ async function createRelease() {
   // Sync optionalDependencies version
   const pkg = JSON.parse(readFileSync(packagePath, 'utf8'));
   const platforms = [
-    'core-darwin-x64', 'core-darwin-arm64',
-    'core-linux-x64', 'core-linux-arm64',
-    'core-win32-x64', 'core-win32-arm64'
+    'core-darwin-x64',
+    'core-linux-x64',
+    'core-win32-x64'
   ];
   for (const platform of platforms) {
     pkg.optionalDependencies[`@gpui-react/${platform}`] = newVersion;

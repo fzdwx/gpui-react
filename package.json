@@ -38,11 +38,8 @@
   },
   "optionalDependencies": {
     "@gpui-react/core-darwin-x64": "0.1.5",
-    "@gpui-react/core-darwin-arm64": "0.1.5",
     "@gpui-react/core-linux-x64": "0.1.5",
-    "@gpui-react/core-linux-arm64": "0.1.5",
-    "@gpui-react/core-win32-x64": "0.1.5",
-    "@gpui-react/core-win32-arm64": "0.1.5"
+    "@gpui-react/core-win32-x64": "0.1.5"
   },
   "engines": {
     "bun": ">=1.2.0",
