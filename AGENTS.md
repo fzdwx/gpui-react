@@ -1,7 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-01-04
-**Mode:** --create-new
+**Generated:** 2026-01-05
+**Branch:** $(git branch --show-current 2>/dev/null || echo "unknown")
+**Commit:** $(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 ## OVERVIEW
 React renderer for GPUI (Zed's GPU-accelerated UI) using Bun native FFI. Architecture: React → Reconciler → Element Store → Bun FFI → Rust → GPUI → GPU.
@@ -9,27 +10,30 @@ React renderer for GPUI (Zed's GPU-accelerated UI) using Bun native FFI. Archite
 ## STRUCTURE
 ```
 gpui-react/
-├── rust/              # Rust FFI library
-│   └── src/        # 9 files: FFI exports, GPUI rendering
-├── src/renderer/     # 9 files: React reconciler, FFI bindings
-└── demo/             # Demo apps
+├── rust/              # Rust FFI library (cdylib)
+│   └── src/        # 8 files: FFI exports, GPUI rendering
+├── src/reconciler/   # React reconciler + FFI bindings (10 files)
+└── demo/             # Demo apps (5 entry points)
 ```
 
 ## WHERE TO LOOK
 | Task | Location | Notes |
 |------|----------|-------|
-| React reconciler | src/renderer/host-config.ts | React-to-GPUI bridge |
-| Element management | src/renderer/element-store.ts | JS-side element data |
-| Bun FFI bindings | src/renderer/gpui-binding.ts | dlopen, FFIType, pointers |
+| Public API | src/index.ts | createRoot(), createWindow() |
+| React reconciler | src/reconciler/host-config.ts | appendChild, commitUpdate, resetAfterCommit |
+| Element management | src/reconciler/element-store.ts | Map<id, ElementData>, IDs start from 2 |
+| Bun FFI bindings | src/reconciler/gpui-binding.ts | dlopen, FFIType, liveBuffers |
 | Rust FFI exports | rust/src/lib.rs | gpui_init, gpui_trigger_render |
 | GPUI rendering | rust/src/renderer.rs | RootView, render_element_to_gpui |
-| Commands | rust/src/host_command.rs | async_channel command bus |
+| Command bus | rust/src/host_command.rs | async_channel command bus |
 | Window state | rust/src/window_state.rs | ElementTree, render_count |
 
 ## CONVENTIONS
 - **Rust subdir:** Rust code in rust/src/ (not root src/)
-- **FFI sync:** Call `send_host_command(TriggerRender)` after batch updates
+- **FFI sync:** Call batchElementUpdates() + renderFrame() after batch updates
 - **Root tracking:** ROOT_ELEMENT_ID AtomicU64 (HashMap iteration is non-deterministic)
+- **Element IDs:** Start from 2 (ID 1 reserved)
+- **Buffer lifetime:** FFI buffers must stay in liveBuffers[] during calls
 - **Manual tests:** Console.log assertions, no test framework
 - **No CI/CD:** Build/test via npm scripts
 
@@ -39,20 +43,26 @@ gpui-react/
 - Don't render span.text - collect from child text elements
 - Don't create ReactElement without event_handlers: None - required field
 - Don't call gpui_render_frame without rebuild_tree first
+- Don't use className prop - use style prop instead
+- Don't let FFI buffers be GC'd before call returns - push to liveBuffers
 
 ## UNIQUE STYLES
 - Native Bun FFI (not wasm-bindgen) - no browser compatibility
 - Two-phase: React builds tree → Rust tracks by ID → GPUI renders
 - Span elements contain text elements as children (text in child.text)
 - Command bus: async_channel → GPUI App thread → window.refresh()
+- Event handlers registered in JS, passed as IDs to Rust
 
 ## COMMANDS
 ```bash
-cd rust && cargo build --release      # Build Rust library
-bun run demo                         # Run basic demo
-bun run event-demo                   # Run event handling demo
+cd rust && cargo build --release      # Build Rust library (3GB+ first time)
+bun run demo                         # Basic demo
+bun run event-demo                   # Event handling demo
+bun run src/reconciler/__tests__/element-store.test.ts  # Run tests
 ```
 
 ## NOTES
 - GPUI compilation downloads 3GB+ on first build
-- Root element selection buggy - now tracked with ROOT_ELEMENT_ID
+- Bun FFI uses suffix() to load platform-specific .so/.dylib/.dll
+- Element IDs start from 2 to reserve ID 1 for special purposes
+- liveBuffers array prevents GC from collecting FFI buffers during calls
