@@ -38,7 +38,10 @@
     "format:ts": "prettier --write 'src/**/*.{ts,tsx,js,jsx}' 'demo/**/*.{ts,tsx,js,jsx}' 'scripts/**/*.{js,ts}'",
     "format:check": "bun run format:rust:check && bun run format:ts:check",
     "format:rust:check": "cd rust && cargo +nightly fmt --check",
-    "format:ts:check": "prettier --check 'src/**/*.{ts,tsx,js,jsx}' 'demo/**/*.{ts,tsx,js,jsx}' 'scripts/**/*.{js,ts}'"
+    "format:ts:check": "prettier --check 'src/**/*.{ts,tsx,js,jsx}' 'demo/**/*.{ts,tsx,js,jsx}' 'scripts/**/*.{js,ts}'",
+    "format:staged": "bun run format:rust:staged && bun run format:ts:staged",
+    "format:rust:staged": "cd rust && git diff --name-only -- '*.rs' | xargs -I {} cargo +nightly fmt -- {} 2>/dev/null || true",
+    "format:ts:staged": "prettier --write $(git diff --name-only -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' 2>/dev/null) || true"
   },
   "type": "module",
   "dependencies": {

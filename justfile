@@ -18,7 +18,4 @@ pub:
     npm publish  --registry https://registry.npmjs.org
 
 format:
-    bun run format
-
-format-check:
-    bun run format:check
+    bun run format:staged
