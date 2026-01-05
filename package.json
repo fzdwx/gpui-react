@@ -1,6 +1,6 @@
 {
   "name": "gpui-react",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "module": "src/index.ts",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -37,12 +37,12 @@
     "react-reconciler": "^0.32.0"
   },
   "optionalDependencies": {
-    "@gpui-react/core-darwin-x64": "0.1.0",
-    "@gpui-react/core-darwin-arm64": "0.1.0",
-    "@gpui-react/core-linux-x64": "0.1.0",
-    "@gpui-react/core-linux-arm64": "0.1.0",
-    "@gpui-react/core-win32-x64": "0.1.0",
-    "@gpui-react/core-win32-arm64": "0.1.0"
+    "@gpui-react/core-darwin-x64": "0.1.2",
+    "@gpui-react/core-darwin-arm64": "0.1.2",
+    "@gpui-react/core-linux-x64": "0.1.2",
+    "@gpui-react/core-linux-arm64": "0.1.2",
+    "@gpui-react/core-win32-x64": "0.1.2",
+    "@gpui-react/core-win32-arm64": "0.1.2"
   },
   "engines": {
     "bun": ">=1.2.0",

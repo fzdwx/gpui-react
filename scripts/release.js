@@ -50,22 +50,6 @@ function updateVersionInFile(filePath, newVersion) {
   }
 }
 
-function updateAllPlatformPackages(newVersion) {
-  const platforms = [
-    'core-darwin-x64', 'core-darwin-arm64',
-    'core-linux-x64', 'core-linux-arm64',
-    'core-win32-x64', 'core-win32-arm64'
-  ];
-  
-  for (const platform of platforms) {
-    const pkgPath = join(__dirname, '..', 'packages', platform, 'package.json');
-    if (existsSync(pkgPath)) {
-      updateVersionInFile(pkgPath, newVersion);
-      console.log(`  Updated ${platform}`);
-    }
-  }
-}
-
 function runGit(command, dryRun) {
   console.log(`  Git: ${command}`);
   if (!dryRun) execSync(command, { cwd: workspacePath, stdio: 'inherit' });
@@ -99,7 +83,7 @@ async function createRelease() {
   }
   
   console.log('This will:');
-  console.log('  1. Update version in package.json, Cargo.toml, and platform packages');
+  console.log('  1. Update version in package.json and Cargo.toml');
   console.log('  2. Commit changes');
   console.log(`  3. Create and push tag v${newVersion}`);
   console.log('\n');
@@ -111,10 +95,22 @@ async function createRelease() {
   
   updateVersionInFile(packagePath, newVersion);
   updateVersionInFile(cargoPath, newVersion);
-  updateAllPlatformPackages(newVersion);
+  
+  // Sync optionalDependencies version
+  const pkg = JSON.parse(readFileSync(packagePath, 'utf8'));
+  const platforms = [
+    'core-darwin-x64', 'core-darwin-arm64',
+    'core-linux-x64', 'core-linux-arm64',
+    'core-win32-x64', 'core-win32-arm64'
+  ];
+  for (const platform of platforms) {
+    pkg.optionalDependencies[`@gpui-react/${platform}`] = newVersion;
+  }
+  writeFileSync(packagePath, JSON.stringify(pkg, null, 2) + '\n');
+  
   console.log(`\n✅ Updated to ${newVersion}`);
   
-  runGit('git add package.json rust/Cargo.toml packages/*/package.json', isDryRun);
+  runGit('git add package.json rust/Cargo.toml', isDryRun);
   runGit(`git commit -m "Release v${newVersion}"`, isDryRun);
   runGit(`git tag -a v${newVersion} -m "Release v${newVersion}"`, isDryRun);
   runGit('git push origin main && git push origin v' + newVersion, isDryRun);
