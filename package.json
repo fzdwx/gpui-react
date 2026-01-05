@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist/",
-    "native/"
+    "src/native/"
   ],
   "devDependencies": {
     "@types/react": "^19.0.0",
@@ -16,9 +16,10 @@
     "react": ">=19.0.0"
   },
   "scripts": {
-    "build": "bun run build:rust && bun run build:ts",
+    "build": "bun run build:rust && bun run build:ts && bun run copy:native",
     "build:rust": "cd rust && cargo build --release",
     "build:ts": "tsc",
+    "copy:native": "node scripts/copy-native.js",
     "build:all": "bun run build && echo 'Build complete for distribution'",
     "release": "node scripts/release.js",
     "release:dry-run": "node scripts/release.js patch --dry-run",
@@ -35,11 +36,6 @@
   "type": "module",
   "dependencies": {
     "react-reconciler": "^0.32.0"
-  },
-  "optionalDependencies": {
-    "@gpui-react/core-darwin-x64": "0.1.6",
-    "@gpui-react/core-linux-x64": "0.1.6",
-    "@gpui-react/core-win32-x64": "0.1.6"
   },
   "engines": {
     "bun": ">=1.2.0",

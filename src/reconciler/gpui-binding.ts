@@ -4,7 +4,7 @@ import {sleep} from "bun";
 import {info, debug, trace, error as logError} from "./logging";
 
 const libName = `libgpui_renderer.${suffix}`;
-const libPath = join(import.meta.dir, "../../rust/target/release", libName);
+const libPath = join(import.meta.dir, "../native/linux-x64", libName);
 
 info(`Loading GPUI library from: ${libPath}`);
 
@@ -16,7 +16,7 @@ const lib = dlopen(libPath, {
         returns: FFIType.void,
     },
     gpui_create_window: {
-        args: [FFIType.f32, FFIType.f32, FFIType.ptr],
+        args: [FFIType.f32, FFIType.f32, FFIType.ptr, FFIType.ptr],
         returns: FFIType.void,
     },
     gpui_is_ready: {
@@ -77,17 +77,24 @@ function checkWindowCreateResult(resultBuffer: Uint8Array): number {
     return Number(windowId);
 }
 
-export function init(width: number, height: number): void {
+export function init(): void {
     const resultBuffer = new Uint8Array(FFI_RESULT_SIZE);
-    lib.symbols.gpui_init(width, height, resultBuffer);
+    lib.symbols.gpui_init(resultBuffer);
     checkResult(resultBuffer);
 
     waitGpuiReady();
 }
 
-export function createWindow(width: number, height: number): number {
+export function createWindow(width: number, height: number, title?: string): number {
     const resultBuffer = new Uint8Array(FFI_RESULT_SIZE);
-    lib.symbols.gpui_create_window(width, height, resultBuffer);
+
+    // 编码 title 字符串，添加 null 终止符
+    const titleStr = title || "React-GPUI";
+    const titleBuffer = new TextEncoder().encode(titleStr + "\0");
+    liveBuffers.push(titleBuffer.buffer);  // 保持引用防止 GC
+    const titlePtr = ptr(titleBuffer);
+
+    lib.symbols.gpui_create_window(width, height, titlePtr, resultBuffer);
     currentWindowId = checkWindowCreateResult(resultBuffer);
     info(`Created window with id: ${currentWindowId}`);
     return currentWindowId;
