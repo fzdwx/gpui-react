@@ -6,3 +6,9 @@ native:
 
 demo:
     bun run demo
+
+release:
+    bun run build
+    git add .
+    bun run release
+    npm publish  --registry https://registry.npmjs.org

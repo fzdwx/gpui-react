@@ -1,6 +1,6 @@
 {
   "name": "gpui-react",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "module": "src/index.ts",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
