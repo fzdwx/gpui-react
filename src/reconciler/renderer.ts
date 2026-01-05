@@ -22,6 +22,7 @@ export function createRoot({ width, height, title }: RootProps): Root {
     console.log("Created window with id:", windowId);
 
     const elementStore = new ElementStore();
+    elementStore.setWindowId(windowId);
     return {
         render(node: React.ReactNode) {
             container = _render(

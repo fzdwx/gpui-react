@@ -15,11 +15,21 @@ export class ElementStore {
     private store = new Map<number, ElementData>();
     private nextId = 2;
     private rootId: number | null = null;
+    private windowId: number = 0;
+
+    setWindowId(id: number): void {
+        this.windowId = id;
+    }
+
+    getWindowId(): number {
+        return this.windowId;
+    }
 
     reset(): void {
         this.store.clear();
         this.nextId = 2;
         this.rootId = null;
+        this.windowId = 0;
     }
 
     createElement(type: string, text?: string, style?: Record<string, any>): number {

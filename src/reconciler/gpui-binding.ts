@@ -1,11 +1,9 @@
-import { dlopen, FFIType, suffix, ptr } from "bun:ffi";
-import { join } from "path";
+import { dlopen, FFIType, ptr, read } from "bun:ffi";
+import { info, debug, trace } from "./logging";
+import { getNativeLibPath } from "./util";
 import { sleep } from "bun";
-import { info, debug, trace, error as logError } from "./logging";
 
-const libName = `libgpui_renderer.${suffix}`;
-// Runtime path: dist/ and src/native/ are siblings, so go up from dist/reconciler/ to dist/, then to native/
-const libPath = join(import.meta.dir, "../../src/native/linux-x64", libName);
+const libPath = getNativeLibPath(import.meta.dir);
 
 info(`Loading GPUI library from: ${libPath}`);
 
@@ -56,33 +54,33 @@ if (!lib.symbols) {
 
 const FFI_RESULT_SIZE = 16;
 
-export let currentWindowId: number = 0;
-
 function checkResult(resultBuffer: Uint8Array): void {
-    const status = new DataView(resultBuffer.buffer).getInt32(0, true);
+    // Use read() for faster pointer access (bun:ffi best practice for short-lived pointers)
+    const status = read.i32(ptr(resultBuffer), 0);
 
     if (status !== 0) {
-        const errorPtr = new DataView(resultBuffer.buffer).getInt32(8, true);
+        const errorPtr = read.i32(ptr(resultBuffer), 8);
         lib.symbols.gpui_free_result(resultBuffer);
         throw new Error(`GPUI operation failed: error ptr=${errorPtr}`);
     }
 
-    const errorCheck = new DataView(resultBuffer.buffer).getInt32(8, true);
+    const errorCheck = read.i32(ptr(resultBuffer), 8);
     if (errorCheck !== 0) {
         lib.symbols.gpui_free_result(resultBuffer);
     }
 }
 
-function checkWindowCreateResult(resultBuffer: Uint8Array): number {
-    const status = new DataView(resultBuffer.buffer).getInt32(0, true);
+export function checkWindowCreateResult(resultBuffer: Uint8Array): number {
+    // Use read() for faster pointer access (bun:ffi best practice for short-lived pointers)
+    const status = read.i32(ptr(resultBuffer), 0);
 
     if (status !== 0) {
-        const errorPtr = new DataView(resultBuffer.buffer).getInt32(8, true);
+        const errorPtr = read.i32(ptr(resultBuffer), 8);
         lib.symbols.gpui_free_result(resultBuffer);
         throw new Error(`GPUI window creation failed: error ptr=${errorPtr}`);
     }
 
-    const windowId = new DataView(resultBuffer.buffer).getBigUint64(8, true);
+    const windowId = read.u64(ptr(resultBuffer), 8);
     return Number(windowId);
 }
 
@@ -104,9 +102,9 @@ export function createWindow(width: number, height: number, title?: string): num
     const titlePtr = ptr(titleBuffer);
 
     lib.symbols.gpui_create_window(width, height, titlePtr, resultBuffer);
-    currentWindowId = checkWindowCreateResult(resultBuffer);
-    info(`Created window with id: ${currentWindowId}`);
-    return currentWindowId;
+    const windowId = checkWindowCreateResult(resultBuffer);
+    info(`Created window with id: ${windowId}`);
+    return windowId;
 }
 
 export function renderFrame(windowId: number, element: any): void {
@@ -182,6 +180,9 @@ export function renderFrame(windowId: number, element: any): void {
 }
 
 export function triggerRender(windowId: number): void {
+    // Clear liveBuffers to prevent memory leak - bun:ffi does not manage memory
+    liveBuffers.length = 0;
+
     const windowIdBuffer = new ArrayBuffer(8);
     new DataView(windowIdBuffer).setBigInt64(0, BigInt(windowId), true);
     liveBuffers.push(windowIdBuffer);

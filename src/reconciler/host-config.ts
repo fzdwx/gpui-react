@@ -1,6 +1,6 @@
 import * as ReactReconciler from "react-reconciler";
 import { ElementStore, ElementData } from "./element-store";
-import { renderFrame, batchElementUpdates, currentWindowId } from "./gpui-binding";
+import { renderFrame, batchElementUpdates } from "./gpui-binding";
 import { mapStyleToProps, StyleProps } from "./styles";
 import { EventHandler, MouseEvent, Event } from "./events";
 import { HostConfig, OpaqueHandle } from "react-reconciler";
@@ -160,13 +160,13 @@ export const hostConfig: HostConfig<
     resetAfterCommit(containerInfo: Container): void {
         if (pendingUpdates.length > 0) {
             info(`Processing ${pendingUpdates.length} batched updates`);
-            batchElementUpdates(currentWindowId, pendingUpdates);
+            batchElementUpdates(containerInfo.getWindowId(), pendingUpdates);
             pendingUpdates.length = 0;
         }
 
         const root = containerInfo.getRoot();
         trace("resetAfterCommit - root element", root);
-        renderFrame(currentWindowId, root);
+        renderFrame(containerInfo.getWindowId(), root);
 
         setImmediate(() => {
             if (typeof window !== "undefined" && (window as any).__gpuiTrigger) {
