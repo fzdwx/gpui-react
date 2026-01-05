@@ -1,4 +1,4 @@
-import { trace, debug } from "./logging";
+import { trace, debug } from "./utils/logging";
 
 export interface ElementData {
     globalId: number;

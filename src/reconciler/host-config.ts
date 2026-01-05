@@ -5,7 +5,7 @@ import { mapStyleToProps, StyleProps } from "./styles";
 import { EventHandler, MouseEvent, Event } from "./events";
 import { HostConfig, OpaqueHandle } from "react-reconciler";
 import { DefaultEventPriority, NoEventPriority } from "react-reconciler/constants";
-import { trace, debug, info, warn } from "./logging";
+import { trace, debug, info, warn } from "./utils/logging";
 
 type ReactContext<T> = ReactReconciler.ReactContext<T>;
 

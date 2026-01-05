@@ -1,5 +1,5 @@
 import { dlopen, FFIType, ptr, read } from "bun:ffi";
-import { info, debug, trace } from "./logging";
+import { info, debug, trace } from "./utils/logging";
 import { getNativeLibPath } from "./util";
 import { sleep } from "bun";
 
