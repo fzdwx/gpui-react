@@ -4,7 +4,8 @@ import {sleep} from "bun";
 import {info, debug, trace, error as logError} from "./logging";
 
 const libName = `libgpui_renderer.${suffix}`;
-const libPath = join(import.meta.dir, "../native/linux-x64", libName);
+// Runtime path: dist/ and src/native/ are siblings, so go up from dist/reconciler/ to dist/, then to native/
+const libPath = join(import.meta.dir, "../../native/linux-x64", libName);
 
 info(`Loading GPUI library from: ${libPath}`);
 
