@@ -1,4 +1,4 @@
-use crate::element::ReactElement;
+use crate::element::{ElementStyle, ReactElement};
 use crate::global_state::GLOBAL_STATE;
 use crate::host_command;
 use gpui::{
@@ -60,7 +60,7 @@ impl Render for RootView {
         );
 
         let result = div().size(px(800.0)).bg(rgb(0x1e1e1e)).child(match &*tree {
-            Some(element) => render_element_to_gpui(&element),
+            Some(element) => render_element_to_gpui(&element, None),
             None => div()
                 .child("Waiting for React...")
                 .text_color(rgb(0x888888)),
@@ -73,7 +73,10 @@ impl Render for RootView {
     }
 }
 
-fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
+fn render_element_to_gpui(
+    element: &ReactElement,
+    parent_style: Option<&ElementStyle>,
+) -> gpui::Div {
     log::debug!(
         "render_element_to_gpui: type={}, text={:?}, style={:?}",
         element.element_type,
@@ -81,12 +84,23 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
         element.style
     );
 
+    // Helper to get effective style (own style or inherited from parent for text properties)
+    let effective_text_color = element
+        .style
+        .text_color
+        .or(parent_style.and_then(|s| s.text_color));
+    let effective_text_size = element
+        .style
+        .text_size
+        .or(parent_style.and_then(|s| s.text_size));
+
     match element.element_type.as_str() {
         "div" => {
+            // Pass current element's style as parent for children
             let children: Vec<gpui::Div> = element
                 .children
                 .iter()
-                .map(|c| render_element_to_gpui(c))
+                .map(|c| render_element_to_gpui(c, Some(&element.style)))
                 .collect();
             log::trace!("  div has {} children", children.len());
 
@@ -168,13 +182,14 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
 
             let mut text_element = div().child(text);
 
-            if let Some(color) = element.style.text_color {
+            // Use effective style (inherited from parent div if not set on text element)
+            if let Some(color) = effective_text_color {
                 text_element = text_element.text_color(rgb(color));
             } else {
                 text_element = text_element.text_color(rgb(0xffffff));
             }
 
-            if let Some(size) = element.style.text_size {
+            if let Some(size) = effective_text_size {
                 text_element = text_element.text_size(px(size));
             }
 
@@ -197,13 +212,14 @@ fn render_element_to_gpui(element: &ReactElement) -> gpui::Div {
 
             let mut span_element = div().child(text);
 
-            if let Some(color) = element.style.text_color {
+            // Use effective style (inherited from parent if not set on span)
+            if let Some(color) = effective_text_color {
                 span_element = span_element.text_color(rgb(color));
             } else {
                 span_element = span_element.text_color(rgb(0xffffff));
             }
 
-            if let Some(size) = element.style.text_size {
+            if let Some(size) = effective_text_size {
                 span_element = span_element.text_size(px(size));
             }
 

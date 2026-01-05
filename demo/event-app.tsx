@@ -11,9 +11,7 @@ export function EventApp() {
 
   useEffect(() => {
     const timer = setTimeout(()=>{
-      console.log("测试定时1111111112111111111111111111111");
       setText(`hello world 4${new Date()}`)
-      console.log("测试定时222222222222222222222")
     },1000)
 
     return () => {
@@ -23,9 +21,7 @@ export function EventApp() {
 
   useEffect(() => {
     const timer = setTimeout(()=>{
-      console.log("测试定时1111111112111111111111111111111");
       setText(`hello world 4${new Date()}`)
-      console.log("测试定时222222222222222222222")
     },3000)
 
     return () => {
@@ -35,9 +31,7 @@ export function EventApp() {
 
   useEffect(() => {
     const timer = setTimeout(()=>{
-      console.log("测试定时1111111112111111111111111111111");
-      setText(`hello world 4${new Date()}`)
-      console.log("测试定时222222222222222222222")
+      setText(`222222hello world 4${new Date()}`)
     },4000)
 
     return () => {
@@ -55,18 +49,18 @@ export function EventApp() {
       alignItems: "center"
     }}>
       <div style={{
-        color: "#ffffff",
-        fontSize: 24,
+        color: "#1db588",
+        fontSize: 25,
         fontWeight: "bold"
       }}>
         {text}
       </div>
       <div style={{
-        backgroundColor: "#ff6b6b",
+        backgroundColor: "#4ed93b",
         color: "white",
         padding: "15px 30px",
         borderRadius: 8,
-        fontSize: 18,
+        fontSize: 30,
         cursor: "pointer"
       }}>
         Clicked {clickCount} times
