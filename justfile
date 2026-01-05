@@ -11,4 +11,7 @@ release:
     bun run build
     git add .
     bun run release
+
+pub:
+    bun run download:artifacts
     npm publish  --registry https://registry.npmjs.org
