@@ -13,9 +13,6 @@ on:
         type: boolean
         default: false
 
-env:
-  RUST_VERSION: "1.94"
-
 jobs:
   build-native:
     name: Build Native Libraries
@@ -54,12 +51,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ env.RUST_VERSION }}
-          target: ${{ matrix.target }}
-          profile: minimal
-          override: true
+          targets: ${{ matrix.target }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
