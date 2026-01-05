@@ -2,8 +2,7 @@ import ReactReconciler from "react-reconciler";
 import { hostConfig } from "./host-config";
 import React from "react";
 import { ConcurrentRoot } from "react-reconciler/constants";
-import { ElementData, ElementStore } from "./element-store";
-import { error } from "./utils/logging";
+import { ElementStore } from "./element-store";
 
 export const reconciler = ReactReconciler(hostConfig);
 

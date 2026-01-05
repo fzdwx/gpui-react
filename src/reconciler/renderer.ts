@@ -1,8 +1,8 @@
 import * as React from "react";
 import { _render, reconciler } from "./reconciler";
-import { init, createWindow } from "./gpui-binding";
 import { ElementStore } from "./element-store";
 import { AppContext } from "./ctx";
+import { rustLib } from "../core";
 
 export type Root = {
     render: (children: React.ReactNode) => void;
@@ -17,8 +17,7 @@ export type RootProps = {
 
 export function createRoot({ width, height, title }: RootProps): Root {
     let container: null = null;
-    init();
-    const windowId = createWindow(width, height, title);
+    const windowId = rustLib.createWindow(width, height, title);
     console.log("Created window with id:", windowId);
 
     const elementStore = new ElementStore();

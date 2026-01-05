@@ -1,13 +1,5 @@
 import { trace, debug } from "./utils/logging";
-
-export interface ElementData {
-    globalId: number;
-    type: string;
-    text?: string;
-    children: number[];
-    style?: Record<string, any>;
-    eventHandlers?: Record<string, number>;
-}
+import { ElementData } from "../core";
 
 const STORE_SYMBOL = Symbol("store");
 

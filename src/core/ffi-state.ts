@@ -1,8 +1,8 @@
-import {ptr, read} from "bun:ffi";
-import {sleep} from "bun";
-import {lib} from "./ffi";
+import { ptr, read } from "bun:ffi";
+import { sleep } from "bun";
+import { lib } from "./ffi";
 
-export class Gpui {
+export class FfiState {
     liveBuffers: ArrayBuffer[] = [];
 
     keep(buffer: ArrayBuffer): void {
@@ -36,27 +36,4 @@ export class Gpui {
         this.keep(buffer);
         return [buffer, ptr(buffer)];
     }
-
-    checkResult(resultBuffer: Uint8Array): void {
-        const status = read.i32(ptr(resultBuffer), 0);
-        if (status !== 0) {
-            const errorPtr = read.i32(ptr(resultBuffer), 8);
-            lib.symbols.gpui_free_result(resultBuffer);
-            throw new Error(`GPUI operation failed: error ptr=${errorPtr}`);
-        }
-        const errorCheck = read.i32(ptr(resultBuffer), 8);
-        if (errorCheck !== 0) lib.symbols.gpui_free_result(resultBuffer);
-    }
-
-    waitReady(): void {
-        let delay = 1;
-        while (Date.now() - Date.now() < 5000) {
-            if (lib.symbols.gpui_is_ready()) return;
-            sleep(Math.min(delay, 100));
-            delay *= 2;
-        }
-        throw new Error("GPUI failed to become ready");
-    }
 }
-
-export const gpui = new Gpui();

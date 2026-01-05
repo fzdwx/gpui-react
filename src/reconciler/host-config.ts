@@ -1,11 +1,11 @@
 import * as ReactReconciler from "react-reconciler";
-import { ElementStore, ElementData } from "./element-store";
-import { renderFrame, batchElementUpdates } from "./gpui-binding";
+import { ElementStore } from "./element-store";
 import { mapStyleToProps, StyleProps } from "./styles";
-import { EventHandler, MouseEvent, Event } from "./events";
+import { EventHandler } from "./events";
 import { HostConfig, OpaqueHandle } from "react-reconciler";
 import { DefaultEventPriority, NoEventPriority } from "react-reconciler/constants";
 import { trace, debug, info, warn } from "./utils/logging";
+import { rustLib } from "../core";
 
 type ReactContext<T> = ReactReconciler.ReactContext<T>;
 
@@ -160,13 +160,13 @@ export const hostConfig: HostConfig<
     resetAfterCommit(containerInfo: Container): void {
         if (pendingUpdates.length > 0) {
             info(`Processing ${pendingUpdates.length} batched updates`);
-            batchElementUpdates(containerInfo.getWindowId(), pendingUpdates);
+            rustLib.batchElementUpdates(containerInfo.getWindowId(), pendingUpdates);
             pendingUpdates.length = 0;
         }
 
         const root = containerInfo.getRoot();
         trace("resetAfterCommit - root element", root);
-        renderFrame(containerInfo.getWindowId(), root);
+        rustLib.renderFrame(containerInfo.getWindowId(), root);
 
         setImmediate(() => {
             if (typeof window !== "undefined" && (window as any).__gpuiTrigger) {

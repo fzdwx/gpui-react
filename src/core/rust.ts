@@ -1,0 +1,137 @@
+import { lib } from "./ffi";
+import { peek, sleep } from "bun";
+import { ptr, read } from "bun:ffi";
+import { info, trace } from "../reconciler/utils/logging";
+import { FfiState } from "./ffi-state";
+
+export interface ElementData {
+    globalId: number;
+    type: string;
+    text?: string;
+    children: number[];
+    style?: Record<string, any>;
+    eventHandlers?: Record<string, number>;
+}
+
+const RESULT_SIZE = 16;
+
+export class RustLib {
+    ffiStateMap: Map<number, FfiState>;
+
+    public constructor() {
+        this.ffiStateMap = new Map();
+        const resultBuffer = new Uint8Array(RESULT_SIZE);
+        lib.symbols.gpui_init(resultBuffer);
+        this.checkResult(resultBuffer);
+        this.waitReady();
+    }
+
+    public createWindow(width: number, height: number, title?: string): number {
+        const resultBuffer = new Uint8Array(RESULT_SIZE);
+        const ffiState = new FfiState();
+        const [titleBuffer, titlePtr] = ffiState.encodeCString(title || "React-GPUI");
+        lib.symbols.gpui_create_window(width, height, titlePtr, resultBuffer);
+        const windowId = this.checkWindowCreateResult(resultBuffer);
+        info(`Created window with id: ${windowId}`);
+        this.ffiStateMap.set(windowId, ffiState);
+        return windowId;
+    }
+
+    public batchElementUpdates(windowId: number, elements: ElementData[]): void {
+        let ffiState = this.getFfiState(windowId);
+        if (!ffiState) {
+            return;
+        }
+
+        if (elements.length === 0) return;
+        info(`Batching ${elements.length} updates for window ${windowId}`);
+        ffiState.clear();
+        const [windowIdBuffer, windowIdPtr] = ffiState.createInt64(BigInt(windowId));
+        const [countBuffer, countPtr] = ffiState.createInt64(BigInt(elements.length));
+        const [elementsBuffer, elementsPtr] = ffiState.encodeCString(JSON.stringify(elements));
+        const resultBuffer = new Uint8Array(8);
+        lib.symbols.gpui_batch_update_elements(windowIdPtr, countPtr, elementsPtr, resultBuffer);
+        lib.symbols.gpui_trigger_render(windowIdPtr, new Uint8Array(8));
+        info(`Batch update completed`);
+    }
+
+    public renderFrame(windowId: number, element: ElementData): void {
+        let ffiState = this.getFfiState(windowId);
+        if (!ffiState) {
+            return;
+        }
+
+        trace(`renderFrame for window ${windowId}`);
+        ffiState.clear();
+        const [windowIdBuffer, windowIdPtr] = ffiState.createInt64(BigInt(windowId));
+        const [globalIdBuffer, globalIdPtr] = ffiState.createInt64(BigInt(element.globalId));
+        const [typeBuffer, typePtr] = ffiState.encodeCString(element.type);
+        const [textBuffer, textPtr] = ffiState.encodeCString(element.text || " ");
+        const childrenArray = element.children || [];
+        const [childCountBuffer, childCountPtr] = ffiState.createInt64(
+            BigInt(childrenArray.length)
+        );
+        const [childrenBuffer, childrenPtr] = ffiState.createInt64Array(
+            childrenArray.map((c) => BigInt(c))
+        );
+        const resultBuffer = new Uint8Array(8);
+        lib.symbols.gpui_render_frame(
+            windowIdPtr,
+            globalIdPtr,
+            typePtr,
+            textPtr,
+            childCountPtr,
+            childrenPtr,
+            resultBuffer
+        );
+        if (new DataView(resultBuffer.buffer).getInt32(0, true) !== 0) {
+            throw new Error("GPUI render failed");
+        }
+    }
+
+    public triggerRender(windowId: number): void {
+        let ffiState = this.getFfiState(windowId);
+        if (!ffiState) {
+            return;
+        }
+        trace(`triggerRender for window ${windowId}`);
+        ffiState.clear();
+        const [windowIdBuffer, windowIdPtr] = ffiState.createInt64(BigInt(windowId));
+        lib.symbols.gpui_trigger_render(windowIdPtr, new Uint8Array(8));
+    }
+
+    getFfiState(windowId: number) {
+        return this.ffiStateMap.get(windowId);
+    }
+
+    waitReady(): void {
+        let delay = 1;
+        while (Date.now() - Date.now() < 5000) {
+            if (lib.symbols.gpui_is_ready()) return;
+            sleep(Math.min(delay, 100));
+            delay *= 2;
+        }
+        throw new Error("GPUI failed to become ready");
+    }
+
+    checkResult(resultBuffer: Uint8Array): void {
+        const status = read.i32(ptr(resultBuffer), 0);
+        if (status !== 0) {
+            const errorPtr = read.i32(ptr(resultBuffer), 8);
+            lib.symbols.gpui_free_result(resultBuffer);
+            throw new Error(`GPUI operation failed: error ptr=${errorPtr}`);
+        }
+        const errorCheck = read.i32(ptr(resultBuffer), 8);
+        if (errorCheck !== 0) lib.symbols.gpui_free_result(resultBuffer);
+    }
+
+    checkWindowCreateResult(resultBuffer: Uint8Array): number {
+        const status = read.i32(ptr(resultBuffer), 0);
+        if (status !== 0) {
+            const errorPtr = read.i32(ptr(resultBuffer), 8);
+            lib.symbols.gpui_free_result(resultBuffer);
+            throw new Error(`Window creation failed: ptr=${errorPtr}`);
+        }
+        return Number(read.u64(ptr(resultBuffer), 8));
+    }
+}

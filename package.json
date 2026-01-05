@@ -1,54 +1,55 @@
 {
-  "name": "gpui-react",
-  "version": "0.1.10",
-  "module": "src/index.ts",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist/",
-    "src/native/**/*"
-  ],
-  "devDependencies": {
-    "@types/react": "^19.0.0",
-    "@types/react-reconciler": "^0.32.0",
-    "bun-types": "latest",
-    "prettier": "^3.7.4",
-    "react": ">=19.0.0",
-    "typescript": "^5.9.3"
-  },
-  "scripts": {
-    "build": "bun run build:rust && bun run build:ts && bun run copy:native",
-    "build:rust": "cd rust && cargo build --release",
-    "build:ts": "tsc",
-    "copy:native": "node scripts/copy-native.js",
-    "build:all": "bun run build && echo 'Build complete for distribution'",
-    "download:artifacts": "node scripts/download-artifacts-gh.js",
-    "release": "node scripts/release.js",
-    "release:dry-run": "node scripts/release.js patch --dry-run",
-    "release:status": "node scripts/release.js --status",
-    "demo": "bun run demo/index.ts",
-    "styled-demo": "bun run demo/styled-index.ts",
-    "flex-demo": "bun run demo/flex-index.ts",
-    "elements-demo": "bun run demo/elements-index.ts",
-    "event-demo": "bun run demo/event-index.ts",
-    "test": "bun run src/reconciler/__tests__/element-store.test.ts",
-    "dev": "bun run build:rust && bun run demo",
-    "format": "bun run format:rust && bun run format:ts",
-    "format:rust": "cd rust && cargo +nightly fmt",
-    "format:ts": "prettier --write 'src/**/*.{ts,tsx,js,jsx}' 'demo/**/*.{ts,tsx,js,jsx}' 'scripts/**/*.{js,ts}'",
-    "format:check": "bun run format:rust:check && bun run format:ts:check",
-    "format:rust:check": "cd rust && cargo +nightly fmt --check",
-    "format:ts:check": "prettier --check 'src/**/*.{ts,tsx,js,jsx}' 'demo/**/*.{ts,tsx,js,jsx}' 'scripts/**/*.{js,ts}'",
-    "format:staged": "bun run format:rust:staged && bun run format:ts:staged",
-    "format:rust:staged": "cd rust && git diff --name-only -- '*.rs' | xargs -I {} cargo +nightly fmt -- {} 2>/dev/null || true",
-    "format:ts:staged": "prettier --write $(git diff --name-only -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' 2>/dev/null) || true"
-  },
-  "type": "module",
-  "dependencies": {
-    "react-reconciler": "^0.32.0"
-  },
-  "engines": {
-    "bun": ">=1.2.0",
-    "node": ">=18.0.0"
-  }
+    "name": "gpui-react",
+    "version": "0.1.10",
+    "module": "src/index.ts",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "files": [
+        "dist/",
+        "src/native/**/*"
+    ],
+    "packageManager": "bun@1.3.4",
+    "devDependencies": {
+        "@types/react": "^19.0.0",
+        "@types/react-reconciler": "^0.32.0",
+        "bun-types": "latest",
+        "prettier": "^3.7.4",
+        "react": ">=19.0.0",
+        "typescript": "^5.9.3"
+    },
+    "scripts": {
+        "build": "bun run build:rust && bun run build:ts && bun run copy:native",
+        "build:rust": "cd rust && cargo build --release",
+        "build:ts": "tsc",
+        "copy:native": "node scripts/copy-native.js",
+        "build:all": "bun run build && echo 'Build complete for distribution'",
+        "download:artifacts": "node scripts/download-artifacts-gh.js",
+        "release": "node scripts/release.js",
+        "release:dry-run": "node scripts/release.js patch --dry-run",
+        "release:status": "node scripts/release.js --status",
+        "demo": "bun run demo/index.ts",
+        "styled-demo": "bun run demo/styled-index.ts",
+        "flex-demo": "bun run demo/flex-index.ts",
+        "elements-demo": "bun run demo/elements-index.ts",
+        "event-demo": "bun run demo/event-index.ts",
+        "test": "bun run src/reconciler/__tests__/element-store.test.ts",
+        "dev": "bun run build:rust && bun run demo",
+        "format": "bun run format:rust && bun run format:ts",
+        "format:rust": "cd rust && cargo +nightly fmt",
+        "format:ts": "prettier --write 'src/**/*.{ts,tsx,js,jsx}' 'demo/**/*.{ts,tsx,js,jsx}' 'scripts/**/*.{js,ts}'",
+        "format:check": "bun run format:rust:check && bun run format:ts:check",
+        "format:rust:check": "cd rust && cargo +nightly fmt --check",
+        "format:ts:check": "prettier --check 'src/**/*.{ts,tsx,js,jsx}' 'demo/**/*.{ts,tsx,js,jsx}' 'scripts/**/*.{js,ts}'",
+        "format:staged": "bun run format:rust:staged && bun run format:ts:staged",
+        "format:rust:staged": "cd rust && git diff --name-only -- '*.rs' | xargs -I {} cargo +nightly fmt -- {} 2>/dev/null || true",
+        "format:ts:staged": "prettier --write $(git diff --name-only -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' 2>/dev/null) || true"
+    },
+    "type": "module",
+    "dependencies": {
+        "react-reconciler": "^0.32.0"
+    },
+    "engines": {
+        "bun": ">=1.2.0",
+        "node": ">=18.0.0"
+    }
 }
