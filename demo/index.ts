@@ -1,7 +1,9 @@
 import React from "react";
 import {createRoot} from "../src/index";
 
-const root = createRoot();
+const root = createRoot({
+    width: 800, height: 800,
+});
 root.render(React.createElement("div", null, "hello world"));
 
 // Keep the process alive to allow GPUI window to render

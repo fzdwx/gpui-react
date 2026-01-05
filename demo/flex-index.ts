@@ -2,7 +2,9 @@ import React from "react";
 import {createRoot} from "../src";
 import {FlexApp} from "./flex-app";
 
-const root = createRoot();
+const root = createRoot({
+    width: 800, height: 800,
+});
 root.render(
     React.createElement("div", {style: {backgroundColor: "#1e1e1e", padding: 40}},
         React.createElement(FlexApp)
