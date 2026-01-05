@@ -13,10 +13,8 @@
     "outDir": "./dist",
     "jsx": "react-jsx",
     "jsxImportSource": "react",
-    "types": [
-                "bun-types"
-            ]
+    "types": ["bun-types"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "rust/target", "dist"]
+  "exclude": ["node_modules", "rust/target", "dist", "**/__tests__/**"]
 }

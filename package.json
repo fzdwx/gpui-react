@@ -2,6 +2,12 @@
   "name": "gpui-react",
   "version": "0.1.0",
   "module": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "native/"
+  ],
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-reconciler": "^0.32.0",
@@ -10,17 +16,33 @@
     "react": ">=19.0.0"
   },
   "scripts": {
+    "build": "bun run build:rust && bun run build:ts",
     "build:rust": "cd rust && cargo build --release",
+    "build:ts": "tsc",
+    "build:all": "bun run build && echo 'Build complete for distribution'",
     "demo": "bun run demo/index.ts",
     "styled-demo": "bun run demo/styled-index.ts",
     "flex-demo": "bun run demo/flex-index.ts",
     "elements-demo": "bun run demo/elements-index.ts",
     "event-demo": "bun run demo/event-index.ts",
-    "test:": "bun run src/reconciler/__tests__/element-store.test.ts",
-    "dev": "bun run build:rust && bun run demo"
+    "test": "bun run src/reconciler/__tests__/element-store.test.ts",
+    "dev": "bun run build:rust && bun run demo",
+    "postinstall": "node scripts/postinstall.js"
   },
   "type": "module",
   "dependencies": {
     "react-reconciler": "^0.32.0"
+  },
+  "optionalDependencies": {
+    "@gpui-react/core-darwin-x64": "0.1.0",
+    "@gpui-react/core-darwin-arm64": "0.1.0",
+    "@gpui-react/core-linux-x64": "0.1.0",
+    "@gpui-react/core-linux-arm64": "0.1.0",
+    "@gpui-react/core-win32-x64": "0.1.0",
+    "@gpui-react/core-win32-arm64": "0.1.0"
+  },
+  "engines": {
+    "bun": ">=1.2.0",
+    "node": ">=18.0.0"
   }
 }
