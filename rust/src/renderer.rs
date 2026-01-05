@@ -250,7 +250,7 @@ fn render_element_to_gpui(
     }
 }
 
-pub fn start_gpui_thread(width: f32, height: f32) {
+pub fn start_gpui_thread() {
     log::info!("start_gpui_thread: spawning thread...");
 
     std::thread::spawn(move || {

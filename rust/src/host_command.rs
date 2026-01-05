@@ -109,11 +109,11 @@ async fn run_loop(inner: Arc<Inner>, receiver: async_channel::Receiver<Command>,
     while receiver.try_recv().is_ok() {}
 }
 
-pub fn handle_on_app_thread(command: crate::host_command::HostCommand, app: &mut gpui::App) {
+pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
     log::trace!("handle_on_app_thread: {:?}", command);
 
     match command {
-        crate::host_command::HostCommand::CreateWindow { width, height, window_id } => {
+        HostCommand::CreateWindow { width, height, window_id } => {
             let size = gpui::Size {
                 width: gpui::px(width),
                 height: gpui::px(height),

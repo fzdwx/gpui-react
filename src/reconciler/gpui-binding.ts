@@ -12,7 +12,7 @@ const liveBuffers: ArrayBuffer[] = [];
 
 const lib = dlopen(libPath, {
     gpui_init: {
-        args: [FFIType.f32, FFIType.f32, FFIType.ptr],
+        args: [FFIType.ptr],
         returns: FFIType.void,
     },
     gpui_create_window: {

@@ -17,7 +17,7 @@ use crate::host_command::{is_bus_ready, send_host_command, HostCommand};
 use crate::renderer::start_gpui_thread;
 
 #[no_mangle]
-pub extern "C" fn gpui_init(width: f32, height: f32, result: *mut FfiResult) {
+pub extern "C" fn gpui_init(result: *mut FfiResult) {
     unsafe {
         logging::init_logging();
         log::info!("gpui_init: checking initialization...");
@@ -29,7 +29,7 @@ pub extern "C" fn gpui_init(width: f32, height: f32, result: *mut FfiResult) {
         }
 
         log::info!("gpui_init: starting GPUI thread...");
-        start_gpui_thread(width, height);
+        start_gpui_thread();
         GLOBAL_STATE.set_initialized(true);
 
         if GLOBAL_STATE.is_thread_started() {
@@ -147,7 +147,7 @@ pub extern "C" fn gpui_render_frame(
             element_type: element_type.clone(),
             text: text.clone(),
             children: Vec::new(),
-            style: crate::element::ElementStyle::default(),
+            style: element::ElementStyle::default(),
             event_handlers: None,
         });
 
