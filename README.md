@@ -32,23 +32,13 @@ gpui-react/
 
 ## Quick Start
 
-### 1. Install Dependency
+### Install Dependency
 
 ```bash
 bun add gpui-react react
 ```
 
-### 2. Run Demos
-
-```bash
-bun run demo               # Basic elements
-bun run event-demo         # Event handling
-bun run styled-demo        # Styled components
-bun run flex-demo          # Flexbox layout
-bun run elements-demo      # Span, image elements
-```
-
-## Usage
+### Usage
 
 Create a GPUI window and render React components:
 
@@ -121,20 +111,6 @@ export function App() {
 }
 ```
 
-## API Reference
-
-### createRoot(container)
-
-Create a GPUI rendering root for a container element.
-
-```typescript
-import { createRoot } from 'gpui-react';
-
-const container = document.getElementById('root');
-const root = createRoot(container);
-root.render(<App />);
-```
-
 ### Supported Elements
 
 | Element | GPUI Mapping | Notes |
@@ -143,37 +119,6 @@ root.render(<App />);
 | `span` | `span()` | Inline container, contains text children |
 | `text` | Text nodes | Always child of span |
 
-### Event Handlers
-
-```jsx
-<div onClick={handleClick} onHover={handleHover}>
-  <span>Click me</span>
-</div>
-```
-的恩托斯
-**Supported:** `onClick`, `onHover`, `onMouseEnter`, `onMouseLeave`
-
-### Styles
-
-```jsx
-<div style={{
-  color: '#fff',
-  backgroundColor: '#333',
-  fontSize: 16,
-  width: 200,
-  height: 100,
-  margin: 10,
-  padding: 20,
-  borderRadius: 8,
-  display: 'flex',
-  flexDirection: 'row',
-  justifyContent: 'center',
-  alignItems: 'center',
-  gap: 8
-}}>
-  Content
-</div>
-```
 
 ## Documentation
 
