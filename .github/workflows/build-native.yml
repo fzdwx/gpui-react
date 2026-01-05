@@ -14,7 +14,7 @@ on:
         default: false
 
 env:
-  RUST_VERSION: "1.75"
+  RUST_VERSION: "1.94"
 
 jobs:
   build-native:
