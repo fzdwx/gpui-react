@@ -15,10 +15,11 @@ export function _render(element: React.ReactNode, root: ElementStore) {
         null,
         false,
         null,
-        error,
-        error,
-        error,
-        error,
+        "",
+        console.error,
+        console.error,
+        console.error,
+        console.error,
         null,
     )
 

@@ -96,20 +96,6 @@ async function createRelease() {
   updateVersionInFile(packagePath, newVersion);
   updateVersionInFile(cargoPath, newVersion);
   
-  // Sync optionalDependencies version
-  const pkg = JSON.parse(readFileSync(packagePath, 'utf8'));
-  const platforms = [
-    'core-darwin-x64',
-    'core-linux-x64',
-    'core-win32-x64'
-  ];
-  for (const platform of platforms) {
-    pkg.optionalDependencies[`@gpui-react/${platform}`] = newVersion;
-  }
-  writeFileSync(packagePath, JSON.stringify(pkg, null, 2) + '\n');
-  
-  console.log(`\n✅ Updated to ${newVersion}`);
-  
   runGit('git add package.json rust/Cargo.toml', isDryRun);
   runGit(`git commit -m "Release v${newVersion}"`, isDryRun);
   runGit(`git tag -a v${newVersion} -m "Release v${newVersion}"`, isDryRun);

@@ -7,7 +7,7 @@ use crate::global_state::GLOBAL_STATE;
 
 #[derive(Debug)]
 pub enum HostCommand {
-    CreateWindow { width: f32, height: f32, window_id: u64 },
+    CreateWindow { width: f32, height: f32, window_id: u64, title: String },
     RefreshWindow,
     TriggerRender,
     UpdateElementTree,
@@ -113,7 +113,8 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
     log::trace!("handle_on_app_thread: {:?}", command);
 
     match command {
-        HostCommand::CreateWindow { width, height, window_id } => {
+        HostCommand::CreateWindow { width, height, window_id, title } => {
+            let title_log = title.clone();
             let size = gpui::Size {
                 width: gpui::px(width),
                 height: gpui::px(height),
@@ -128,7 +129,7 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
                 gpui::WindowOptions {
                     window_bounds: Some(gpui::WindowBounds::Windowed(bounds)),
                     titlebar: Some(gpui::TitlebarOptions {
-                        title: Some("R22222eact-GPUI".into()),
+                        title: Some(title.into()),
                         ..Default::default()
                     }),
                     ..Default::default()
@@ -143,7 +144,7 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
                 },
             );
 
-            log::info!("Created window with id: {}", window_id);
+            log::info!("Created window '{}' with id: {}", title_log, window_id);
         }
         HostCommand::RefreshWindow
         | HostCommand::TriggerRender

@@ -9,10 +9,18 @@ export type Root = {
     unmount: () => void;
 };
 
-export function createRoot(): Root {
+export type RootProps = {
+    width: number;
+    height: number;
+    title?: string;
+}
+
+export function createRoot({
+                               width, height, title
+                           }: RootProps): Root {
     let container: null = null
-    init(800, 600);
-    const windowId = createWindow(800, 600);
+    init();
+    const windowId = createWindow(width, height, title);
     console.log("Created window with id:", windowId);
 
     const elementStore = new ElementStore();

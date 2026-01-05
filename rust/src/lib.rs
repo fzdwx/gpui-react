@@ -46,8 +46,18 @@ pub extern "C" fn gpui_init(result: *mut FfiResult) {
 pub extern "C" fn gpui_create_window(
     width: f32,
     height: f32,
+    title_ptr: *const c_char,
     result: *mut WindowCreateResult,
 ) {
+    // 从 C 字符串读取 title
+    let title = unsafe {
+        if title_ptr.is_null() {
+            String::from("React-GPUI")
+        } else {
+            CStr::from_ptr(title_ptr).to_string_lossy().to_string()
+        }
+    };
+
     let window_id = crate::renderer::NEXT_WINDOW_ID.fetch_add(1, Ordering::SeqCst);
 
     let _ = GLOBAL_STATE.get_window_state(window_id);
@@ -56,6 +66,7 @@ pub extern "C" fn gpui_create_window(
         width,
         height,
         window_id,
+        title,
     });
 
     unsafe {
