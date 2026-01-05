@@ -1,8 +1,10 @@
 import React from "react";
-import {createRoot} from "../src/index";
+import { createRoot } from "../src/index";
 
 const root = createRoot({
-    width: 800, height: 800, title: "hello world"
+    width: 800,
+    height: 800,
+    title: "hello world",
 });
 root.render(React.createElement("div", null, "hello world"));
 

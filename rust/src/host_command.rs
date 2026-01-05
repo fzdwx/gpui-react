@@ -1,5 +1,7 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, OnceLock,
+};
 
 use gpui::{App, AppContext, AsyncApp};
 
@@ -7,7 +9,12 @@ use crate::global_state::GLOBAL_STATE;
 
 #[derive(Debug)]
 pub enum HostCommand {
-    CreateWindow { width: f32, height: f32, window_id: u64, title: String },
+    CreateWindow {
+        width: f32,
+        height: f32,
+        window_id: u64,
+        title: String,
+    },
     RefreshWindow,
     TriggerRender,
     UpdateElementTree,
@@ -50,14 +57,23 @@ pub struct CommandSender {
 }
 
 impl CommandSender {
-    fn send(&self, command: Command) -> Result<(), CommandError> {
+    fn send(
+        &self,
+        command: Command,
+    ) -> Result<(), CommandError> {
         if self.inner.is_shutting_down() {
             return Err(CommandError::ShuttingDown);
         }
-        self.inner.sender.send_blocking(command).map_err(|_| CommandError::ReceiverGone)
+        self.inner
+            .sender
+            .send_blocking(command)
+            .map_err(|_| CommandError::ReceiverGone)
     }
 
-    pub fn send_host(&self, command: HostCommand) -> Result<(), CommandError> {
+    pub fn send_host(
+        &self,
+        command: HostCommand,
+    ) -> Result<(), CommandError> {
         self.send(Command::Host(command))
     }
 }
@@ -87,7 +103,11 @@ pub fn init(cx: &mut App) {
     }
 }
 
-async fn run_loop(inner: Arc<Inner>, receiver: async_channel::Receiver<Command>, cx: &mut AsyncApp) {
+async fn run_loop(
+    inner: Arc<Inner>,
+    receiver: async_channel::Receiver<Command>,
+    cx: &mut AsyncApp,
+) {
     while let Ok(command) = receiver.recv().await {
         if inner.is_shutting_down() {
             break;
@@ -109,12 +129,20 @@ async fn run_loop(inner: Arc<Inner>, receiver: async_channel::Receiver<Command>,
     while receiver.try_recv().is_ok() {}
 }
 
-pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
+pub fn handle_on_app_thread(
+    command: HostCommand,
+    app: &mut App,
+) {
     log::trace!("handle_on_app_thread: {:?}", command);
 
     match command {
-        HostCommand::CreateWindow { width, height, window_id, title } => {
-            let title_log = title.clone();
+        HostCommand::CreateWindow {
+            width,
+            height,
+            window_id,
+            title,
+        } => {
+            log::error!("title=============:{}", title);
             let size = gpui::Size {
                 width: gpui::px(width),
                 height: gpui::px(height),
@@ -123,7 +151,10 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
                 x: gpui::px(100.0),
                 y: gpui::px(100.0),
             };
-            let bounds = gpui::Bounds { origin, size };
+            let bounds = gpui::Bounds {
+                origin,
+                size,
+            };
 
             let _window = app.open_window(
                 gpui::WindowOptions {
@@ -135,7 +166,9 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
                     ..Default::default()
                 },
                 |_window, cx| {
-                    let state = cx.new(|_| crate::renderer::RootState { render_count: 0 });
+                    let state = cx.new(|_| crate::renderer::RootState {
+                        render_count: 0,
+                    });
                     cx.new(|_| crate::renderer::RootView {
                         state,
                         last_render: 0,
@@ -144,7 +177,7 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
                 },
             );
 
-            log::info!("Created window '{}' with id: {}", title_log, window_id);
+            log::info!("Created window with id: {}", window_id);
         }
         HostCommand::RefreshWindow
         | HostCommand::TriggerRender
@@ -163,7 +196,9 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
 
 pub fn sender() -> Result<CommandSender, CommandError> {
     BUS.get()
-        .map(|inner| CommandSender { inner: inner.clone() })
+        .map(|inner| CommandSender {
+            inner: inner.clone(),
+        })
         .ok_or(CommandError::NotInitialized)
 }
 

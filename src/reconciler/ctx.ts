@@ -1,13 +1,13 @@
-import {createContext, useContext} from "react";
+import { createContext, useContext } from "react";
 
 interface AppContext {
-    windowId: number
+    windowId: number;
 }
 
 export const AppContext = createContext<AppContext>({
-    windowId: 0
-})
+    windowId: 0,
+});
 
 export const useAppContext = () => {
-    return useContext(AppContext)
-}
+    return useContext(AppContext);
+};

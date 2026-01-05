@@ -1,7 +1,6 @@
-use logforth::append;
-use logforth::filter;
-use logforth::layout::TextLayout;
 use std::sync::Once;
+
+use logforth::{append, filter, layout::TextLayout};
 
 static INIT: Once = Once::new();
 

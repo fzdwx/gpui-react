@@ -6,15 +6,18 @@ mod logging;
 mod renderer;
 mod window_state;
 
-use std::ffi::{c_char, CStr};
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::{
+    ffi::{c_char, CStr},
+    sync::{atomic::Ordering, Arc},
+};
 
-use crate::element::ReactElement;
-use crate::ffi_types::{FfiResult, WindowCreateResult};
-use crate::global_state::GLOBAL_STATE;
-use crate::host_command::{is_bus_ready, send_host_command, HostCommand};
-use crate::renderer::start_gpui_thread;
+use crate::{
+    element::ReactElement,
+    ffi_types::{FfiResult, WindowCreateResult},
+    global_state::GLOBAL_STATE,
+    host_command::{is_bus_ready, send_host_command, HostCommand},
+    renderer::start_gpui_thread,
+};
 
 #[no_mangle]
 pub extern "C" fn gpui_init(result: *mut FfiResult) {
@@ -207,7 +210,10 @@ pub extern "C" fn gpui_is_ready() -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn gpui_trigger_render(window_id_ptr: *const u8, _result: *mut FfiResult) {
+pub extern "C" fn gpui_trigger_render(
+    window_id_ptr: *const u8,
+    _result: *mut FfiResult,
+) {
     unsafe {
         let window_id = if window_id_ptr.is_null() {
             0
@@ -263,7 +269,11 @@ pub extern "C" fn gpui_batch_update_elements(
             .ok_or_else(|| "Elements must be an array".to_string())
             .unwrap();
 
-        log::info!("Batch update: Processing {} elements for window {}", count, window_id);
+        log::info!(
+            "Batch update: Processing {} elements for window {}",
+            count,
+            window_id
+        );
 
         let window_state = GLOBAL_STATE.get_window_state(window_id);
 
@@ -438,10 +448,7 @@ pub extern "C" fn gpui_batch_update_elements(
         send_host_command(HostCommand::TriggerRender);
 
         let trigger = window_state.get_render_count();
-        log::debug!(
-            "Triggering render, current count: {}",
-            trigger
-        );
+        log::debug!("Triggering render, current count: {}", trigger);
 
         *result = FfiResult::success();
         log::debug!("gpui_batch_update_elements: completed successfully");

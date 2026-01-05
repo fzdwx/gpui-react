@@ -1,7 +1,10 @@
-use std::collections::HashMap;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    },
+};
 
 use crate::element::ReactElement;
 
@@ -26,7 +29,10 @@ impl WindowState {
         self.root_element_id.load(Ordering::SeqCst)
     }
 
-    pub fn set_root_element_id(&self, id: u64) {
+    pub fn set_root_element_id(
+        &self,
+        id: u64,
+    ) {
         self.root_element_id.store(id, Ordering::SeqCst);
     }
 
@@ -38,7 +44,11 @@ impl WindowState {
         self.render_count.fetch_add(1, Ordering::SeqCst)
     }
 
-    pub fn rebuild_tree(&self, root_id: u64, children: &[u64]) {
+    pub fn rebuild_tree(
+        &self,
+        root_id: u64,
+        children: &[u64],
+    ) {
         let element_map = self
             .element_map
             .lock()

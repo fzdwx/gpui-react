@@ -1,9 +1,12 @@
-use crate::element::{ElementStyle, ReactElement};
-use crate::global_state::GLOBAL_STATE;
-use crate::host_command;
 use gpui::{
     div, prelude::*, px, rgb, Application as GpuiApp, Bounds, Entity, Point, Render, Size, Window,
     WindowBounds, WindowOptions,
+};
+
+use crate::{
+    element::{ElementStyle, ReactElement},
+    global_state::GLOBAL_STATE,
+    host_command,
 };
 
 pub struct RootState {
@@ -17,7 +20,10 @@ pub struct RootView {
 }
 
 impl RootView {
-    fn update_state(&mut self, cx: &mut gpui::Context<Self>) {
+    fn update_state(
+        &mut self,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let window_state = GLOBAL_STATE.get_window_state(self.window_id);
         let trigger = window_state.get_render_count();
         log::trace!(
@@ -84,7 +90,8 @@ fn render_element_to_gpui(
         element.style
     );
 
-    // Helper to get effective style (own style or inherited from parent for text properties)
+    // Helper to get effective style (own style or inherited from parent for text
+    // properties)
     let effective_text_color = element
         .style
         .text_color

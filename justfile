@@ -3,6 +3,7 @@ export PATH := join(justfile_directory(), "node_modules", "bin") + ":" + env_var
 
 native:
     bun build:rust
+    bun run copy:native
 
 demo:
     bun run demo
@@ -15,3 +16,9 @@ release:
 pub:
     bun run download:artifacts
     npm publish  --registry https://registry.npmjs.org
+
+format:
+    bun run format
+
+format-check:
+    bun run format:check

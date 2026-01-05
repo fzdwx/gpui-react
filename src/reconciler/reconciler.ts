@@ -1,12 +1,11 @@
 import ReactReconciler from "react-reconciler";
-import {hostConfig} from "./host-config";
+import { hostConfig } from "./host-config";
 import React from "react";
-import {ConcurrentRoot} from "react-reconciler/constants";
-import {ElementData, ElementStore} from "./element-store";
-import {error} from "./logging";
+import { ConcurrentRoot } from "react-reconciler/constants";
+import { ElementData, ElementStore } from "./element-store";
+import { error } from "./logging";
 
-export const reconciler = ReactReconciler(hostConfig)
-
+export const reconciler = ReactReconciler(hostConfig);
 
 export function _render(element: React.ReactNode, root: ElementStore) {
     const container = reconciler.createContainer(
@@ -20,10 +19,10 @@ export function _render(element: React.ReactNode, root: ElementStore) {
         console.error,
         console.error,
         console.error,
-        null,
-    )
+        null
+    );
 
-    reconciler.updateContainer(element, container, null, () => {})
+    reconciler.updateContainer(element, container, null, () => {});
 
-    return container
+    return container;
 }

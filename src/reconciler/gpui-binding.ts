@@ -1,7 +1,7 @@
-import {dlopen, FFIType, suffix, ptr} from "bun:ffi";
-import {join} from "path";
-import {sleep} from "bun";
-import {info, debug, trace, error as logError} from "./logging";
+import { dlopen, FFIType, suffix, ptr } from "bun:ffi";
+import { join } from "path";
+import { sleep } from "bun";
+import { info, debug, trace, error as logError } from "./logging";
 
 const libName = `libgpui_renderer.${suffix}`;
 // Runtime path: dist/ and src/native/ are siblings, so go up from dist/reconciler/ to dist/, then to native/
@@ -25,7 +25,15 @@ const lib = dlopen(libPath, {
         returns: FFIType.bool,
     },
     gpui_render_frame: {
-        args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr],
+        args: [
+            FFIType.ptr,
+            FFIType.ptr,
+            FFIType.ptr,
+            FFIType.ptr,
+            FFIType.ptr,
+            FFIType.ptr,
+            FFIType.ptr,
+        ],
         returns: FFIType.void,
     },
     gpui_trigger_render: {
@@ -92,7 +100,7 @@ export function createWindow(width: number, height: number, title?: string): num
     // 编码 title 字符串，添加 null 终止符
     const titleStr = title || "React-GPUI";
     const titleBuffer = new TextEncoder().encode(titleStr + "\0");
-    liveBuffers.push(titleBuffer.buffer);  // 保持引用防止 GC
+    liveBuffers.push(titleBuffer.buffer); // 保持引用防止 GC
     const titlePtr = ptr(titleBuffer);
 
     lib.symbols.gpui_create_window(width, height, titlePtr, resultBuffer);
@@ -150,7 +158,7 @@ export function renderFrame(windowId: number, element: any): void {
         type: element.type,
         text: textContent,
         childCount: childrenArray.length,
-        children: childrenArray
+        children: childrenArray,
     });
 
     const resultBuffer = new Uint8Array(8);

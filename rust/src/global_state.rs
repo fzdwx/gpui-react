@@ -1,7 +1,12 @@
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, RwLock,
+    },
+};
+
 use gpui::Global;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
 
 use crate::window_state::WindowState;
 
@@ -26,7 +31,10 @@ impl GlobalState {
         self.gpui_initialized.load(Ordering::SeqCst)
     }
 
-    pub fn set_initialized(&self, value: bool) {
+    pub fn set_initialized(
+        &self,
+        value: bool,
+    ) {
         self.gpui_initialized.store(value, Ordering::SeqCst);
     }
 
@@ -34,11 +42,17 @@ impl GlobalState {
         self.gpui_thread_started.load(Ordering::SeqCst)
     }
 
-    pub fn set_thread_started(&self, value: bool) {
+    pub fn set_thread_started(
+        &self,
+        value: bool,
+    ) {
         self.gpui_thread_started.store(value, Ordering::SeqCst);
     }
 
-    pub fn get_window_state(&self, window_id: u64) -> Arc<WindowState> {
+    pub fn get_window_state(
+        &self,
+        window_id: u64,
+    ) -> Arc<WindowState> {
         let mut states = self
             .window_states
             .write()
@@ -49,7 +63,10 @@ impl GlobalState {
             .clone()
     }
 
-    pub fn get_window_state_ref(&self, window_id: u64) -> Option<Arc<WindowState>> {
+    pub fn get_window_state_ref(
+        &self,
+        window_id: u64,
+    ) -> Option<Arc<WindowState>> {
         let states = self
             .window_states
             .read()
@@ -57,7 +74,10 @@ impl GlobalState {
         states.get(&window_id).cloned()
     }
 
-    pub fn remove_window_state(&self, window_id: u64) {
+    pub fn remove_window_state(
+        &self,
+        window_id: u64,
+    ) {
         let mut states = self
             .window_states
             .write()

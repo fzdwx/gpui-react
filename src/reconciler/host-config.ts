@@ -1,11 +1,11 @@
 import * as ReactReconciler from "react-reconciler";
-import {ElementStore, ElementData} from "./element-store";
-import {renderFrame, batchElementUpdates, currentWindowId} from "./gpui-binding";
-import {mapStyleToProps, StyleProps} from "./styles";
-import {EventHandler, MouseEvent, Event} from "./events";
-import {HostConfig, OpaqueHandle} from "react-reconciler";
-import {DefaultEventPriority, NoEventPriority} from "react-reconciler/constants";
-import {trace, debug, info, warn} from "./logging";
+import { ElementStore, ElementData } from "./element-store";
+import { renderFrame, batchElementUpdates, currentWindowId } from "./gpui-binding";
+import { mapStyleToProps, StyleProps } from "./styles";
+import { EventHandler, MouseEvent, Event } from "./events";
+import { HostConfig, OpaqueHandle } from "react-reconciler";
+import { DefaultEventPriority, NoEventPriority } from "react-reconciler/constants";
+import { trace, debug, info, warn } from "./logging";
 
 type ReactContext<T> = ReactReconciler.ReactContext<T>;
 
@@ -85,19 +85,19 @@ function extractEventHandlers(props: any): Record<string, number> {
     const handlers: Record<string, number> = {};
 
     if (props.onClick) {
-        handlers['onClick'] = registerEventHandler(props.onClick);
+        handlers["onClick"] = registerEventHandler(props.onClick);
     }
 
     if (props.onHover) {
-        handlers['onHover'] = registerEventHandler(props.onHover);
+        handlers["onHover"] = registerEventHandler(props.onHover);
     }
 
     if (props.onMouseEnter) {
-        handlers['onMouseEnter'] = registerEventHandler(props.onMouseEnter);
+        handlers["onMouseEnter"] = registerEventHandler(props.onMouseEnter);
     }
 
     if (props.onMouseLeave) {
-        handlers['onMouseLeave'] = registerEventHandler(props.onMouseLeave);
+        handlers["onMouseLeave"] = registerEventHandler(props.onMouseLeave);
     }
 
     return handlers;
@@ -148,7 +148,7 @@ export const hostConfig: HostConfig<
     getChildHostContext(
         _parentHostContext: HostContext,
         _type: Type,
-        _rootContainer: Container,
+        _rootContainer: Container
     ): HostContext {
         return {};
     },
@@ -169,7 +169,7 @@ export const hostConfig: HostConfig<
         renderFrame(currentWindowId, root);
 
         setImmediate(() => {
-            if (typeof window !== 'undefined' && (window as any).__gpuiTrigger) {
+            if (typeof window !== "undefined" && (window as any).__gpuiTrigger) {
                 (window as any).__gpuiTrigger();
             }
         });
@@ -179,19 +179,18 @@ export const hostConfig: HostConfig<
         return false;
     },
 
-    resetTextContent(_instance: Instance): void {
-    },
+    resetTextContent(_instance: Instance): void {},
 
     createTextInstance(
         text: string,
         rootContainer: Container,
         _hostContext: HostContext,
-        _internalHandle: OpaqueHandle,
+        _internalHandle: OpaqueHandle
     ): TextInstance {
-        const styleProps = extractStyleProps({style: {}});
+        const styleProps = extractStyleProps({ style: {} });
         const styles = mapStyleToProps(styleProps);
         const id = rootContainer.createElement("text", String(text), styles);
-        trace("createTextInstance", {text, id, styles});
+        trace("createTextInstance", { text, id, styles });
 
         const instance: TextInstance = {
             id,
@@ -206,7 +205,7 @@ export const hostConfig: HostConfig<
 
     commitTextUpdate(textInstance: TextInstance, oldText: string, newText: string): void {
         textInstance.text = String(newText);
-        trace("commitTextUpdate", {oldText, newText});
+        trace("commitTextUpdate", { oldText, newText });
         const element = textInstance.store.getElement(textInstance.id);
         if (element) {
             element.text = String(newText);
@@ -219,13 +218,13 @@ export const hostConfig: HostConfig<
         props: Props,
         rootContainer: Container,
         _hostContext: HostContext,
-        _internalHandle: OpaqueHandle,
+        _internalHandle: OpaqueHandle
     ): Instance {
         const styleProps = extractStyleProps(props);
         const styles = mapStyleToProps(styleProps);
         const eventHandlers = extractEventHandlers(props);
-        const id = rootContainer.createElement(type, undefined, {...styles, eventHandlers});
-        trace("createInstance", {type, id, styles, eventHandlers});
+        const id = rootContainer.createElement(type, undefined, { ...styles, eventHandlers });
+        trace("createInstance", { type, id, styles, eventHandlers });
 
         const instance: Instance = {
             id,
@@ -240,21 +239,21 @@ export const hostConfig: HostConfig<
     },
 
     appendInitialChild(parentInstance: Instance, child: Instance | TextInstance): void {
-        trace("appendInitialChild", {parent: parentInstance, child});
+        trace("appendInitialChild", { parent: parentInstance, child });
         parentInstance.children.push(child as Instance);
         parentInstance.store.appendChild(parentInstance.id, (child as Instance).id);
         queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
     appendChild(parentInstance: Instance, child: Instance | TextInstance): void {
-        trace("appendChild", {parent: parentInstance, child});
+        trace("appendChild", { parent: parentInstance, child });
         parentInstance.children.push(child as Instance);
         parentInstance.store.appendChild(parentInstance.id, (child as Instance).id);
         queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
     appendChildToContainer(container: Container, child: Instance | TextInstance): void {
-        trace("appendChildToContainer", {container, child});
+        trace("appendChildToContainer", { container, child });
         const childInstance = child as Instance;
         container.setContainerChild(childInstance.id);
         queueElementUpdate(container.getElement(childInstance.id));
@@ -263,7 +262,7 @@ export const hostConfig: HostConfig<
     insertBefore(
         parentInstance: Instance,
         child: Instance | TextInstance,
-        beforeChild: Instance | TextInstance,
+        beforeChild: Instance | TextInstance
     ): void {
         const childInstance = child as Instance;
         const beforeChildInstance = beforeChild as Instance;
@@ -280,9 +279,9 @@ export const hostConfig: HostConfig<
     insertInContainerBefore(
         _container: Container,
         child: Instance | TextInstance,
-        beforeChild: Instance | TextInstance,
+        beforeChild: Instance | TextInstance
     ): void {
-        trace("insertInContainerBefore", {child, beforeChild});
+        trace("insertInContainerBefore", { child, beforeChild });
     },
 
     removeChild(parentInstance: Instance, child: Instance | TextInstance): void {
@@ -296,7 +295,7 @@ export const hostConfig: HostConfig<
     },
 
     removeChildFromContainer(_container: Container, child: Instance | TextInstance): void {
-        trace("removeChildFromContainer", {container: _container, child});
+        trace("removeChildFromContainer", { container: _container, child });
         const childInstance = child as Instance;
         _container.removeChild(_container.getRoot().globalId, childInstance.id);
     },
@@ -306,7 +305,7 @@ export const hostConfig: HostConfig<
         _type: Type,
         _prevProps: Props,
         nextProps: Props,
-        _internalHandle: OpaqueHandle,
+        _internalHandle: OpaqueHandle
     ): void {
         if (nextProps && typeof nextProps.children === "string") {
             instance.text = String(nextProps.children);
@@ -322,26 +321,22 @@ export const hostConfig: HostConfig<
         _type: Type,
         _props: Props,
         _rootContainer: Container,
-        _hostContext: HostContext,
+        _hostContext: HostContext
     ): boolean {
         return false;
     },
 
-    clearContainer(_container: Container): void {
-    },
+    clearContainer(_container: Container): void {},
 
-    hideInstance(_instance: Instance): void {
-    },
+    hideInstance(_instance: Instance): void {},
 
-    unhideInstance(_instance: Instance, _props: Props): void {
-    },
+    unhideInstance(_instance: Instance, _props: Props): void {},
 
     detachDeletedInstance(instance: Instance): void {
-        trace("detachDeletedInstance", {instance});
+        trace("detachDeletedInstance", { instance });
     },
 
-    prepareScopeUpdate(_scopeInstance: any, _instance: any): void {
-    },
+    prepareScopeUpdate(_scopeInstance: any, _instance: any): void {},
 
     getInstanceFromScope(_scopeInstance: any): Instance | null {
         return null;
@@ -357,35 +352,29 @@ export const hostConfig: HostConfig<
 
     noTimeout: -1,
 
-    preparePortalMount(_containerInfo: Container): void {
-    },
+    preparePortalMount(_containerInfo: Container): void {},
 
     getInstanceFromNode(_node: any): null {
         return null;
     },
 
-    beforeActiveInstanceBlur(): void {
-    },
+    beforeActiveInstanceBlur(): void {},
 
-    afterActiveInstanceBlur(): void {
-    },
+    afterActiveInstanceBlur(): void {},
 
     NotPendingTransition: null,
 
     HostTransitionContext: null as any as ReactContext<TransitionStatus>,
 
-    resetFormInstance(_form: FormInstance): void {
-    },
+    resetFormInstance(_form: FormInstance): void {},
 
-    requestPostPaintCallback(_callback: (time: number) => void): void {
-    },
+    requestPostPaintCallback(_callback: (time: number) => void): void {},
 
     shouldAttemptEagerTransition(): boolean {
         return false;
     },
 
-    trackSchedulerEvent(): void {
-    },
+    trackSchedulerEvent(): void {},
 
     resolveEventType(): null | string {
         return null;
@@ -403,11 +392,9 @@ export const hostConfig: HostConfig<
         return false;
     },
 
-    startSuspendingCommit(): void {
-    },
+    startSuspendingCommit(): void {},
 
-    suspendInstance(_type: Type, _props: Props): void {
-    },
+    suspendInstance(_type: Type, _props: Props): void {},
 
     waitForCommitToBeReady():
         | ((initiateCommit: (...args: unknown[]) => unknown) => (...args: unknown[]) => unknown)
@@ -428,4 +415,4 @@ export const hostConfig: HostConfig<
 
         return DefaultEventPriority;
     },
-}
+};

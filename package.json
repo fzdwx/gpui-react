@@ -12,8 +12,9 @@
     "@types/react": "^19.0.0",
     "@types/react-reconciler": "^0.32.0",
     "bun-types": "latest",
-    "typescript": "^5.9.3",
-    "react": ">=19.0.0"
+    "prettier": "^3.7.4",
+    "react": ">=19.0.0",
+    "typescript": "^5.9.3"
   },
   "scripts": {
     "build": "bun run build:rust && bun run build:ts && bun run copy:native",
@@ -32,7 +33,12 @@
     "event-demo": "bun run demo/event-index.ts",
     "test": "bun run src/reconciler/__tests__/element-store.test.ts",
     "dev": "bun run build:rust && bun run demo",
-    "postinstall": "node scripts/postinstall.js"
+    "format": "bun run format:rust && bun run format:ts",
+    "format:rust": "cd rust && cargo +nightly fmt",
+    "format:ts": "prettier --write 'src/**/*.{ts,tsx,js,jsx}' 'demo/**/*.{ts,tsx,js,jsx}' 'scripts/**/*.{js,ts}'",
+    "format:check": "bun run format:rust:check && bun run format:ts:check",
+    "format:rust:check": "cd rust && cargo +nightly fmt --check",
+    "format:ts:check": "prettier --check 'src/**/*.{ts,tsx,js,jsx}' 'demo/**/*.{ts,tsx,js,jsx}' 'scripts/**/*.{js,ts}'"
   },
   "type": "module",
   "dependencies": {

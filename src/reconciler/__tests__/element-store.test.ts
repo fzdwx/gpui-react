@@ -44,10 +44,10 @@ console.log(`  Pass: ${!parent2?.children.includes(childId2)}`);
 
 console.log("\nTest 5: getRoot should throw error when no root set");
 try {
-  elementStore.getRoot();
-  console.log("  FAILED: Should have thrown error");
+    elementStore.getRoot();
+    console.log("  FAILED: Should have thrown error");
 } catch (e: any) {
-  console.log(`  Pass: Threw error as expected: ${e.message}`);
+    console.log(`  Pass: Threw error as expected: ${e.message}`);
 }
 
 console.log("\nAll element store tests passed!");

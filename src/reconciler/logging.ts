@@ -1,23 +1,23 @@
-type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'trace';
+type LogLevel = "error" | "warn" | "info" | "debug" | "trace";
 
-const LOG_LEVELS: LogLevel[] = ['error', 'warn', 'info', 'debug', 'trace'];
+const LOG_LEVELS: LogLevel[] = ["error", "warn", "info", "debug", "trace"];
 
 function getLogLevel(): LogLevel {
     const envLevel = process.env.RUST_LOG?.toLowerCase() as LogLevel | undefined;
     if (envLevel && LOG_LEVELS.includes(envLevel)) {
         return envLevel;
     }
-    return 'info';
+    return "info";
 }
 
 function getLocalTime(): string {
     const now = new Date();
     const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const seconds = String(now.getSeconds()).padStart(2, "0");
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
@@ -28,7 +28,10 @@ function shouldLog(level: LogLevel): boolean {
 
 function formatMessage(level: LogLevel, message: string, args?: unknown[]): string {
     const timestamp = getLocalTime();
-    const argsStr = args && args.length > 0 ? '\n' + args.map(a => JSON.stringify(a, null, 2)).join('\n') : '';
+    const argsStr =
+        args && args.length > 0
+            ? "\n" + args.map((a) => JSON.stringify(a, null, 2)).join("\n")
+            : "";
     return `${timestamp} ${level.toUpperCase()} ${message}${argsStr}`;
 }
 
@@ -41,40 +44,40 @@ export function log(level: LogLevel, message: string, ...args: unknown[]): void 
     if (!shouldLog(level)) return;
     const formatted = formatMessage(level, message, args);
     switch (level) {
-        case 'error':
+        case "error":
             console.error(formatted);
             break;
-        case 'warn':
+        case "warn":
             console.warn(formatted);
             break;
-        case 'info':
+        case "info":
             console.log(formatted);
             break;
-        case 'debug':
+        case "debug":
             console.debug(formatted);
             break;
-        case 'trace':
+        case "trace":
             console.trace(formatted);
             break;
     }
 }
 
 export function trace(message: string, ...args: unknown[]): void {
-    log('trace', message, ...args);
+    log("trace", message, ...args);
 }
 
 export function debug(message: string, ...args: unknown[]): void {
-    log('debug', message, ...args);
+    log("debug", message, ...args);
 }
 
 export function info(message: string, ...args: unknown[]): void {
-    log('info', message, ...args);
+    log("info", message, ...args);
 }
 
 export function warn(message: string, ...args: unknown[]): void {
-    log('warn', message, ...args);
+    log("warn", message, ...args);
 }
 
 export function error(message: string, ...args: unknown[]): void {
-    log('error', message, ...args);
+    log("error", message, ...args);
 }

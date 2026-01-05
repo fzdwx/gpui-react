@@ -1,12 +1,15 @@
 import React from "react";
-import {createRoot} from "../src";
-import {ElementsApp} from "./elements-app";
+import { createRoot } from "../src";
+import { ElementsApp } from "./elements-app";
 
 const root = createRoot({
-    width: 800, height: 800,
+    width: 800,
+    height: 800,
 });
 root.render(
-    React.createElement("div", {style: {backgroundColor: "#1e1e1e", padding: 40}},
+    React.createElement(
+        "div",
+        { style: { backgroundColor: "#1e1e1e", padding: 40 } },
         React.createElement(ElementsApp)
     )
 );
