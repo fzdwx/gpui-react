@@ -16,9 +16,9 @@ pub enum HostCommand {
         title: String,
         response_tx: oneshot::Sender<u64>,
     },
-    RefreshWindow,
-    TriggerRender,
-    UpdateElementTree,
+    TriggerRender {
+        window_id: u64,
+    },
 }
 
 pub enum Command {
@@ -192,16 +192,25 @@ pub fn handle_on_app_thread(
 
             let _ = response_tx.send(real_window_id);
         }
-        HostCommand::RefreshWindow
-        | HostCommand::TriggerRender
-        | HostCommand::UpdateElementTree => {
-            if let Some(window) = app.windows().first() {
-                window.update(app, |_, window, _cx| {
-                    log::trace!("Calling window.refresh()");
+        HostCommand::TriggerRender {
+            window_id,
+        } => {
+            if let Some(window) = app
+                .windows()
+                .iter()
+                .find(|w| w.window_id() == window_id.into())
+            {
+                let window_state = GLOBAL_STATE.get_window_state(window_id);
+                window_state.increment_render_count();
+
+                if let Err(e) = window.update(app, |_, window, _cx| {
+                    log::trace!("Calling window.refresh() for window {}", window_id);
                     window.refresh();
-                });
+                }) {
+                    log::error!("window refresh err {}", e)
+                }
             } else {
-                log::warn!("No windows found to refresh");
+                log::warn!("No window found with id {} to refresh", window_id);
             }
         }
     }

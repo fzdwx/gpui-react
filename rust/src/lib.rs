@@ -167,20 +167,14 @@ pub extern "C" fn gpui_render_frame(
 
         window_state.update_element_tree();
 
-        send_host_command(HostCommand::TriggerRender);
+        send_host_command(HostCommand::TriggerRender {
+            window_id,
+        });
 
         let result_buf = std::slice::from_raw_parts_mut(result_ptr as *mut u8, 8);
         result_buf[0] = 0;
         log::debug!("gpui_render_frame: completed successfully");
     }
-}
-
-#[no_mangle]
-pub extern "C" fn gpui_free_result(_result: FfiResult) {}
-
-#[no_mangle]
-pub extern "C" fn gpui_is_ready() -> bool {
-    is_bus_ready()
 }
 
 #[no_mangle]
@@ -192,8 +186,10 @@ pub extern "C" fn gpui_trigger_render(
         let window_id = ptr_to_u64(window_id_ptr);
         let window_state = GLOBAL_STATE.get_window_state(window_id);
         window_state.increment_render_count();
+        send_host_command(HostCommand::TriggerRender {
+            window_id,
+        });
     }
-    send_host_command(HostCommand::TriggerRender);
 }
 
 #[no_mangle]
@@ -298,12 +294,11 @@ pub extern "C" fn gpui_batch_update_elements(
         }
 
         drop(element_map);
-
         log::debug!("Children updated for all elements");
-
-        window_state.update_element_tree();
-
-        send_host_command(HostCommand::TriggerRender);
+        // window_state.update_element_tree();
+        send_host_command(HostCommand::TriggerRender {
+            window_id,
+        });
 
         let trigger = window_state.get_render_count();
         log::debug!("Triggering render, current count: {}", trigger);
@@ -311,4 +306,12 @@ pub extern "C" fn gpui_batch_update_elements(
         *result = FfiResult::success();
         log::debug!("gpui_batch_update_elements: completed successfully");
     }
+}
+
+#[no_mangle]
+pub extern "C" fn gpui_free_result(_result: FfiResult) {}
+
+#[no_mangle]
+pub extern "C" fn gpui_is_ready() -> bool {
+    is_bus_ready()
 }
