@@ -110,43 +110,26 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
 	match command {
 		HostCommand::CreateWindow { options, response_tx } => {
 			let title = options.title.as_deref().unwrap_or("React-GPUI");
-			log::info!("Creating window: {} ({}x{})", title, options.width, options.height);
-
+			log::debug!("Creating window: {} ({}x{})", title, options.width, options.height);
 			let window_options: gpui::WindowOptions = options.into();
-			let window = app.open_window(window_options, |_window, cx| {
-				let state = cx.new(|_| crate::renderer::RootState { render_count: 0 });
-				cx.new(|_| crate::renderer::RootView { state, last_render: 0, window_id: 0 })
-			}).unwrap();
-			let window_id = window.window_id().as_u64();
-			log::info!("Created window with id: {}", window_id);
-
-			window
-				.update(app, |view: &mut crate::renderer::RootView, _, _| {
-					view.window_id = window_id;
+			app
+				.open_window(window_options, |window, cx| {
+					let window_handle = window.window_handle();
+					let window_id = window_handle.window_id().as_u64();
+					let state = cx.new(|_| crate::renderer::RootState { render_count: 0 });
+					log::debug!("Created window with id: {}", window_id);
+					let _ = response_tx.send(window_id);
+					GLOBAL_STATE.add_window(window_handle);
+					cx.new(|_| crate::renderer::RootView { state, last_render: 0, window_id })
 				})
-				.ok();
-			// Store the window handle in our Window struct
-			GLOBAL_STATE.add_window(window);
-
-			let _ = response_tx.send(window_id);
+				.unwrap();
 		}
 		HostCommand::TriggerRender { window_id } => {
-			if let Some(gpui_window) = app.windows().iter().find(|w| w.window_id() == window_id.into()) {
-				let Some(window) = GLOBAL_STATE.get_window(window_id) else {
-					log::warn!("TriggerRender: window {} not found", window_id);
-					return;
-				};
-				window.state().increment_render_count();
-
-				if let Err(e) = gpui_window.update(app, |_, window, _cx| {
-					log::trace!("Calling window.refresh() for window {}", window_id);
-					window.refresh();
-				}) {
-					log::error!("window refresh err {}", e)
-				}
-			} else {
-				log::warn!("No window found with id {} to refresh", window_id);
-			}
+			let Some(window) = GLOBAL_STATE.get_window(window_id) else {
+				log::warn!("TriggerRender: window {} not found", window_id);
+				return;
+			};
+			window.refresh(app);
 		}
 	}
 }

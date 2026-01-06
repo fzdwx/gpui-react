@@ -1,9 +1,41 @@
 use std::{collections::HashMap, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}}};
 
-use gpui::WindowHandle;
+use gpui::{AnyWindowHandle, App, AppContext, WindowHandle};
 
-use crate::element::ReactElement;
-use crate::renderer::RootView;
+use crate::{element::ReactElement, renderer::RootView};
+
+pub struct Window {
+	/// The GPUI window handle
+	h:         AnyWindowHandle,
+	/// The React element state for this window
+	state:     Arc<WindowState>,
+	window_id: u64,
+}
+
+impl Window {
+	/// Create a new window with the given GPUI handle
+	pub fn new(h: AnyWindowHandle) -> Self {
+		let window_id = h.window_id().as_u64();
+		Self { h, state: Arc::new(WindowState::new()), window_id }
+	}
+
+	pub fn refresh(&self, app: &mut App) {
+		if let Err(e) = app.update_window(self.h, |_view, w, app| {
+			self.state.increment_render_count();
+			w.refresh();
+			log::trace!("Calling window.refresh() for window {}", self.window_id);
+		}) {
+			log::error!("window refresh err {}", e)
+		}
+	}
+
+	/// Get the window state
+	pub fn state(&self) -> &Arc<WindowState> { &self.state }
+
+	/// Get mutable access to the window state
+	pub fn state_mut(&mut self) -> &mut Arc<WindowState> { &mut self.state }
+}
+
 
 pub struct WindowState {
 	pub root_element_id: AtomicU64,
@@ -91,27 +123,4 @@ impl WindowState {
 
 impl Default for WindowState {
 	fn default() -> Self { Self::new() }
-}
-
-pub struct Window {
-	/// The GPUI window handle
-	gpui_window: WindowHandle<RootView>,
-	/// The React element state for this window
-	state:        Arc<WindowState>,
-}
-
-impl Window {
-	/// Create a new window with the given GPUI handle
-	pub fn new(gpui_window: WindowHandle<RootView>) -> Self {
-		Self { gpui_window, state: Arc::new(WindowState::new()) }
-	}
-
-	/// Get a reference to the GPUI window handle
-	pub fn gpui_window(&self) -> &WindowHandle<RootView> { &self.gpui_window }
-
-	/// Get the window state
-	pub fn state(&self) -> &Arc<WindowState> { &self.state }
-
-	/// Get mutable access to the window state
-	pub fn state_mut(&mut self) -> &mut Arc<WindowState> { &mut self.state }
 }

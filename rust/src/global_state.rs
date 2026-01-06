@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::{Arc, RwLock, atomic::{AtomicBool, Ordering}}};
 
 use gpui::{AnyWindowHandle, Global, WindowHandle};
-use crate::renderer::RootView;
-use crate::window::Window;
+
+use crate::{renderer::RootView, window::Window};
 
 pub struct GlobalState {
 	gpui_initialized:    AtomicBool,
@@ -34,7 +34,7 @@ impl GlobalState {
 	}
 
 	/// Add a window with its GPUI handle
-	pub fn add_window(&self, handle: WindowHandle<RootView>) {
+	pub fn add_window(&self, handle: AnyWindowHandle) {
 		let window_id = handle.window_id().as_u64();
 		let mut windows = self.windows.write().expect("Failed to acquire windows write lock");
 		windows.insert(window_id, Arc::new(Window::new(handle)));
