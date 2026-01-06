@@ -1,13 +1,13 @@
 use std::{collections::HashMap, sync::{Arc, RwLock, atomic::{AtomicBool, Ordering}}};
 
-use gpui::Global;
-
-use crate::window_state::WindowState;
+use gpui::{AnyWindowHandle, Global, WindowHandle};
+use crate::renderer::RootView;
+use crate::window::Window;
 
 pub struct GlobalState {
 	gpui_initialized:    AtomicBool,
 	gpui_thread_started: AtomicBool,
-	window_states:       RwLock<HashMap<u64, Arc<WindowState>>>,
+	windows:             RwLock<HashMap<u64, Arc<Window>>>,
 }
 
 impl Global for GlobalState {}
@@ -17,7 +17,7 @@ impl GlobalState {
 		Self {
 			gpui_initialized:    AtomicBool::new(false),
 			gpui_thread_started: AtomicBool::new(false),
-			window_states:       RwLock::new(HashMap::new()),
+			windows:             RwLock::new(HashMap::new()),
 		}
 	}
 
@@ -33,21 +33,27 @@ impl GlobalState {
 		self.gpui_thread_started.store(value, Ordering::SeqCst);
 	}
 
-	pub fn get_window_state(&self, window_id: u64) -> Arc<WindowState> {
-		let mut states =
-			self.window_states.write().expect("Failed to acquire window_states write lock");
-		states.entry(window_id).or_insert_with(|| Arc::new(WindowState::new())).clone()
+	/// Add a window with its GPUI handle
+	pub fn add_window(&self, handle: WindowHandle<RootView>) {
+		let window_id = handle.window_id().as_u64();
+		let mut windows = self.windows.write().expect("Failed to acquire windows write lock");
+		windows.insert(window_id, Arc::new(Window::new(handle)));
 	}
 
-	pub fn get_window_state_ref(&self, window_id: u64) -> Option<Arc<WindowState>> {
-		let states = self.window_states.read().expect("Failed to acquire window_states read lock");
-		states.get(&window_id).cloned()
+	/// Get a window by ID, returns None if not found
+	pub fn get_window(&self, window_id: u64) -> Option<Arc<Window>> {
+		let windows = self.windows.read().expect("Failed to acquire windows read lock");
+		windows.get(&window_id).cloned()
 	}
 
-	pub fn remove_window_state(&self, window_id: u64) {
-		let mut states =
-			self.window_states.write().expect("Failed to acquire window_states write lock");
-		states.remove(&window_id);
+	pub fn get_window_ref(&self, window_id: u64) -> Option<Arc<Window>> {
+		let windows = self.windows.read().expect("Failed to acquire windows read lock");
+		windows.get(&window_id).cloned()
+	}
+
+	pub fn remove_window(&self, window_id: u64) {
+		let mut windows = self.windows.write().expect("Failed to acquire windows write lock");
+		windows.remove(&window_id);
 	}
 }
 

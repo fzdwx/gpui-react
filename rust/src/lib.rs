@@ -5,7 +5,7 @@ mod global_state;
 mod host_command;
 mod logging;
 mod renderer;
-mod window_state;
+mod window;
 
 use std::{ffi::{CStr, c_char}, sync::Arc};
 
@@ -115,7 +115,10 @@ pub extern "C" fn gpui_render_frame(
 			children
 		);
 
-		let window_state = GLOBAL_STATE.get_window_state(window_id);
+		let Some(window) = GLOBAL_STATE.get_window(window_id) else {
+			log::error!("gpui_render_frame: window {} not found", window_id);
+			return;
+		};
 
 		let element = Arc::new(ReactElement {
 			global_id,
@@ -126,7 +129,8 @@ pub extern "C" fn gpui_render_frame(
 			event_handlers: None,
 		});
 
-		let mut element_map = window_state
+		let mut element_map = window
+			.state()
 			.element_map
 			.lock()
 			.expect("Failed to acquire element_map lock in gpui_render_frame");
@@ -148,11 +152,11 @@ pub extern "C" fn gpui_render_frame(
 
 		drop(element_map);
 
-		window_state.set_root_element_id(global_id);
+		window.state().set_root_element_id(global_id);
 
-		window_state.rebuild_tree(global_id, &children);
+		window.state().rebuild_tree(global_id, &children);
 
-		window_state.update_element_tree();
+		window.state().update_element_tree();
 
 		send_host_command(HostCommand::TriggerRender { window_id });
 
@@ -166,8 +170,11 @@ pub extern "C" fn gpui_render_frame(
 pub extern "C" fn gpui_trigger_render(window_id_ptr: *const u8, _result: *mut FfiResult) {
 	unsafe {
 		let window_id = ptr_to_u64(window_id_ptr);
-		let window_state = GLOBAL_STATE.get_window_state(window_id);
-		window_state.increment_render_count();
+		let Some(window) = GLOBAL_STATE.get_window(window_id) else {
+			log::error!("gpui_render_frame: window {} not found", window_id);
+			return;
+		};
+		window.state().increment_render_count();
 		send_host_command(HostCommand::TriggerRender { window_id });
 	}
 }
@@ -197,9 +204,13 @@ pub extern "C" fn gpui_batch_update_elements(
 
 		log::info!("Batch update: Processing {} elements for window {}", count, window_id);
 
-		let window_state = GLOBAL_STATE.get_window_state(window_id);
+		let Some(window) = GLOBAL_STATE.get_window(window_id) else {
+			log::error!("gpui_render_frame: window {} not found", window_id);
+			return;
+		};
 
-		let mut element_map = window_state
+		let mut element_map = window
+			.state()
 			.element_map
 			.lock()
 			.expect("Failed to acquire element_map lock in gpui_batch_update_elements");
@@ -258,7 +269,7 @@ pub extern "C" fn gpui_batch_update_elements(
 		// window_state.update_element_tree();
 		send_host_command(HostCommand::TriggerRender { window_id });
 
-		let trigger = window_state.get_render_count();
+		let trigger = window.state().get_render_count();
 		log::debug!("Triggering render, current count: {}", trigger);
 
 		*result = FfiResult::success();

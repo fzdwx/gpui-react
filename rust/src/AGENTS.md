@@ -16,7 +16,7 @@ rust/src/
 ├── renderer.rs         # RootView, render_element_to_gpui (div/text/span/img)
 ├── element.rs         # ReactElement, ElementStyle, ElementData structures
 ├── host_command.rs     # async_channel command bus (TriggerRender, UpdateElements)
-├── window_state.rs    # ElementTree, render_count, ROOT_ELEMENT_ID
+├── window.rs         # Window, WindowState, element tree management
 ├── global_state.rs     # Global state management (lazy_static)
 ├── ffi_types.rs       # FFI type bindings (serde)
 └── logging.rs         # Logging utilities (logforth)
@@ -30,7 +30,7 @@ rust/src/
 | FFI helpers        | ffi_helpers.rs  | ptr_to_u64, read_c_string, validate_result_ptr             |
 | GPUI rendering     | renderer.rs     | render_element_to_gpui (div/text/span/img)                 |
 | Command bus        | host_command.rs | init(cx), send_host_command(TriggerRender)                 |
-| Window state       | window_state.rs | update_element_tree(), render_count, ROOT_ELEMENT_ID       |
+| Window             | window.rs       | Window, WindowState, update_element_tree(), render_count   |
 | Element structures | element.rs      | ReactElement, ElementStyle, ChildElement                   |
 
 ## CONVENTIONS

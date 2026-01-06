@@ -1,6 +1,9 @@
 use std::{collections::HashMap, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}}};
 
+use gpui::WindowHandle;
+
 use crate::element::ReactElement;
+use crate::renderer::RootView;
 
 pub struct WindowState {
 	pub root_element_id: AtomicU64,
@@ -88,4 +91,27 @@ impl WindowState {
 
 impl Default for WindowState {
 	fn default() -> Self { Self::new() }
+}
+
+pub struct Window {
+	/// The GPUI window handle
+	gpui_window: WindowHandle<RootView>,
+	/// The React element state for this window
+	state:        Arc<WindowState>,
+}
+
+impl Window {
+	/// Create a new window with the given GPUI handle
+	pub fn new(gpui_window: WindowHandle<RootView>) -> Self {
+		Self { gpui_window, state: Arc::new(WindowState::new()) }
+	}
+
+	/// Get a reference to the GPUI window handle
+	pub fn gpui_window(&self) -> &WindowHandle<RootView> { &self.gpui_window }
+
+	/// Get the window state
+	pub fn state(&self) -> &Arc<WindowState> { &self.state }
+
+	/// Get mutable access to the window state
+	pub fn state_mut(&mut self) -> &mut Arc<WindowState> { &mut self.state }
 }

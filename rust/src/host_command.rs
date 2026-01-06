@@ -116,28 +116,29 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
 			let window = app.open_window(window_options, |_window, cx| {
 				let state = cx.new(|_| crate::renderer::RootState { render_count: 0 });
 				cx.new(|_| crate::renderer::RootView { state, last_render: 0, window_id: 0 })
-			});
-			let real_window_id = window.as_ref().unwrap().window_id().as_u64();
+			}).unwrap();
+			let window_id = window.window_id().as_u64();
+			log::info!("Created window with id: {}", window_id);
 
-			log::info!("Created window with id: {}", real_window_id);
-
-			let handle = window.as_ref().unwrap();
-			handle
+			window
 				.update(app, |view: &mut crate::renderer::RootView, _, _| {
-					view.window_id = real_window_id;
+					view.window_id = window_id;
 				})
 				.ok();
+			// Store the window handle in our Window struct
+			GLOBAL_STATE.add_window(window);
 
-			let _ = GLOBAL_STATE.get_window_state(real_window_id);
-
-			let _ = response_tx.send(real_window_id);
+			let _ = response_tx.send(window_id);
 		}
 		HostCommand::TriggerRender { window_id } => {
-			if let Some(window) = app.windows().iter().find(|w| w.window_id() == window_id.into()) {
-				let window_state = GLOBAL_STATE.get_window_state(window_id);
-				window_state.increment_render_count();
+			if let Some(gpui_window) = app.windows().iter().find(|w| w.window_id() == window_id.into()) {
+				let Some(window) = GLOBAL_STATE.get_window(window_id) else {
+					log::warn!("TriggerRender: window {} not found", window_id);
+					return;
+				};
+				window.state().increment_render_count();
 
-				if let Err(e) = window.update(app, |_, window, _cx| {
+				if let Err(e) = gpui_window.update(app, |_, window, _cx| {
 					log::trace!("Calling window.refresh() for window {}", window_id);
 					window.refresh();
 				}) {

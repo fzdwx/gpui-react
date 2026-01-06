@@ -14,8 +14,11 @@ pub struct RootView {
 
 impl RootView {
 	fn update_state(&mut self, cx: &mut Context<Self>) {
-		let window_state = GLOBAL_STATE.get_window_state(self.window_id);
-		let trigger = window_state.get_render_count();
+		let Some(window) = GLOBAL_STATE.get_window(self.window_id) else {
+			log::warn!("update_state: window {} not found", self.window_id);
+			return;
+		};
+		let trigger = window.state().get_render_count();
 		log::trace!(
 			"update_state: window_id={}, trigger={}, last_render={}",
 			self.window_id,
@@ -42,8 +45,12 @@ impl Render for RootView {
 		let render_start = std::time::Instant::now();
 		self.update_state(cx);
 
-		let window_state = GLOBAL_STATE.get_window_state(self.window_id);
-		let tree = window_state
+		let Some(window) = GLOBAL_STATE.get_window(self.window_id) else {
+			log::warn!("RootView.render: window {} not found", self.window_id);
+			return div().child("Window not found");
+		};
+		let tree = window
+			.state()
 			.element_tree
 			.lock()
 			.expect("Failed to acquire element_tree lock in RootView.render");
