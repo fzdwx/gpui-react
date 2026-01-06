@@ -46,6 +46,7 @@
     },
     "type": "module",
     "dependencies": {
+        "events": "^3.3.0",
         "react-reconciler": "^0.32.0"
     },
     "engines": {

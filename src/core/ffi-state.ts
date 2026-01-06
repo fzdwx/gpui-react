@@ -1,9 +1,13 @@
-import { ptr, read } from "bun:ffi";
-import { sleep } from "bun";
-import { lib } from "./ffi";
+import {ptr, read} from "bun:ffi";
+import {sleep} from "bun";
+import {lib} from "./ffi";
+
+export const encoder: TextEncoder = new TextEncoder()
+export const decoder: TextDecoder = new TextDecoder()
 
 export class FfiState {
     liveBuffers: ArrayBuffer[] = [];
+
 
     keep(buffer: ArrayBuffer): void {
         this.liveBuffers.push(buffer);
@@ -14,7 +18,7 @@ export class FfiState {
     }
 
     encodeCString(str: string): [ArrayBuffer, ReturnType<typeof ptr>] {
-        const buffer = new TextEncoder().encode(str + "\0");
+        const buffer = encoder.encode(str + "\0");
         this.keep(buffer.buffer);
         return [buffer.buffer, ptr(buffer)];
     }
