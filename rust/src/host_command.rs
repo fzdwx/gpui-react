@@ -4,7 +4,7 @@ use gpui::{App, AppContext, AsyncApp};
 use serde_json::Value;
 use tokio::sync::oneshot;
 
-use crate::global_state::GLOBAL_STATE;
+use crate::{global_state::GLOBAL_STATE, renderer::RootView};
 
 #[derive(Debug)]
 pub enum HostCommand {
@@ -127,7 +127,9 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
 	match command {
 		HostCommand::CreateWindow { options, response_tx } => {
 			let title = options.title.as_deref().unwrap_or("React-GPUI");
-			log::debug!("Creating window: {} ({}x{})", title, options.width, options.height);
+			let w = options.width;
+			let h = options.height;
+			log::debug!("Creating window: {} ({}x{})", title, w, h);
 			let window_options: gpui::WindowOptions = options.into();
 			app
 				.open_window(window_options, |window, cx| {
@@ -137,7 +139,7 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
 					log::debug!("Created window with id: {}", window_id);
 					let _ = response_tx.send(window_id);
 					GLOBAL_STATE.add_window(window_handle);
-					cx.new(|_| crate::renderer::RootView { state, last_render: 0, window_id })
+					cx.new(|_| RootView::new(state, window_id, w, h))
 				})
 				.unwrap();
 		}

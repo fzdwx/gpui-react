@@ -1,47 +1,58 @@
 use std::sync::Arc;
 
+use gpui::{InteractiveElement, ParentElement};
 use serde_json::Value;
+
+pub mod div;
+pub mod text;
+pub mod span;
+pub mod img;
+
+pub use div::DivComponent;
+pub use text::TextComponent;
+pub use span::SpanComponent;
+pub use img::ImgComponent;
 
 #[derive(Clone, PartialEq)]
 pub struct ReactElement {
-	pub global_id:      u64,
-	pub element_type:   String,
-	pub text:           Option<String>,
-	pub children:       Vec<Arc<ReactElement>>,
-	pub style:          ElementStyle,
-	pub event_handlers: Option<serde_json::Value>,
+    pub global_id:      u64,
+    pub element_type:   String,
+    pub text:           Option<String>,
+    pub children:       Vec<Arc<ReactElement>>,
+    pub style:          ElementStyle,
+    pub event_handlers: Option<serde_json::Value>,
 }
 
 #[derive(Clone, PartialEq, Default, Debug)]
 pub struct ElementStyle {
-	pub text_color:      Option<u32>,
-	pub bg_color:        Option<u32>,
-	pub border_color:    Option<u32>,
-	pub text_size:       Option<f32>,
-	pub width:           Option<f32>,
-	pub height:          Option<f32>,
-	pub margin_top:      Option<f32>,
-	pub margin_right:    Option<f32>,
-	pub margin_bottom:   Option<f32>,
-	pub margin_left:     Option<f32>,
-	pub padding_top:     Option<f32>,
-	pub padding_right:   Option<f32>,
-	pub padding_bottom:  Option<f32>,
-	pub padding_left:    Option<f32>,
-	pub display:         Option<String>,
-	pub flex_direction:  Option<String>,
-	pub justify_content: Option<String>,
-	pub align_items:     Option<String>,
-	pub gap:             Option<f32>,
-	pub border_radius:   Option<f32>,
-	pub opacity:         Option<f32>,
-	pub src:             Option<String>,
-	pub alt:             Option<String>,
+    pub text_color:      Option<u32>,
+    pub bg_color:        Option<u32>,
+    pub border_color:    Option<u32>,
+    pub text_size:       Option<f32>,
+    pub width:           Option<f32>,
+    pub height:          Option<f32>,
+    pub margin_top:      Option<f32>,
+    pub margin_right:    Option<f32>,
+    pub margin_bottom:   Option<f32>,
+    pub margin_left:     Option<f32>,
+    pub padding_top:     Option<f32>,
+    pub padding_right:   Option<f32>,
+    pub padding_bottom:  Option<f32>,
+    pub padding_left:    Option<f32>,
+    pub display:         Option<String>,
+    pub flex_direction:  Option<String>,
+    pub justify_content: Option<String>,
+    pub align_items:     Option<String>,
+    pub gap:             Option<f32>,
+    pub border_radius:   Option<f32>,
+    pub opacity:         Option<f32>,
+    pub src:             Option<String>,
+    pub alt:             Option<String>,
 }
 
 impl ElementStyle {
-	#[rustfmt::skip]
-	pub fn from_json(style_obj: &Value) -> Self {
+    #[rustfmt::skip]
+    pub fn from_json(style_obj: &Value) -> Self {
         ElementStyle {
             text_color: style_obj.get("textColor").and_then(|v| v.as_u64()).map(|v| v as u32),
             bg_color: style_obj.get("bgColor").and_then(|v| v.as_u64()).map(|v| v as u32),
@@ -70,4 +81,18 @@ impl ElementStyle {
     }
 }
 
-pub type EventId = u64;
+pub fn render_to_gpui(
+    element: &ReactElement,
+    parent_style: Option<&ElementStyle>,
+    window_id: u64,
+) -> gpui::Stateful<gpui::Div> {
+    match element.element_type.as_str() {
+        "div" => DivComponent::from_element(element, parent_style, window_id),
+        "text" => TextComponent::from_element(element, parent_style, window_id),
+        "span" => SpanComponent::from_element(element, parent_style, window_id),
+        "img" => ImgComponent::from_element(element, parent_style, window_id),
+        _ => gpui::div()
+            .id(element.global_id as usize)
+            .child(format!("[Unknown: {}]", element.element_type)),
+    }
+}

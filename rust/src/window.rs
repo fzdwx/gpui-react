@@ -136,6 +136,9 @@ impl Window {
 				}
 			}
 		}
+
+		drop(element_map);
+		self.state.update_element_tree();
 	}
 }
 
@@ -191,34 +194,10 @@ impl WindowState {
 			return;
 		}
 
-		let element_map = self.element_map.lock().expect("Failed to acquire element_map lock");
+		let element_map = self.element_map.lock().expect("Failed to acquire element_tree lock");
 
 		if let Some(root) = element_map.get(&root_id) {
-			let mut new_tree = (**root).clone();
-
-			fn update_children(
-				element: &mut ReactElement,
-				element_map: &std::collections::HashMap<u64, Arc<ReactElement>>,
-			) {
-				let children_ids: Vec<u64> =
-					element.children.iter().filter_map(|c| Some(c.global_id)).collect();
-
-				let mut new_children = Vec::new();
-				for &cid in &children_ids {
-					if let Some(child) = element_map.get(&cid) {
-						let mut child_clone = (**child).clone();
-						update_children(&mut child_clone, element_map);
-						new_children.push(Arc::new(child_clone));
-					}
-				}
-
-				if !new_children.is_empty() {
-					element.children = new_children;
-				}
-			}
-
-			update_children(&mut new_tree, &element_map);
-			*tree = Some(Arc::new(new_tree));
+			*tree = Some(root.clone());
 		}
 	}
 }
