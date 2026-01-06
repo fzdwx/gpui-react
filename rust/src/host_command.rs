@@ -11,9 +11,7 @@ use crate::global_state::GLOBAL_STATE;
 #[derive(Debug)]
 pub enum HostCommand {
     CreateWindow {
-        width: f32,
-        height: f32,
-        title: String,
+        options: super::ffi_types::WindowOptions,
         response_tx: oneshot::Sender<u64>,
     },
     TriggerRender {
@@ -138,45 +136,28 @@ pub fn handle_on_app_thread(
 
     match command {
         HostCommand::CreateWindow {
-            width,
-            height,
-            title,
+            options,
             response_tx,
         } => {
-            log::error!("title=============:{}", title);
-            let size = gpui::Size {
-                width: gpui::px(width),
-                height: gpui::px(height),
-            };
-            let origin = gpui::Point {
-                x: gpui::px(100.0),
-                y: gpui::px(100.0),
-            };
-            let bounds = gpui::Bounds {
-                origin,
-                size,
-            };
-
-            let window = app.open_window(
-                gpui::WindowOptions {
-                    window_bounds: Some(gpui::WindowBounds::Windowed(bounds)),
-                    titlebar: Some(gpui::TitlebarOptions {
-                        title: Some(title.into()),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                },
-                |_window, cx| {
-                    let state = cx.new(|_| crate::renderer::RootState {
-                        render_count: 0,
-                    });
-                    cx.new(|_| crate::renderer::RootView {
-                        state,
-                        last_render: 0,
-                        window_id: 0,
-                    })
-                },
+            let title = options.title.as_deref().unwrap_or("React-GPUI");
+            log::info!(
+                "Creating window: {} ({}x{})",
+                title,
+                options.width,
+                options.height
             );
+
+            let window_options: gpui::WindowOptions = options.into();
+            let window = app.open_window(window_options, |_window, cx| {
+                let state = cx.new(|_| crate::renderer::RootState {
+                    render_count: 0,
+                });
+                cx.new(|_| crate::renderer::RootView {
+                    state,
+                    last_render: 0,
+                    window_id: 0,
+                })
+            });
             let real_window_id = window.as_ref().unwrap().window_id().as_u64();
 
             log::info!("Created window with id: {}", real_window_id);

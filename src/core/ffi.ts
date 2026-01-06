@@ -13,7 +13,7 @@ info(`Loading GPUI library from: ${libPath}`);
 export const lib = dlopen(libPath, {
     gpui_init: { args: [FFIType.ptr], returns: FFIType.void },
     gpui_create_window: {
-        args: [FFIType.f32, FFIType.f32, FFIType.ptr, FFIType.ptr],
+        args: [FFIType.ptr, FFIType.ptr],
         returns: FFIType.void,
     },
     gpui_is_ready: { args: [], returns: FFIType.bool },

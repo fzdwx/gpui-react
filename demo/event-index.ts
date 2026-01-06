@@ -3,8 +3,10 @@ import { createRoot } from "../src/index";
 import { EventApp } from "./event-app";
 
 const root = createRoot({
-    width: 800,
-    height: 800,
+    windowOption: {
+        width: 800,
+        height: 800,
+    },
 });
 root.render(
     React.createElement(

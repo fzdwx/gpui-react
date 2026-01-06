@@ -2,7 +2,12 @@ import React from "react";
 import { createRoot } from "../src";
 import { StyledApp } from "./styled-app";
 
-const root = createRoot();
+const root = createRoot({
+    windowOption: {
+        width: 800,
+        height: 600,
+    },
+});
 root.render(
     React.createElement(
         "div",

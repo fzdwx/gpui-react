@@ -17,7 +17,7 @@ use tokio::sync::oneshot;
 use crate::{
     element::ReactElement,
     ffi_helpers::{ptr_to_u64, read_c_string, read_opt_c_string, validate_result_ptr},
-    ffi_types::{FfiResult, WindowCreateResult},
+    ffi_types::{FfiResult, WindowCreateResult, WindowOptions},
     global_state::GLOBAL_STATE,
     host_command::{is_bus_ready, send_host_command, HostCommand},
     renderer::start_gpui_thread,
@@ -51,19 +51,22 @@ pub extern "C" fn gpui_init(result: *mut FfiResult) {
 
 #[no_mangle]
 pub extern "C" fn gpui_create_window(
-    width: f32,
-    height: f32,
-    title_ptr: *const c_char,
+    options_ptr: *const c_char,
     result: *mut WindowCreateResult,
 ) {
-    let title = unsafe { read_c_string(title_ptr, "React-GPUI") };
+    let options_json = unsafe { read_c_string(options_ptr, "{}") };
+
+    let options: WindowOptions = serde_json::from_str(&options_json)
+        .map_err(|e| format!("Failed to parse window options JSON: {}", e))
+        .unwrap_or_else(|e| {
+            log::error!("JSON parse error: {}", e);
+            WindowOptions::default()
+        });
 
     let (response_tx, response_rx) = oneshot::channel();
 
     send_host_command(HostCommand::CreateWindow {
-        width,
-        height,
-        title,
+        options,
         response_tx,
     });
 

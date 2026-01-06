@@ -1,8 +1,8 @@
-import { lib } from "./ffi";
-import { peek, sleep } from "bun";
-import { ptr, read } from "bun:ffi";
-import { info, trace } from "../reconciler/utils/logging";
-import { FfiState } from "./ffi-state";
+import {lib} from "./ffi";
+import {peek, sleep} from "bun";
+import {ptr, read} from "bun:ffi";
+import {info, trace} from "../reconciler/utils/logging";
+import {FfiState} from "./ffi-state";
 
 export interface ElementData {
     globalId: number;
@@ -15,6 +15,16 @@ export interface ElementData {
 
 const RESULT_SIZE = 16;
 
+export interface WindowOptions {
+    width: number;
+    height: number;
+    title?: string;
+    x?: number;
+    y?: number;
+    resizable?: boolean;
+    fullscreen?: boolean;
+}
+
 export class RustLib {
     ffiStateMap: Map<number, FfiState>;
 
@@ -26,11 +36,11 @@ export class RustLib {
         this.waitReady();
     }
 
-    public createWindow(width: number, height: number, title?: string): number {
+    public createWindow(options: WindowOptions): number {
         const resultBuffer = new Uint8Array(RESULT_SIZE);
         const ffiState = new FfiState();
-        const [titleBuffer, titlePtr] = ffiState.encodeCString(title || "React-GPUI");
-        lib.symbols.gpui_create_window(width, height, titlePtr, resultBuffer);
+        const [optionsBuffer, optionsPtr] = ffiState.encodeCString(JSON.stringify(options));
+        lib.symbols.gpui_create_window(optionsPtr, resultBuffer);
         const windowId = this.checkWindowCreateResult(resultBuffer);
         info(`Created window with id: ${windowId}`);
         this.ffiStateMap.set(windowId, ffiState);

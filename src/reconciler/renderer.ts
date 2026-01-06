@@ -1,8 +1,8 @@
 import * as React from "react";
-import { _render, reconciler } from "./reconciler";
-import { ElementStore } from "./element-store";
-import { AppContext } from "./ctx";
-import { rustLib } from "../core";
+import {_render, reconciler} from "./reconciler";
+import {ElementStore} from "./element-store";
+import {AppContext} from "./ctx";
+import {rustLib, WindowOptions} from "../core";
 
 export type Root = {
     render: (children: React.ReactNode) => void;
@@ -10,14 +10,12 @@ export type Root = {
 };
 
 export type RootProps = {
-    width: number;
-    height: number;
-    title?: string;
+    windowOption: WindowOptions
 };
 
-export function createRoot({ width, height, title }: RootProps): Root {
+export function createRoot(props: RootProps): Root {
     let container: null = null;
-    const windowId = rustLib.createWindow(width, height, title);
+    const windowId = rustLib.createWindow(props.windowOption);
     console.log("Created window with id:", windowId);
 
     const elementStore = new ElementStore();
@@ -25,12 +23,13 @@ export function createRoot({ width, height, title }: RootProps): Root {
     return {
         render(node: React.ReactNode) {
             container = _render(
-                React.createElement(AppContext.Provider, { value: { windowId } }, node),
+                React.createElement(AppContext.Provider, {value: {windowId}}, node),
                 elementStore
             );
         },
         unmount() {
-            reconciler.updateContainer(null, container, null, () => {});
+            reconciler.updateContainer(null, container, null, () => {
+            });
         },
     };
 }
