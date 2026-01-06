@@ -24,7 +24,12 @@ export class ElementStore {
         this.windowId = 0;
     }
 
-    createElement(type: string, text?: string, style?: Record<string, any>): number {
+    createElement(
+        type: string,
+        text?: string,
+        style?: Record<string, any>,
+        eventHandlers?: Record<string, number>
+    ): number {
         const globalId = this.nextId++;
         const element: ElementData = {
             globalId,
@@ -32,6 +37,7 @@ export class ElementStore {
             text,
             style,
             children: [],
+            eventHandlers,
         };
         Object.defineProperty(element, STORE_SYMBOL, {
             value: this,
@@ -39,7 +45,7 @@ export class ElementStore {
             enumerable: false,
         });
         this.store.set(globalId, element);
-        trace("createElement", { type, globalId, style });
+        trace("createElement", { type, globalId, style, eventHandlers });
         return globalId;
     }
 

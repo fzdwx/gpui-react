@@ -1,3 +1,5 @@
+extern crate core;
+
 mod element;
 mod ffi_helpers;
 mod ffi_types;
@@ -7,11 +9,18 @@ mod logging;
 mod renderer;
 mod window;
 
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, c_char, c_void};
 
 use tokio::sync::oneshot;
 
 use crate::{ffi_helpers::{ptr_to_u64, read_c_string, read_opt_c_string, validate_result_ptr}, ffi_types::{FfiResult, WindowCreateResult, WindowOptions}, global_state::GLOBAL_STATE, host_command::{HostCommand, is_bus_ready, send_host_command}, renderer::start_gpui_thread};
+
+/// Global event callback pointer for routing events to JavaScript
+static mut EVENT_CALLBACK_PTR: Option<*mut c_void> = None;
+
+pub(crate) fn get_event_callback() -> Option<*mut c_void> {
+    unsafe { EVENT_CALLBACK_PTR }
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_init(result: *mut FfiResult) {
@@ -171,3 +180,12 @@ pub extern "C" fn gpui_free_result(_result: FfiResult) {}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_is_ready() -> bool { is_bus_ready() }
+
+/// Set the event callback for receiving events from Rust to JavaScript
+#[unsafe(no_mangle)]
+pub extern "C" fn set_event_callback(callback_ptr: *mut c_void) {
+    unsafe {
+        EVENT_CALLBACK_PTR = Some(callback_ptr);
+        log::info!("Event callback registered: {:p}", callback_ptr);
+    }
+}

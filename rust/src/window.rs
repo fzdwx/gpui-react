@@ -98,13 +98,15 @@ impl Window {
 
 				let style = elem_obj.get("style").map(ElementStyle::from_json).unwrap_or_default();
 
+				let event_handlers = elem_obj.get("eventHandlers").cloned();
+
 				let element = Arc::new(ReactElement {
 					global_id,
 					element_type,
 					text,
 					children: Vec::new(),
 					style,
-					event_handlers: None,
+					event_handlers,
 				});
 
 				element_map.insert(global_id, element);

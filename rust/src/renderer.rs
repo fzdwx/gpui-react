@@ -1,6 +1,92 @@
-use gpui::{Application as GpuiApp, Entity, Render, Window, div, prelude::*, px, rgb};
+use std::ffi::{c_char, c_void};
+
+use gpui::{App as GpuiAppContext, Application as GpuiApp, ClickEvent, Div, ElementId, Entity, MouseButton, Render, Window, div, prelude::*, px, rgb};
 
 use crate::{element::{ElementStyle, ReactElement}, global_state::GLOBAL_STATE, host_command};
+
+/// Dispatch an event directly to JavaScript via the registered callback
+fn dispatch_event_to_js(
+	window_id: u64,
+	element_id: u64,
+	event_type: &str,
+	_event_data: Option<&serde_json::Value>,
+) {
+	use crate::get_event_callback;
+
+	let callback_ptr = match get_event_callback() {
+		Some(ptr) => ptr,
+		None => {
+			log::warn!("[Rust] dispatch_event_to_js: No event callback registered");
+			return;
+		}
+	};
+
+	unsafe {
+		log::info!(
+			"[Rust] dispatch_event_to_js: window_id={}, element_id={}, event_type={}",
+			window_id,
+			element_id,
+			event_type
+		);
+
+		// Prepare buffers on heap to ensure they live long enough
+		let window_id_bytes = window_id.to_le_bytes();
+		let element_id_bytes = element_id.to_le_bytes();
+
+		let event_type_cstring = std::ffi::CString::new(event_type).unwrap_or_default();
+		let event_type_ptr = event_type_cstring.as_ptr() as *mut c_char;
+		let event_type_len = event_type_cstring.to_bytes().len() + 1; // include null terminator
+
+		// Create event data (empty JSON object)
+		let event_data_json = "{}";
+		let event_data_bytes = event_data_json.as_bytes();
+		let event_data_len = event_data_bytes.len();
+
+		// Allocate buffers on heap
+		let window_id_boxed = Box::new(window_id_bytes);
+		let element_id_boxed = Box::new(element_id_bytes);
+		let event_data_boxed = Box::new(event_data_bytes.to_vec());
+
+		let window_id_ptr = Box::into_raw(window_id_boxed) as *mut c_void;
+		let element_id_ptr = Box::into_raw(element_id_boxed) as *mut c_void;
+		let event_data_ptr = Box::into_raw(event_data_boxed) as *mut u8;
+
+		log::info!(
+			"[Rust] dispatch_event_to_js: calling callback with pointers: window={:?}, element={:?}",
+			window_id_ptr,
+			element_id_ptr
+		);
+
+		let callback: extern "C" fn(
+			*mut c_void,
+			usize,
+			*mut c_void,
+			usize,
+			*mut c_char,
+			usize,
+			*mut u8,
+			usize,
+		) = std::mem::transmute(callback_ptr);
+
+		callback(
+			window_id_ptr,
+			8,
+			element_id_ptr,
+			8,
+			event_type_ptr,
+			event_type_len,
+			event_data_ptr,
+			event_data_len,
+		);
+
+		log::info!("[Rust] dispatch_event_to_js: callback returned");
+
+		// Cleanup (JS should have copied the data by now)
+		let _ = Box::from_raw(window_id_ptr as *mut [u8; 8]);
+		let _ = Box::from_raw(element_id_ptr as *mut [u8; 8]);
+		let _ = Box::from_raw(event_data_ptr);
+	}
+}
 
 pub struct RootState {
 	pub render_count: u64,
@@ -61,8 +147,8 @@ impl Render for RootView {
 		);
 
 		let result = div().size(px(800.0)).bg(rgb(0x1e1e1e)).child(match &*tree {
-			Some(element) => render_element_to_gpui(&element, None),
-			None => div().child("Waiting for React...").text_color(rgb(0x888888)),
+			Some(element) => render_element_to_gpui(&element, None, self.window_id),
+			None => div().id("base").child("Waiting for React...").text_color(rgb(0x888888)),
 		});
 
 		let render_duration = render_start.elapsed();
@@ -75,13 +161,19 @@ impl Render for RootView {
 fn render_element_to_gpui(
 	element: &ReactElement,
 	parent_style: Option<&ElementStyle>,
-) -> gpui::Div {
+	window_id: u64,
+) -> gpui::Stateful<Div> {
 	log::debug!(
-		"render_element_to_gpui: type={}, text={:?}, style={:?}",
+		"render_element_to_gpui: type={}, global_id={}, text={:?}, has_handlers={}",
 		element.element_type,
+		element.global_id,
 		element.text,
-		element.style
+		element.event_handlers.is_some()
 	);
+
+	if let Some(ref handlers) = element.event_handlers {
+		log::debug!("  Element {} handlers: {:?}", element.global_id, handlers);
+	}
 
 	// Helper to get effective style (own style or inherited from parent for text
 	// properties)
@@ -91,13 +183,17 @@ fn render_element_to_gpui(
 	match element.element_type.as_str() {
 		"div" => {
 			// Pass current element's style as parent for children
-			let children: Vec<gpui::Div> =
-				element.children.iter().map(|c| render_element_to_gpui(c, Some(&element.style))).collect();
+			let children: Vec<gpui::Stateful<Div>> = element
+				.children
+				.iter()
+				.map(|c| render_element_to_gpui(c, Some(&element.style), window_id))
+				.collect();
 			log::trace!("  div has {} children", children.len());
 
 			let is_flex = element.style.display.as_ref().map(|s| s.as_str()) == Some("flex");
 
-			let mut div = if is_flex { div().flex() } else { div() };
+			let mut div = div().id(element.global_id as usize);
+			div = div.when(is_flex, |div| div.flex());
 
 			div = match element.style.flex_direction.as_ref().map(|s| s.as_str()) {
 				Some("row") => div.flex_row(),
@@ -165,13 +261,17 @@ fn render_element_to_gpui(
 				div = div.opacity(opacity as f32);
 			}
 
+			if element.event_handlers.as_ref().and_then(|v| v.get("onClick")).is_some() {
+				div = div.on_click(|v, av, bv| println!("bbbbbbbbbbbbbbbbbbbbbbb"))
+			}
+
 			div.children(children)
 		}
 		"text" => {
 			let text = element.text.clone().unwrap_or_default();
 			log::trace!("  rendering text: '{}'", text);
 
-			let mut text_element = div().child(text);
+			let mut text_element = div().id(element.global_id as usize).child(text);
 
 			// Use effective style (inherited from parent div if not set on text element)
 			if let Some(color) = effective_text_color {
@@ -201,7 +301,7 @@ fn render_element_to_gpui(
 			};
 			log::trace!("  rendering span (inline text): '{}'", text);
 
-			let mut span_element = div().child(text);
+			let mut span_element = div().id(element.global_id as usize).child(text);
 
 			// Use effective style (inherited from parent if not set on span)
 			if let Some(color) = effective_text_color {
@@ -218,13 +318,13 @@ fn render_element_to_gpui(
 		}
 		"img" => {
 			log::trace!("  rendering img");
-
+			let div = div().id(element.global_id as usize);
 			let mut img_element = if let Some(ref src) = element.style.src {
-				div().child(format!("[Image: {}]", src))
+				div.child(format!("[Image: {}]", src))
 			} else if let Some(ref alt) = element.style.alt {
-				div().child(format!("[Image: {}]", alt))
+				div.child(format!("[Image: {}]", alt))
 			} else {
-				div().child("[Image]")
+				div.child("[Image]")
 			};
 
 			if let Some(width) = element.style.width {
@@ -237,7 +337,7 @@ fn render_element_to_gpui(
 
 			img_element
 		}
-		_ => div().child(format!("[Unknown: {}]", element.element_type)),
+		_ => div().id(element.global_id as usize).child(format!("[Unknown: {}]", element.element_type)),
 	}
 }
 

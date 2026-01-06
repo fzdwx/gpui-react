@@ -1,9 +1,10 @@
-import {lib} from "./ffi";
-import {peek, sleep} from "bun";
-import {JSCallback, Pointer, ptr, read, toArrayBuffer} from "bun:ffi";
-import {info, trace} from "../reconciler/utils/logging";
-import {decoder, FfiState} from "./ffi-state";
-import {EventEmitter} from 'events'
+import { lib } from "./ffi";
+import { peek, sleep } from "bun";
+import { JSCallback, Pointer, ptr, read, toArrayBuffer } from "bun:ffi";
+import { info, trace } from "../reconciler/utils/logging";
+import { decoder, FfiState } from "./ffi-state";
+import { EventEmitter } from "events";
+import { getEventHandler } from "../reconciler/event-router";
 
 export interface ElementData {
     globalId: number;
@@ -28,9 +29,8 @@ export interface WindowOptions {
 
 export class RustLib {
     ffiStateMap: Map<number, FfiState>;
-    private _nativeEvents: EventEmitter = new EventEmitter()
-    private eventCallbackWrapper: any // Store the FFI event callback wrapper
-    private _anyEventHandlers: Array<(name: string, data: ArrayBuffer) => void> = []
+    private _nativeEvents: EventEmitter = new EventEmitter();
+    private eventCallbackWrapper: any;
 
     public constructor() {
         this.ffiStateMap = new Map();
@@ -38,6 +38,7 @@ export class RustLib {
         lib.symbols.gpui_init(resultBuffer);
         this.checkResult(resultBuffer);
         this.waitReady();
+        this.setupEventBus();
     }
 
     public createWindow(options: WindowOptions): number {
@@ -113,72 +114,33 @@ export class RustLib {
         lib.symbols.gpui_trigger_render(windowIdPtr, new Uint8Array(8));
     }
 
-    public onNativeEvent(name: string, handler: (data: ArrayBuffer) => void): void {
-        this._nativeEvents.on(name, handler)
-    }
-
-    public onceNativeEvent(name: string, handler: (data: ArrayBuffer) => void): void {
-        this._nativeEvents.once(name, handler)
-    }
-
-    public offNativeEvent(name: string, handler: (data: ArrayBuffer) => void): void {
-        this._nativeEvents.off(name, handler)
-    }
-
-    public onAnyNativeEvent(handler: (name: string, data: ArrayBuffer) => void): void {
-        this._anyEventHandlers.push(handler)
-    }
-
     private setupEventBus() {
         if (this.eventCallbackWrapper) {
-            return
+            return;
         }
+
+        console.log("[JS] Setting up event bus, creating JSCallback...");
 
         const eventCallback = new JSCallback(
-            (namePtr: Pointer, nameLenBigInt: bigint | number, dataPtr: Pointer, dataLenBigInt: bigint | number) => {
-                try {
-                    const nameLen = typeof nameLenBigInt === "bigint" ? Number(nameLenBigInt) : nameLenBigInt
-                    const dataLen = typeof dataLenBigInt === "bigint" ? Number(dataLenBigInt) : dataLenBigInt
-
-                    if (nameLen === 0 || !namePtr) {
-                        return
-                    }
-
-                    const nameBuffer = toArrayBuffer(namePtr, 0, nameLen)
-                    const nameBytes = new Uint8Array(nameBuffer)
-                    const eventName = decoder.decode(nameBytes)
-
-                    let eventData: ArrayBuffer
-                    if (dataLen > 0 && dataPtr) {
-                        eventData = toArrayBuffer(dataPtr, 0, dataLen).slice()
-                    } else {
-                        eventData = new ArrayBuffer(0)
-                    }
-
-                    queueMicrotask(() => {
-                        this._nativeEvents.emit(eventName, eventData)
-
-                        for (const handler of this._anyEventHandlers) {
-                            handler(eventName, eventData)
-                        }
-                    })
-                } catch (error) {
-                    console.error("Error in native event callback:", error)
-                }
+            () => {
+                console.log("[JS] 🔔 Event callback triggered!!!");
             },
             {
-                args: ["ptr", "usize", "ptr", "usize"],
+                args: [],
                 returns: "void",
-            },
-        )
+            }
+        );
 
-        this.eventCallbackWrapper = eventCallback
+        this.eventCallbackWrapper = eventCallback;
+
+        console.log(`[JS] eventCallback.ptr = ${eventCallback.ptr}`);
 
         if (!eventCallback.ptr) {
-            throw new Error("Failed to create event callback")
+            throw new Error("Failed to create event callback");
         }
 
-        lib.symbols.set_event_callback(eventCallback.ptr)
+        lib.symbols.set_event_callback(eventCallback.ptr);
+        console.log("[JS] Event callback registered");
     }
 
     getFfiState(windowId: number) {

@@ -67,7 +67,13 @@ export function EventApp() {
                     borderRadius: 8,
                     fontSize: 30,
                     cursor: "pointer",
+                    width: 300,
+                    height: 80,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                 }}
+                onClick={handleClick}
             >
                 Clicked {clickCount} times
             </div>

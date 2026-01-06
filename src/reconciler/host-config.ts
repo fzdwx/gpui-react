@@ -1,11 +1,11 @@
 import * as ReactReconciler from "react-reconciler";
 import { ElementStore } from "./element-store";
 import { mapStyleToProps, StyleProps } from "./styles";
-import { EventHandler } from "./events";
 import { HostConfig, OpaqueHandle } from "react-reconciler";
 import { DefaultEventPriority, NoEventPriority } from "react-reconciler/constants";
 import { trace, debug, info, warn } from "./utils/logging";
 import { rustLib } from "../core";
+import {bindEventToElement, registerEventHandler} from "./event-router";
 
 type ReactContext<T> = ReactReconciler.ReactContext<T>;
 
@@ -41,15 +41,7 @@ export interface TextInstance {
     store: ElementStore;
 }
 
-let nextEventId = 0;
-const eventHandlers = new Map<number, EventHandler>();
 const pendingUpdates: any[] = [];
-
-function registerEventHandler(handler: EventHandler): number {
-    const id = nextEventId++;
-    eventHandlers.set(id, handler);
-    return id;
-}
 
 function extractStyleProps(props: any): StyleProps {
     const styleProps: StyleProps = {};
@@ -223,8 +215,12 @@ export const hostConfig: HostConfig<
         const styleProps = extractStyleProps(props);
         const styles = mapStyleToProps(styleProps);
         const eventHandlers = extractEventHandlers(props);
-        const id = rootContainer.createElement(type, undefined, { ...styles, eventHandlers });
+        const id = rootContainer.createElement(type, undefined, styles, eventHandlers);
         trace("createInstance", { type, id, styles, eventHandlers });
+
+        for (const [eventType, handlerId] of Object.entries(eventHandlers || {})) {
+            bindEventToElement(id, eventType, handlerId);
+        }
 
         const instance: Instance = {
             id,

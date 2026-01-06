@@ -12,7 +12,6 @@ info(`Loading GPUI library from: ${libPath}`);
 
 export const lib = dlopen(libPath, {
     gpui_init: { args: [FFIType.ptr], returns: FFIType.void },
-    // Event bus
     set_event_callback: {
         args: [FFIType.ptr],
         returns: FFIType.void,
