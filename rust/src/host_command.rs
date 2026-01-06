@@ -2,6 +2,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, OnceLock,
 };
+use tokio::sync::oneshot;
 
 use gpui::{App, AppContext, AsyncApp};
 
@@ -12,8 +13,8 @@ pub enum HostCommand {
     CreateWindow {
         width: f32,
         height: f32,
-        window_id: u64,
         title: String,
+        response_tx: oneshot::Sender<u64>,
     },
     RefreshWindow,
     TriggerRender,
@@ -139,8 +140,8 @@ pub fn handle_on_app_thread(
         HostCommand::CreateWindow {
             width,
             height,
-            window_id,
             title,
+            response_tx,
         } => {
             log::error!("title=============:{}", title);
             let size = gpui::Size {
@@ -156,7 +157,7 @@ pub fn handle_on_app_thread(
                 size,
             };
 
-            let _window = app.open_window(
+            let window = app.open_window(
                 gpui::WindowOptions {
                     window_bounds: Some(gpui::WindowBounds::Windowed(bounds)),
                     titlebar: Some(gpui::TitlebarOptions {
@@ -172,12 +173,22 @@ pub fn handle_on_app_thread(
                     cx.new(|_| crate::renderer::RootView {
                         state,
                         last_render: 0,
-                        window_id,
+                        window_id: 0,
                     })
                 },
             );
+            let real_window_id = window.as_ref().unwrap().window_id().as_u64();
 
-            log::info!("Created window with id: {}", window_id);
+            log::info!("Created window with id: {}", real_window_id);
+
+            let handle = window.as_ref().unwrap();
+            handle.update(app, |view: &mut crate::renderer::RootView, _, _| {
+                view.window_id = real_window_id;
+            }).ok();
+
+            let _ = GLOBAL_STATE.get_window_state(real_window_id);
+
+            let _ = response_tx.send(real_window_id);
         }
         HostCommand::RefreshWindow
         | HostCommand::TriggerRender

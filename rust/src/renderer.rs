@@ -27,7 +27,8 @@ impl RootView {
         let window_state = GLOBAL_STATE.get_window_state(self.window_id);
         let trigger = window_state.get_render_count();
         log::trace!(
-            "update_state: trigger={}, last_render={}",
+            "update_state: window_id={}, trigger={}, last_render={}",
+            self.window_id,
             trigger,
             self.last_render
         );
@@ -61,7 +62,8 @@ impl Render for RootView {
             .lock()
             .expect("Failed to acquire element_tree lock in RootView.render");
         log::debug!(
-            "RootView.render: tree={:?}",
+            "RootView.render: window_id={}, tree={:?}",
+            self.window_id,
             tree.as_ref().map(|e| (e.global_id, &e.element_type))
         );
 

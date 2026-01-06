@@ -8,8 +8,10 @@ mod window_state;
 
 use std::{
     ffi::{c_char, CStr},
-    sync::{atomic::Ordering, Arc},
+    sync::Arc,
 };
+
+use tokio::sync::oneshot;
 
 use crate::{
     element::ReactElement,
@@ -61,23 +63,36 @@ pub extern "C" fn gpui_create_window(
         }
     };
 
-    let window_id = crate::renderer::NEXT_WINDOW_ID.fetch_add(1, Ordering::SeqCst);
-
-    let _ = GLOBAL_STATE.get_window_state(window_id);
+    // Create a oneshot channel to receive the real window ID from the app thread
+    let (response_tx, response_rx) = oneshot::channel();
 
     send_host_command(HostCommand::CreateWindow {
         width,
         height,
-        window_id,
         title,
+        response_tx,
     });
+
+    // Wait for the real window ID from the GPUI app thread
+    let real_window_id: u64 = match response_rx.blocking_recv() {
+        Ok(id) => id,
+        Err(e) => {
+            log::error!("Failed to receive window ID: {}", e);
+            unsafe {
+                if !result.is_null() {
+                    *result = WindowCreateResult::error("Failed to get window ID from GPUI");
+                }
+            }
+            return;
+        }
+    };
 
     unsafe {
         if result.is_null() {
             log::error!("gpui_create_window: result is null");
             return;
         }
-        *result = WindowCreateResult::success(window_id);
+        *result = WindowCreateResult::success(real_window_id);
     }
 }
 
