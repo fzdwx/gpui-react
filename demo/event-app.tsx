@@ -1,12 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, {useState, useEffect} from "react";
 
-let clickCount = 0;
 
 export function EventApp() {
-    function handleClick() {
-        clickCount++;
-        console.log(`Button clicked! Count: ${clickCount}`);
-    }
+    const [count, setCount] = useState(0)
     let [text, setText] = useState("123123123123");
 
     useEffect(() => {
@@ -73,9 +69,12 @@ export function EventApp() {
                     alignItems: "center",
                     justifyContent: "center",
                 }}
-                onClick={handleClick}
+                onClick={(e) => {
+                    const result = count + 1
+                    setCount(result)
+                }}
             >
-                Clicked {clickCount} times
+                Clicked {count} times
             </div>
         </div>
     );
