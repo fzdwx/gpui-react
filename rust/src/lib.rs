@@ -7,13 +7,13 @@ mod logging;
 mod renderer;
 mod window;
 
-use std::{ffi::{CStr, c_char}, sync::Arc};
+use std::ffi::{CStr, c_char};
 
 use tokio::sync::oneshot;
 
-use crate::{element::ReactElement, ffi_helpers::{ptr_to_u64, read_c_string, read_opt_c_string, validate_result_ptr}, ffi_types::{FfiResult, WindowCreateResult, WindowOptions}, global_state::GLOBAL_STATE, host_command::{HostCommand, is_bus_ready, send_host_command}, renderer::start_gpui_thread};
+use crate::{ffi_helpers::{ptr_to_u64, read_c_string, read_opt_c_string, validate_result_ptr}, ffi_types::{FfiResult, WindowCreateResult, WindowOptions}, global_state::GLOBAL_STATE, host_command::{HostCommand, is_bus_ready, send_host_command}, renderer::start_gpui_thread};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpui_init(result: *mut FfiResult) {
 	unsafe {
 		logging::init_logging();
@@ -39,7 +39,7 @@ pub extern "C" fn gpui_init(result: *mut FfiResult) {
 	}
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpui_create_window(options_ptr: *const c_char, result: *mut WindowCreateResult) {
 	let options_json = unsafe { read_c_string(options_ptr, "{}") };
 
@@ -74,7 +74,7 @@ pub extern "C" fn gpui_create_window(options_ptr: *const c_char, result: *mut Wi
 	}
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpui_render_frame(
 	window_id_ptr: *const u8,
 	global_id_ptr: *const u8,
@@ -115,50 +115,13 @@ pub extern "C" fn gpui_render_frame(
 			children
 		);
 
-		let Some(window) = GLOBAL_STATE.get_window(window_id) else {
-			log::error!("gpui_render_frame: window {} not found", window_id);
-			return;
-		};
-
-		let element = Arc::new(ReactElement {
+		send_host_command(HostCommand::UpdateElement {
+			window_id,
 			global_id,
-			element_type: element_type.clone(),
-			text: text.clone(),
-			children: Vec::new(),
-			style: element::ElementStyle::default(),
-			event_handlers: None,
+			element_type,
+			text,
+			children,
 		});
-
-		let mut element_map = window
-			.state()
-			.element_map
-			.lock()
-			.expect("Failed to acquire element_map lock in gpui_render_frame");
-		element_map.insert(global_id, element.clone());
-
-		for &child_id in &children {
-			if !element_map.contains_key(&child_id) {
-				let placeholder = Arc::new(ReactElement {
-					global_id:      child_id,
-					element_type:   "placeholder".to_string(),
-					text:           None,
-					children:       Vec::new(),
-					style:          crate::element::ElementStyle::default(),
-					event_handlers: None,
-				});
-				element_map.insert(child_id, placeholder);
-			}
-		}
-
-		drop(element_map);
-
-		window.state().set_root_element_id(global_id);
-
-		window.state().rebuild_tree(global_id, &children);
-
-		window.state().update_element_tree();
-
-		send_host_command(HostCommand::TriggerRender { window_id });
 
 		let result_buf = std::slice::from_raw_parts_mut(result_ptr as *mut u8, 8);
 		result_buf[0] = 0;
@@ -166,20 +129,15 @@ pub extern "C" fn gpui_render_frame(
 	}
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpui_trigger_render(window_id_ptr: *const u8, _result: *mut FfiResult) {
 	unsafe {
 		let window_id = ptr_to_u64(window_id_ptr);
-		let Some(window) = GLOBAL_STATE.get_window(window_id) else {
-			log::error!("gpui_render_frame: window {} not found", window_id);
-			return;
-		};
-		window.state().increment_render_count();
 		send_host_command(HostCommand::TriggerRender { window_id });
 	}
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpui_batch_update_elements(
 	window_id_ptr: *const u8,
 	count_ptr: *const u8,
@@ -189,7 +147,7 @@ pub extern "C" fn gpui_batch_update_elements(
 	log::debug!("gpui_batch_update_elements: called");
 	unsafe {
 		let window_id = ptr_to_u64(window_id_ptr);
-		let count = std::ptr::read_volatile(count_ptr) as u64;
+		let _count = std::ptr::read_volatile(count_ptr) as u64;
 		let elements_json_str = CStr::from_ptr(elements_json_ptr)
 			.to_str()
 			.map_err(|e| format!("Invalid UTF-8 in elements JSON: {}", e))
@@ -199,86 +157,17 @@ pub extern "C" fn gpui_batch_update_elements(
 			.map_err(|e| format!("Failed to parse elements JSON: {}", e))
 			.unwrap();
 
-		let elements_array =
-			elements_value.as_array().ok_or_else(|| "Elements must be an array".to_string()).unwrap();
+		let _ = GLOBAL_STATE.get_window(window_id);
 
-		log::info!("Batch update: Processing {} elements for window {}", count, window_id);
-
-		let Some(window) = GLOBAL_STATE.get_window(window_id) else {
-			log::error!("gpui_render_frame: window {} not found", window_id);
-			return;
-		};
-
-		let mut element_map = window
-			.state()
-			.element_map
-			.lock()
-			.expect("Failed to acquire element_map lock in gpui_batch_update_elements");
-
-		for (_i, elem_value) in elements_array.iter().enumerate() {
-			if let Some(elem_obj) = elem_value.as_object() {
-				let global_id = elem_obj.get("globalId").and_then(|v| v.as_u64()).unwrap_or(0);
-
-				let element_type = elem_obj.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string();
-
-				let text = elem_obj.get("text").and_then(|v| v.as_str()).map(|s| s.to_string());
-
-				let style =
-					elem_obj.get("style").map(|s| element::ElementStyle::from_json(s)).unwrap_or_default();
-
-				let element = Arc::new(ReactElement {
-					global_id,
-					element_type,
-					text,
-					children: Vec::new(),
-					style,
-					event_handlers: None,
-				});
-
-				element_map.insert(global_id, element.clone());
-			}
-		}
-
-		log::debug!("Updating children references...");
-
-		for (_i, elem_value) in elements_array.iter().enumerate() {
-			if let Some(elem_obj) = elem_value.as_object() {
-				if let Some(global_id) = elem_obj.get("globalId").and_then(|v| v.as_u64()) {
-					if let Some(children_arr) = elem_obj.get("children").and_then(|v| v.as_array()) {
-						let children_ids: Vec<u64> = children_arr.iter().filter_map(|c| c.as_u64()).collect();
-
-						let mut child_refs: Vec<Arc<ReactElement>> = Vec::new();
-
-						for &cid in &children_ids {
-							if let Some(child) = element_map.get(&cid) {
-								child_refs.push(child.clone());
-							}
-						}
-
-						if let Some(element) = element_map.get_mut(&global_id) {
-							let element_mut = Arc::make_mut(element);
-							element_mut.children = child_refs;
-						}
-					}
-				}
-			}
-		}
-
-		drop(element_map);
-		log::debug!("Children updated for all elements");
-		// window_state.update_element_tree();
-		send_host_command(HostCommand::TriggerRender { window_id });
-
-		let trigger = window.state().get_render_count();
-		log::debug!("Triggering render, current count: {}", trigger);
+		send_host_command(HostCommand::BatchUpdateElements { window_id, elements: elements_value });
 
 		*result = FfiResult::success();
 		log::debug!("gpui_batch_update_elements: completed successfully");
 	}
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpui_free_result(_result: FfiResult) {}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpui_is_ready() -> bool { is_bus_ready() }

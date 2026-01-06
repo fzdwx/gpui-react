@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}}};
 
-use gpui::{AnyWindowHandle, App, AppContext, WindowHandle};
+use gpui::{AnyWindowHandle, App, AppContext};
 
-use crate::{element::ReactElement, renderer::RootView};
+use crate::element::{ElementStyle, ReactElement};
 
 pub struct Window {
 	/// The GPUI window handle
@@ -34,8 +34,108 @@ impl Window {
 
 	/// Get mutable access to the window state
 	pub fn state_mut(&mut self) -> &mut Arc<WindowState> { &mut self.state }
-}
 
+	/// Render a single element with its children
+	pub fn render_element(
+		&self,
+		global_id: u64,
+		element_type: String,
+		text: Option<String>,
+		children: &[u64],
+	) {
+		let element = Arc::new(ReactElement {
+			global_id,
+			element_type,
+			text,
+			children: Vec::new(),
+			style: ElementStyle::default(),
+			event_handlers: None,
+		});
+
+		let mut element_map =
+			self.state.element_map.lock().expect("Failed to acquire element_map lock in render_element");
+		element_map.insert(global_id, element.clone());
+
+		for &child_id in children {
+			if !element_map.contains_key(&child_id) {
+				let placeholder = Arc::new(ReactElement {
+					global_id:      child_id,
+					element_type:   "placeholder".to_string(),
+					text:           None,
+					children:       Vec::new(),
+					style:          ElementStyle::default(),
+					event_handlers: None,
+				});
+				element_map.insert(child_id, placeholder);
+			}
+		}
+
+		drop(element_map);
+
+		self.state.set_root_element_id(global_id);
+		self.state.rebuild_tree(global_id, children);
+		self.state.update_element_tree();
+	}
+
+	/// Batch update multiple elements from JSON data
+	pub fn batch_update_elements(&self, elements: &serde_json::Value) {
+		let elements_array = elements.as_array().expect("Elements must be an array");
+
+		let mut element_map = self
+			.state
+			.element_map
+			.lock()
+			.expect("Failed to acquire element_map lock in batch_update_elements");
+
+		// First pass: create all elements
+		for elem_value in elements_array {
+			if let Some(elem_obj) = elem_value.as_object() {
+				let global_id = elem_obj.get("globalId").and_then(|v| v.as_u64()).unwrap_or(0);
+
+				let element_type = elem_obj.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+				let text = elem_obj.get("text").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+				let style = elem_obj.get("style").map(ElementStyle::from_json).unwrap_or_default();
+
+				let element = Arc::new(ReactElement {
+					global_id,
+					element_type,
+					text,
+					children: Vec::new(),
+					style,
+					event_handlers: None,
+				});
+
+				element_map.insert(global_id, element);
+			}
+		}
+
+		// Second pass: update children references
+		for elem_value in elements_array {
+			if let Some(elem_obj) = elem_value.as_object() {
+				if let Some(global_id) = elem_obj.get("globalId").and_then(|v| v.as_u64()) {
+					if let Some(children_arr) = elem_obj.get("children").and_then(|v| v.as_array()) {
+						let children_ids: Vec<u64> = children_arr.iter().filter_map(|c| c.as_u64()).collect();
+
+						let mut child_refs: Vec<Arc<ReactElement>> = Vec::new();
+
+						for &cid in &children_ids {
+							if let Some(child) = element_map.get(&cid) {
+								child_refs.push(child.clone());
+							}
+						}
+
+						if let Some(element) = element_map.get_mut(&global_id) {
+							let element_mut = Arc::make_mut(element);
+							element_mut.children = child_refs;
+						}
+					}
+				}
+			}
+		}
+	}
+}
 
 pub struct WindowState {
 	pub root_element_id: AtomicU64,

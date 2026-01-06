@@ -1,14 +1,31 @@
 use std::sync::{Arc, OnceLock, atomic::{AtomicBool, Ordering}};
 
 use gpui::{App, AppContext, AsyncApp};
+use serde_json::Value;
 use tokio::sync::oneshot;
 
 use crate::global_state::GLOBAL_STATE;
 
 #[derive(Debug)]
 pub enum HostCommand {
-	CreateWindow { options: super::ffi_types::WindowOptions, response_tx: oneshot::Sender<u64> },
-	TriggerRender { window_id: u64 },
+	CreateWindow {
+		options:     super::ffi_types::WindowOptions,
+		response_tx: oneshot::Sender<u64>,
+	},
+	TriggerRender {
+		window_id: u64,
+	},
+	UpdateElement {
+		window_id:    u64,
+		global_id:    u64,
+		element_type: String,
+		text:         Option<String>,
+		children:     Vec<u64>,
+	},
+	BatchUpdateElements {
+		window_id: u64,
+		elements:  Value,
+	},
 }
 
 pub enum Command {
@@ -130,6 +147,22 @@ pub fn handle_on_app_thread(command: HostCommand, app: &mut App) {
 				return;
 			};
 			window.refresh(app);
+		}
+		HostCommand::UpdateElement { window_id, global_id, element_type, text, children } => {
+			let Some(window) = GLOBAL_STATE.get_window(window_id) else {
+				log::warn!("UpdateElement: window {} not found", window_id);
+				return;
+			};
+			window.render_element(global_id, element_type, text, &children);
+			window.refresh(app)
+		}
+		HostCommand::BatchUpdateElements { window_id, elements } => {
+			let Some(window) = GLOBAL_STATE.get_window(window_id) else {
+				log::warn!("BatchUpdateElements: window {} not found", window_id);
+				return;
+			};
+			window.batch_update_elements(&elements);
+			window.refresh(app)
 		}
 	}
 }

@@ -1,8 +1,8 @@
-import {lib} from "./ffi";
-import {peek, sleep} from "bun";
-import {ptr, read} from "bun:ffi";
-import {info, trace} from "../reconciler/utils/logging";
-import {FfiState} from "./ffi-state";
+import { lib } from "./ffi";
+import { peek, sleep } from "bun";
+import { ptr, read } from "bun:ffi";
+import { info, trace } from "../reconciler/utils/logging";
+import { FfiState } from "./ffi-state";
 
 export interface ElementData {
     globalId: number;
@@ -61,7 +61,6 @@ export class RustLib {
         const [elementsBuffer, elementsPtr] = ffiState.encodeCString(JSON.stringify(elements));
         const resultBuffer = new Uint8Array(8);
         lib.symbols.gpui_batch_update_elements(windowIdPtr, countPtr, elementsPtr, resultBuffer);
-        lib.symbols.gpui_trigger_render(windowIdPtr, new Uint8Array(8));
         info(`Batch update completed`);
     }
 
