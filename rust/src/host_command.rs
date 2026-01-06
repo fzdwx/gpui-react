@@ -2,9 +2,9 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, OnceLock,
 };
-use tokio::sync::oneshot;
 
 use gpui::{App, AppContext, AsyncApp};
+use tokio::sync::oneshot;
 
 use crate::global_state::GLOBAL_STATE;
 
@@ -182,9 +182,11 @@ pub fn handle_on_app_thread(
             log::info!("Created window with id: {}", real_window_id);
 
             let handle = window.as_ref().unwrap();
-            handle.update(app, |view: &mut crate::renderer::RootView, _, _| {
-                view.window_id = real_window_id;
-            }).ok();
+            handle
+                .update(app, |view: &mut crate::renderer::RootView, _, _| {
+                    view.window_id = real_window_id;
+                })
+                .ok();
 
             let _ = GLOBAL_STATE.get_window_state(real_window_id);
 

@@ -6,7 +6,7 @@ native:
     bun run copy:native
 
 demo:
-    bun run demo
+    bun run event-demo
 
 release:
     bun run build

@@ -3,12 +3,16 @@
 **Scope:** rust/src only
 
 ## OVERVIEW
-Rust FFI library for GPUI integration - handles React element tree rendering to GPU-accelerated UI via async_channel command bus.
+
+Rust FFI library for GPUI integration - handles React element tree rendering to GPU-accelerated UI via async_channel
+command bus.
 
 ## STRUCTURE
+
 ```
 rust/src/
 ├── lib.rs              # FFI exports (gpui_init, gpui_trigger_render, gpui_batch_update_elements)
+├── ffi_helpers.rs      # FFI helper functions (ptr_to_u64, read_c_string, etc.)
 ├── renderer.rs         # RootView, render_element_to_gpui (div/text/span/img)
 ├── element.rs         # ReactElement, ElementStyle, ElementData structures
 ├── host_command.rs     # async_channel command bus (TriggerRender, UpdateElements)
@@ -19,15 +23,18 @@ rust/src/
 ```
 
 ## WHERE TO LOOK
-| Task | File | Notes |
-|------|------|-------|
-| FFI exports | lib.rs | gpui_init, gpui_trigger_render, gpui_batch_update_elements |
-| GPUI rendering | renderer.rs | render_element_to_gpui (div/text/span/img) |
-| Command bus | host_command.rs | init(cx), send_host_command(TriggerRender) |
-| Window state | window_state.rs | update_element_tree(), render_count, ROOT_ELEMENT_ID |
-| Element structures | element.rs | ReactElement, ElementStyle, ChildElement |
+
+| Task               | File            | Notes                                                      |
+| ------------------ | --------------- | ---------------------------------------------------------- |
+| FFI exports        | lib.rs          | gpui_init, gpui_trigger_render, gpui_batch_update_elements |
+| FFI helpers        | ffi_helpers.rs  | ptr_to_u64, read_c_string, validate_result_ptr             |
+| GPUI rendering     | renderer.rs     | render_element_to_gpui (div/text/span/img)                 |
+| Command bus        | host_command.rs | init(cx), send_host_command(TriggerRender)                 |
+| Window state       | window_state.rs | update_element_tree(), render_count, ROOT_ELEMENT_ID       |
+| Element structures | element.rs      | ReactElement, ElementStyle, ChildElement                   |
 
 ## CONVENTIONS
+
 - **Root tracking:** ROOT_ELEMENT_ID AtomicU64 (HashMap iteration was non-deterministic)
 - **Event handlers:** All ReactElement structs require event_handlers: None field
 - **Span text:** Collect from child text elements, not span.text directly
@@ -38,6 +45,7 @@ rust/src/
 - **Serialization:** serde for JS↔Rust element data transfer
 
 ## ANTI-PATTERNS (THIS PROJECT)
+
 - Don't iterate HashMap to find root - use ROOT_ELEMENT_ID
 - Don't render span.text - collect from child text elements
 - Don't create ReactElement without event_handlers: None - required field
@@ -46,6 +54,7 @@ rust/src/
 - Don't skip send_host_command(TriggerRender) after updates
 
 ## KEY PATTERNS
+
 - **Two-phase rendering:** JS builds tree → Rust updates by ID → GPUI renders
 - **Element hierarchy:** div → span → text (text always child of span)
 - **Update pipeline:** batch_update_elements JSON → deserialize → update_element_tree → refresh

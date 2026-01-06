@@ -1,4 +1,5 @@
 mod element;
+mod ffi_helpers;
 mod ffi_types;
 mod global_state;
 mod host_command;
@@ -15,6 +16,7 @@ use tokio::sync::oneshot;
 
 use crate::{
     element::ReactElement,
+    ffi_helpers::{ptr_to_u64, read_c_string, read_opt_c_string, validate_result_ptr},
     ffi_types::{FfiResult, WindowCreateResult},
     global_state::GLOBAL_STATE,
     host_command::{is_bus_ready, send_host_command, HostCommand},
@@ -54,16 +56,8 @@ pub extern "C" fn gpui_create_window(
     title_ptr: *const c_char,
     result: *mut WindowCreateResult,
 ) {
-    // 从 C 字符串读取 title
-    let title = unsafe {
-        if title_ptr.is_null() {
-            String::from("React-GPUI")
-        } else {
-            CStr::from_ptr(title_ptr).to_string_lossy().to_string()
-        }
-    };
+    let title = unsafe { read_c_string(title_ptr, "React-GPUI") };
 
-    // Create a oneshot channel to receive the real window ID from the app thread
     let (response_tx, response_rx) = oneshot::channel();
 
     send_host_command(HostCommand::CreateWindow {
@@ -73,14 +67,13 @@ pub extern "C" fn gpui_create_window(
         response_tx,
     });
 
-    // Wait for the real window ID from the GPUI app thread
     let real_window_id: u64 = match response_rx.blocking_recv() {
         Ok(id) => id,
         Err(e) => {
             log::error!("Failed to receive window ID: {}", e);
             unsafe {
-                if !result.is_null() {
-                    *result = WindowCreateResult::error("Failed to get window ID from GPUI");
+                if let Some(result_ref) = validate_result_ptr(result, "gpui_create_window") {
+                    *result_ref = WindowCreateResult::error("Failed to get window ID from GPUI");
                 }
             }
             return;
@@ -88,11 +81,9 @@ pub extern "C" fn gpui_create_window(
     };
 
     unsafe {
-        if result.is_null() {
-            log::error!("gpui_create_window: result is null");
-            return;
+        if let Some(result_ref) = validate_result_ptr(result, "gpui_create_window") {
+            *result_ref = WindowCreateResult::success(real_window_id);
         }
-        *result = WindowCreateResult::success(real_window_id);
     }
 }
 
@@ -113,44 +104,12 @@ pub extern "C" fn gpui_render_frame(
             return;
         }
 
-        let window_id = if window_id_ptr.is_null() {
-            0
-        } else {
-            let buf = std::slice::from_raw_parts(window_id_ptr, 8);
-            u64::from_le_bytes([
-                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
-            ])
-        };
+        let window_id = ptr_to_u64(window_id_ptr);
+        let global_id = ptr_to_u64(global_id_ptr);
+        let child_count = ptr_to_u64(child_count_ptr) as usize;
 
-        let global_id = if global_id_ptr.is_null() {
-            0
-        } else {
-            let buf = std::slice::from_raw_parts(global_id_ptr, 8);
-            u64::from_le_bytes([
-                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
-            ])
-        };
-
-        let child_count = if child_count_ptr.is_null() {
-            0
-        } else {
-            let buf = std::slice::from_raw_parts(child_count_ptr, 8);
-            u64::from_le_bytes([
-                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
-            ]) as usize
-        };
-
-        let element_type = if type_ptr.is_null() {
-            String::from("unknown")
-        } else {
-            CStr::from_ptr(type_ptr).to_string_lossy().to_string()
-        };
-
-        let text = if text_ptr.is_null() {
-            None
-        } else {
-            Some(CStr::from_ptr(text_ptr).to_string_lossy().to_string())
-        };
+        let element_type = read_c_string(type_ptr, "unknown");
+        let text = read_opt_c_string(text_ptr);
 
         let children: Vec<u64> = if children_ptr.is_null() || child_count == 0 {
             Vec::new()
@@ -230,15 +189,7 @@ pub extern "C" fn gpui_trigger_render(
     _result: *mut FfiResult,
 ) {
     unsafe {
-        let window_id = if window_id_ptr.is_null() {
-            0
-        } else {
-            let buf = std::slice::from_raw_parts(window_id_ptr, 8);
-            u64::from_le_bytes([
-                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
-            ])
-        };
-
+        let window_id = ptr_to_u64(window_id_ptr);
         let window_state = GLOBAL_STATE.get_window_state(window_id);
         window_state.increment_render_count();
     }
@@ -254,21 +205,7 @@ pub extern "C" fn gpui_batch_update_elements(
 ) {
     log::debug!("gpui_batch_update_elements: called");
     unsafe {
-        if count_ptr.is_null() || elements_json_ptr.is_null() || result.is_null() {
-            log::error!("gpui_batch_update_elements: null pointer detected");
-            *result = FfiResult::error("count_ptr or elements_json_ptr or result is null");
-            return;
-        }
-
-        let window_id = if window_id_ptr.is_null() {
-            0
-        } else {
-            let buf = std::slice::from_raw_parts(window_id_ptr, 8);
-            u64::from_le_bytes([
-                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
-            ])
-        };
-
+        let window_id = ptr_to_u64(window_id_ptr);
         let count = std::ptr::read_volatile(count_ptr) as u64;
         let elements_json_str = CStr::from_ptr(elements_json_ptr)
             .to_str()
@@ -315,104 +252,10 @@ pub extern "C" fn gpui_batch_update_elements(
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
-                let style = if let Some(style_obj) = elem_obj.get("style") {
-                    crate::element::ElementStyle {
-                        text_color: style_obj
-                            .get("textColor")
-                            .and_then(|v| v.as_u64())
-                            .map(|v| v as u32),
-                        bg_color: style_obj
-                            .get("bgColor")
-                            .and_then(|v| v.as_u64())
-                            .map(|v| v as u32),
-                        border_color: style_obj
-                            .get("borderColor")
-                            .and_then(|v| v.as_u64())
-                            .map(|v| v as u32),
-                        text_size: style_obj
-                            .get("textSize")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        width: style_obj
-                            .get("width")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        height: style_obj
-                            .get("height")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        margin_top: style_obj
-                            .get("marginTop")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        margin_right: style_obj
-                            .get("marginRight")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        margin_bottom: style_obj
-                            .get("marginBottom")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        margin_left: style_obj
-                            .get("marginLeft")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        padding_top: style_obj
-                            .get("paddingTop")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        padding_right: style_obj
-                            .get("paddingRight")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        padding_bottom: style_obj
-                            .get("paddingBottom")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        padding_left: style_obj
-                            .get("paddingLeft")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        display: style_obj
-                            .get("display")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                        flex_direction: style_obj
-                            .get("flexDirection")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                        justify_content: style_obj
-                            .get("justifyContent")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                        align_items: style_obj
-                            .get("alignItems")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                        gap: style_obj
-                            .get("gap")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        border_radius: style_obj
-                            .get("borderRadius")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        opacity: style_obj
-                            .get("opacity")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        src: style_obj
-                            .get("src")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                        alt: style_obj
-                            .get("alt")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                    }
-                } else {
-                    crate::element::ElementStyle::default()
-                };
+                let style = elem_obj
+                    .get("style")
+                    .map(|s| element::ElementStyle::from_json(s))
+                    .unwrap_or_default();
 
                 let element = Arc::new(ReactElement {
                     global_id,
