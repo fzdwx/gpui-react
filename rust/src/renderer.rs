@@ -35,14 +35,16 @@ pub(crate) fn dispatch_event_to_js(
 	});
 	let json_str = json_payload.to_string();
 	let c_string = CString::new(json_str).unwrap();
-	let x = c_string.as_ptr();
 	let len = c_string.count_bytes();
+	// Use into_raw() to transfer ownership to JavaScript.
+	// JS will call gpui_free_event_string() after reading the data.
+	let raw_ptr = c_string.into_raw();
 
 	log::info!("[Rust] dispatch_event_to_js: calling callback with JSON pointer");
 
 	unsafe {
-		let callback: extern "C" fn(*const c_char, u32) = std::mem::transmute(callback_ptr);
-		callback(x, len as u32);
+		let callback: extern "C" fn(*mut c_char, u32) = std::mem::transmute(callback_ptr);
+		callback(raw_ptr, len as u32);
 	}
 
 	log::info!("[Rust] dispatch_event_to_js: callback returned");

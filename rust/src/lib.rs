@@ -9,7 +9,7 @@ mod logging;
 mod renderer;
 mod window;
 
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, CString, c_char, c_void};
 
 use tokio::sync::oneshot;
 
@@ -178,6 +178,16 @@ pub extern "C" fn gpui_free_result(_result: FfiResult) {}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_is_ready() -> bool { is_bus_ready() }
+
+/// Free a string pointer that was passed to JavaScript via event callback
+#[unsafe(no_mangle)]
+pub extern "C" fn gpui_free_event_string(ptr: *mut c_char) {
+	if !ptr.is_null() {
+		unsafe {
+			let _ = CString::from_raw(ptr);
+		}
+	}
+}
 
 /// Set the event callback for receiving events from Rust to JavaScript
 #[unsafe(no_mangle)]

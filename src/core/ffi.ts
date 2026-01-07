@@ -16,6 +16,10 @@ export const lib = dlopen(libPath, {
         args: [FFIType.ptr],
         returns: FFIType.void,
     },
+    gpui_free_event_string: {
+        args: [FFIType.ptr],
+        returns: FFIType.void,
+    },
     gpui_create_window: {
         args: [FFIType.ptr, FFIType.ptr],
         returns: FFIType.void,

@@ -122,40 +122,37 @@ export class RustLib {
         console.log("[JS] Setting up event bus, creating JSCallback...");
 
         const eventCallback = new JSCallback(
-            (jsonPtr: any,jsonLen:number) => {
+            (jsonPtr: any, jsonLen: number) => {
                 try {
                     if (!jsonPtr) {
-                        console.log("[JS] Callback: null pointer");
                         return;
                     }
 
-                    const jsonStr = new CString(jsonPtr,0,jsonLen).toString();
-                    console.log(`[JS] Callback: json=${jsonStr}`);
+                    // Read the JSON data from the pointer
+                    const buffer = toArrayBuffer(jsonPtr, 0, jsonLen);
+                    const jsonStr = decoder.decode(buffer);
+
+                    // Free the memory in Rust immediately after reading
+                    lib.symbols.gpui_free_event_string(jsonPtr);
 
                     if (!jsonStr) {
-                        console.log("[JS] Empty JSON, skipping");
                         return;
                     }
 
                     const event = JSON.parse(jsonStr);
                     const { windowId, elementId, eventType } = event;
 
-                    console.log(`[JS] Event: windowId=${windowId}, elementId=${elementId}, type="${eventType}"`);
-
                     const handler = getEventHandler(elementId, eventType);
                     if (handler) {
-                        console.log(`[JS] Found handler, calling...`);
                         handler({
                             type: eventType,
                             target: elementId,
                             windowId: windowId,
                             timestamp: Date.now(),
                         });
-                    } else {
-                        console.log(`[JS] No handler for elementId=${elementId}, type="${eventType}"`);
                     }
                 } catch (err) {
-                    console.error("[JS] Error:", err);
+                    console.error("[JS] Event callback error:", err);
                 }
             },
             {
