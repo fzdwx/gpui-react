@@ -49,6 +49,7 @@ gpui-react/
 
 - **Rust subdir:** Rust code in rust/src/ (not root src/)
 - **Rust edition:** 2021, formatting with Rust 2024 rules (hard tabs, 2 spaces)
+- **Build command:** Run `just native` to compile Rust library after changes
 - **FFI sync:** Call batchElementUpdates() + renderFrame() after batch updates
 - **Root tracking:** ROOT_ELEMENT_ID AtomicU64 (HashMap iteration is non-deterministic)
 - **Element IDs:** Start from 2 (ID 1 reserved)

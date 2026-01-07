@@ -22,7 +22,7 @@ console.log("Click the button to see console logs");
 setTimeout(() => {
     console.log("Done! The event window should be visible.");
     process.exit(0);
-}, 10000);
+}, 60000);
 
 process.on("SIGINT", () => {
     console.log("\nShutting down...");

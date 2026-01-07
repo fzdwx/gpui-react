@@ -1,6 +1,7 @@
 use gpui::{div, prelude::*, px, rgb};
 
 use super::{ElementStyle, ReactElement};
+use crate::renderer::dispatch_event_to_js;
 
 pub struct DivComponent;
 
@@ -92,7 +93,12 @@ impl DivComponent {
 		}
 
 		if element.event_handlers.as_ref().and_then(|v| v.get("onClick")).is_some() {
-			div = div.on_click(|_v, _av, _bv| println!("bbbbbbbbbbbbbbbbbbbbbbb"))
+			let element_id = element.global_id;
+			div = div.on_click(move |_event, _window, _cx| {
+				log::info!("[Rust] onClick triggered: window_id={}, element_id={}", window_id, element_id);
+				// Test: call dispatch_event_to_js only on actual click, not during setup
+				crate::renderer::dispatch_event_to_js(window_id, element_id, "onClick", None);
+			});
 		}
 
 		div.children(children)

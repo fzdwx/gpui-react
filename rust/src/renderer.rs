@@ -4,8 +4,19 @@ use gpui::{App as GpuiAppContext, Application as GpuiApp, ClickEvent, Div, Eleme
 
 use crate::{element::render_to_gpui, global_state::GLOBAL_STATE, host_command};
 
+use std::sync::Mutex;
+
+/// Static event buffer for passing events to JavaScript
+/// JavaScript can poll this buffer for new events
+static EVENT_BUFFER: Mutex<Option<String>> = Mutex::new(None);
+
+/// Get the current event from the buffer (called from JS via FFI)
+pub fn take_event() -> Option<String> {
+	EVENT_BUFFER.lock().ok()?.take()
+}
+
 /// Dispatch an event directly to JavaScript via the registered callback
-fn dispatch_event_to_js(
+pub(crate) fn dispatch_event_to_js(
 	window_id: u64,
 	element_id: u64,
 	event_type: &str,
@@ -21,71 +32,35 @@ fn dispatch_event_to_js(
 		}
 	};
 
-	unsafe {
-		log::info!(
-			"[Rust] dispatch_event_to_js: window_id={}, element_id={}, event_type={}",
-			window_id,
-			element_id,
-			event_type
-		);
+	log::info!(
+		"[Rust] dispatch_event_to_js: window_id={}, element_id={}, event_type={}",
+		window_id,
+		element_id,
+		event_type
+	);
 
-		// Prepare buffers on heap to ensure they live long enough
-		let window_id_bytes = window_id.to_le_bytes();
-		let element_id_bytes = element_id.to_le_bytes();
+	// Create JSON payload and store in static buffer
+	let json_payload = serde_json::json!({
+		"windowId": window_id,
+		"elementId": element_id,
+		"eventType": event_type
+	});
+	let json_str = json_payload.to_string();
 
-		let event_type_cstring = std::ffi::CString::new(event_type).unwrap_or_default();
-		let event_type_ptr = event_type_cstring.as_ptr() as *mut c_char;
-		let event_type_len = event_type_cstring.to_bytes().len() + 1; // include null terminator
-
-		// Create event data (empty JSON object)
-		let event_data_json = "{}";
-		let event_data_bytes = event_data_json.as_bytes();
-		let event_data_len = event_data_bytes.len();
-
-		// Allocate buffers on heap
-		let window_id_boxed = Box::new(window_id_bytes);
-		let element_id_boxed = Box::new(element_id_bytes);
-		let event_data_boxed = Box::new(event_data_bytes.to_vec());
-
-		let window_id_ptr = Box::into_raw(window_id_boxed) as *mut c_void;
-		let element_id_ptr = Box::into_raw(element_id_boxed) as *mut c_void;
-		let event_data_ptr = Box::into_raw(event_data_boxed) as *mut u8;
-
-		log::info!(
-			"[Rust] dispatch_event_to_js: calling callback with pointers: window={:?}, element={:?}",
-			window_id_ptr,
-			element_id_ptr
-		);
-
-		let callback: extern "C" fn(
-			*mut c_void,
-			usize,
-			*mut c_void,
-			usize,
-			*mut c_char,
-			usize,
-			*mut u8,
-			usize,
-		) = std::mem::transmute(callback_ptr);
-
-		callback(
-			window_id_ptr,
-			8,
-			element_id_ptr,
-			8,
-			event_type_ptr,
-			event_type_len,
-			event_data_ptr,
-			event_data_len,
-		);
-
-		log::info!("[Rust] dispatch_event_to_js: callback returned");
-
-		// Cleanup (JS should have copied the data by now)
-		let _ = Box::from_raw(window_id_ptr as *mut [u8; 8]);
-		let _ = Box::from_raw(element_id_ptr as *mut [u8; 8]);
-		let _ = Box::from_raw(event_data_ptr);
+	// Store in event buffer
+	if let Ok(mut buffer) = EVENT_BUFFER.lock() {
+		*buffer = Some(json_str.clone());
 	}
+
+	log::info!("[Rust] dispatch_event_to_js: stored event in buffer, calling callback to notify JS");
+
+	// Call the callback to notify JS (no arguments needed, JS will poll the buffer)
+	unsafe {
+		let callback: extern "C" fn() = std::mem::transmute(callback_ptr);
+		callback();
+	}
+
+	log::info!("[Rust] dispatch_event_to_js: callback returned");
 }
 
 pub struct RootState {

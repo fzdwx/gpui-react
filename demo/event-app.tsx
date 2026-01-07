@@ -3,37 +3,6 @@ import React, {useState, useEffect} from "react";
 
 export function EventApp() {
     const [count, setCount] = useState(0)
-    let [text, setText] = useState("123123123123");
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setText(`hello world 4${new Date()}`);
-        }, 1000);
-
-        return () => {
-            clearTimeout(timer);
-        };
-    }, []);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setText(`hello world 4${new Date()}`);
-        }, 3000);
-
-        return () => {
-            clearTimeout(timer);
-        };
-    }, []);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setText(`222222hello world 4${new Date()}`);
-        }, 4000);
-
-        return () => {
-            clearTimeout(timer);
-        };
-    }, []);
 
     return (
         <div
@@ -53,7 +22,7 @@ export function EventApp() {
                     fontWeight: "bold",
                 }}
             >
-                {text}
+                Click Test
             </div>
             <div
                 style={{
@@ -69,10 +38,7 @@ export function EventApp() {
                     alignItems: "center",
                     justifyContent: "center",
                 }}
-                onClick={(e) => {
-                    const result = count + 1
-                    setCount(result)
-                }}
+                onClick={() => setCount(count + 1)}
             >
                 Clicked {count} times
             </div>

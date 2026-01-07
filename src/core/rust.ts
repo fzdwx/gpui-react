@@ -1,6 +1,6 @@
 import { lib } from "./ffi";
 import { peek, sleep } from "bun";
-import { JSCallback, Pointer, ptr, read, toArrayBuffer } from "bun:ffi";
+import { JSCallback, Pointer, ptr, read, toArrayBuffer, FFIType, CString } from "bun:ffi";
 import { info, trace } from "../reconciler/utils/logging";
 import { decoder, FfiState } from "./ffi-state";
 import { EventEmitter } from "events";
@@ -123,11 +123,52 @@ export class RustLib {
 
         const eventCallback = new JSCallback(
             () => {
-                console.log("[JS] 🔔 Event callback triggered!!!");
+                try {
+                    // Get event data from Rust buffer
+                    const eventPtr = lib.symbols.gpui_take_event();
+                    if (!eventPtr) {
+                        console.log("[JS] Callback: no event in buffer");
+                        return;
+                    }
+
+                    // Read JSON string from pointer
+                    const jsonStr = new CString(eventPtr).toString();
+                    console.log(`[JS] Callback: json=${jsonStr}`);
+
+                    // Free the string
+                    lib.symbols.gpui_free_string(eventPtr);
+
+                    if (!jsonStr) {
+                        console.log("[JS] Empty JSON, skipping");
+                        return;
+                    }
+
+                    const event = JSON.parse(jsonStr);
+                    const { windowId, elementId, eventType } = event;
+
+                    console.log(`[JS] Event: windowId=${windowId}, elementId=${elementId}, type="${eventType}"`);
+
+                    // Get and call the handler
+                    const handler = getEventHandler(elementId, eventType);
+                    if (handler) {
+                        console.log(`[JS] Found handler, calling...`);
+                        handler({
+                            type: eventType,
+                            target: elementId,
+                            windowId: windowId,
+                            timestamp: Date.now(),
+                        });
+                    } else {
+                        console.log(`[JS] No handler for elementId=${elementId}, type="${eventType}"`);
+                    }
+                } catch (err) {
+                    console.error("[JS] Error:", err);
+                }
             },
             {
                 args: [],
                 returns: "void",
+                threadsafe: true,
             }
         );
 
