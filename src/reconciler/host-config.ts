@@ -303,8 +303,22 @@ export const hostConfig: HostConfig<
         nextProps: Props,
         _internalHandle: OpaqueHandle
     ): void {
+        let needsUpdate = false;
+
+        // Update text content
         if (nextProps && typeof nextProps.children === "string") {
             instance.text = String(nextProps.children);
+            needsUpdate = true;
+        }
+
+        // Update event handlers - re-register to capture new closure values
+        const newHandlers = extractEventHandlers(nextProps);
+        for (const [eventType, handlerId] of Object.entries(newHandlers)) {
+            bindEventToElement(instance.id, eventType, handlerId);
+        }
+        instance.eventHandlers = newHandlers;
+
+        if (needsUpdate) {
             const element = instance.store.getElement(instance.id);
             if (element) {
                 queueElementUpdate(element);
