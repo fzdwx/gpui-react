@@ -1,106 +1,485 @@
-use gpui::{div, prelude::*, px, rgb};
+use std::sync::Arc;
+
+use gpui::{
+	div, point, prelude::*, px, rgb, AlignContent, AlignItems, AlignSelf, AnyElement, App, Bounds,
+	BoxShadow, DispatchPhase, Element, ElementId, Fill, FlexDirection, FlexWrap, GlobalElementId,
+	Hitbox, Hsla, InspectorElementId, IntoElement, JustifyContent, LayoutId, MouseButton,
+	MouseUpEvent, Overflow, Pixels, Position, Rgba, Style, Window,
+};
 
 use super::{ElementStyle, ReactElement};
 use crate::renderer::dispatch_event_to_js;
 
-pub struct DivComponent;
+/// A React element that implements GPUI's Element trait directly
+pub struct ReactDivElement {
+	element:      Arc<ReactElement>,
+	window_id:    u64,
+	parent_style: Option<ElementStyle>,
+	children:     Vec<AnyElement>,
+}
 
-impl DivComponent {
-	pub fn from_element(
-		element: &ReactElement,
-		parent_style: Option<&ElementStyle>,
-		window_id: u64,
-	) -> gpui::Stateful<gpui::Div> {
-		log::debug!("DivComponent::from_element: global_id={}", element.global_id);
+/// State returned from request_layout, containing child layout IDs
+pub struct DivLayoutState {
+	child_layout_ids: Vec<LayoutId>,
+}
 
-		let children: Vec<gpui::Stateful<gpui::Div>> = element
+/// State returned from prepaint
+pub struct DivPrepaintState {
+	hitbox: Option<Hitbox>,
+}
+
+impl ReactDivElement {
+	pub fn new(element: Arc<ReactElement>, window_id: u64, parent_style: Option<ElementStyle>) -> Self {
+		Self { element, window_id, parent_style, children: Vec::new() }
+	}
+
+	/// Convert ElementStyle to GPUI Style
+	fn build_style(&self) -> Style {
+		let mut style = Style::default();
+		let es = &self.element.style;
+
+		// === Display and Flex ===
+		if es.display.as_ref().map(|s| s.as_str()) == Some("flex") {
+			style.display = gpui::Display::Flex;
+		}
+
+		// Flex direction
+		match es.flex_direction.as_ref().map(|s| s.as_str()) {
+			Some("row") => style.flex_direction = FlexDirection::Row,
+			Some("row-reverse") => style.flex_direction = FlexDirection::RowReverse,
+			Some("column") => style.flex_direction = FlexDirection::Column,
+			Some("column-reverse") => style.flex_direction = FlexDirection::ColumnReverse,
+			_ => {}
+		}
+
+		// Flex wrap
+		match es.flex_wrap.as_ref().map(|s| s.as_str()) {
+			Some("wrap") => style.flex_wrap = FlexWrap::Wrap,
+			Some("wrap-reverse") => style.flex_wrap = FlexWrap::WrapReverse,
+			Some("nowrap") => style.flex_wrap = FlexWrap::NoWrap,
+			_ => {}
+		}
+
+		// Flex grow/shrink/basis
+		if let Some(grow) = es.flex_grow {
+			style.flex_grow = grow;
+		}
+		if let Some(shrink) = es.flex_shrink {
+			style.flex_shrink = shrink;
+		}
+		if let Some(basis) = es.flex_basis {
+			style.flex_basis = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(basis)),
+			));
+		}
+
+		// Justify content
+		match es.justify_content.as_ref().map(|s| s.as_str()) {
+			Some("flex-start") => style.justify_content = Some(JustifyContent::FlexStart),
+			Some("center") => style.justify_content = Some(JustifyContent::Center),
+			Some("flex-end") => style.justify_content = Some(JustifyContent::FlexEnd),
+			Some("space-between") => style.justify_content = Some(JustifyContent::SpaceBetween),
+			Some("space-around") => style.justify_content = Some(JustifyContent::SpaceAround),
+			Some("space-evenly") => style.justify_content = Some(JustifyContent::SpaceEvenly),
+			_ => {}
+		}
+
+		// Align items
+		match es.align_items.as_ref().map(|s| s.as_str()) {
+			Some("flex-start") => style.align_items = Some(AlignItems::FlexStart),
+			Some("center") => style.align_items = Some(AlignItems::Center),
+			Some("flex-end") => style.align_items = Some(AlignItems::FlexEnd),
+			Some("stretch") => style.align_items = Some(AlignItems::Stretch),
+			Some("baseline") => style.align_items = Some(AlignItems::Baseline),
+			_ => {}
+		}
+
+		// Align self
+		match es.align_self.as_ref().map(|s| s.as_str()) {
+			Some("flex-start") => style.align_self = Some(AlignSelf::FlexStart),
+			Some("center") => style.align_self = Some(AlignSelf::Center),
+			Some("flex-end") => style.align_self = Some(AlignSelf::FlexEnd),
+			Some("stretch") => style.align_self = Some(AlignSelf::Stretch),
+			Some("baseline") => style.align_self = Some(AlignSelf::Baseline),
+			_ => {}
+		}
+
+		// Align content
+		match es.align_content.as_ref().map(|s| s.as_str()) {
+			Some("flex-start") => style.align_content = Some(AlignContent::FlexStart),
+			Some("center") => style.align_content = Some(AlignContent::Center),
+			Some("flex-end") => style.align_content = Some(AlignContent::FlexEnd),
+			Some("space-between") => style.align_content = Some(AlignContent::SpaceBetween),
+			Some("space-around") => style.align_content = Some(AlignContent::SpaceAround),
+			Some("stretch") => style.align_content = Some(AlignContent::Stretch),
+			_ => {}
+		}
+
+		// === Position ===
+		match es.position.as_ref().map(|s| s.as_str()) {
+			Some("absolute") => style.position = Position::Absolute,
+			_ => style.position = Position::Relative,
+		}
+
+		// Inset (top, right, bottom, left)
+		if let Some(top) = es.top {
+			style.inset.top = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(top)),
+			));
+		}
+		if let Some(right) = es.right {
+			style.inset.right = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(right)),
+			));
+		}
+		if let Some(bottom) = es.bottom {
+			style.inset.bottom = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(bottom)),
+			));
+		}
+		if let Some(left) = es.left {
+			style.inset.left = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(left)),
+			));
+		}
+
+		// === Size ===
+		if let Some(width) = es.width {
+			style.size.width = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(width)),
+			));
+		}
+		if let Some(height) = es.height {
+			style.size.height = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(height)),
+			));
+		}
+
+		// Min/max size
+		if let Some(min_w) = es.min_width {
+			style.min_size.width = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(min_w)),
+			));
+		}
+		if let Some(max_w) = es.max_width {
+			style.max_size.width = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(max_w)),
+			));
+		}
+		if let Some(min_h) = es.min_height {
+			style.min_size.height = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(min_h)),
+			));
+		}
+		if let Some(max_h) = es.max_height {
+			style.max_size.height = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(max_h)),
+			));
+		}
+
+		// Aspect ratio
+		if let Some(ratio) = es.aspect_ratio {
+			style.aspect_ratio = Some(ratio);
+		}
+
+		// === Padding ===
+		if let Some(pt) = es.padding_top {
+			style.padding.top =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pt)));
+		}
+		if let Some(pr) = es.padding_right {
+			style.padding.right =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pr)));
+		}
+		if let Some(pb) = es.padding_bottom {
+			style.padding.bottom =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pb)));
+		}
+		if let Some(pl) = es.padding_left {
+			style.padding.left =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pl)));
+		}
+
+		// === Margin ===
+		if let Some(mt) = es.margin_top {
+			style.margin.top = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(mt)),
+			));
+		}
+		if let Some(mr) = es.margin_right {
+			style.margin.right = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(mr)),
+			));
+		}
+		if let Some(mb) = es.margin_bottom {
+			style.margin.bottom = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(mb)),
+			));
+		}
+		if let Some(ml) = es.margin_left {
+			style.margin.left = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(ml)),
+			));
+		}
+
+		// === Overflow ===
+		if let Some(ref ox) = es.overflow_x {
+			style.overflow.x = match ox.as_str() {
+				"hidden" => Overflow::Hidden,
+				"scroll" => Overflow::Scroll,
+				"clip" => Overflow::Clip,
+				_ => Overflow::Visible,
+			};
+		}
+		if let Some(ref oy) = es.overflow_y {
+			style.overflow.y = match oy.as_str() {
+				"hidden" => Overflow::Hidden,
+				"scroll" => Overflow::Scroll,
+				"clip" => Overflow::Clip,
+				_ => Overflow::Visible,
+			};
+		}
+
+		// === Gap ===
+		if let Some(gap) = es.gap {
+			style.gap.width =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
+			style.gap.height =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
+		}
+		if let Some(row_gap) = es.row_gap {
+			style.gap.height =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(row_gap)));
+		}
+		if let Some(col_gap) = es.column_gap {
+			style.gap.width =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(col_gap)));
+		}
+
+		// === Border ===
+		// Border widths (4 sides)
+		if let Some(w) = es.border_top_width {
+			style.border_widths.top = gpui::AbsoluteLength::Pixels(px(w));
+		}
+		if let Some(w) = es.border_right_width {
+			style.border_widths.right = gpui::AbsoluteLength::Pixels(px(w));
+		}
+		if let Some(w) = es.border_bottom_width {
+			style.border_widths.bottom = gpui::AbsoluteLength::Pixels(px(w));
+		}
+		if let Some(w) = es.border_left_width {
+			style.border_widths.left = gpui::AbsoluteLength::Pixels(px(w));
+		}
+
+		// Border color (use single color for all sides, or individual)
+		let border_color = es.border_color.map(|c| rgb(c).into());
+		if border_color.is_some()
+			|| es.border_top_width.is_some()
+			|| es.border_right_width.is_some()
+			|| es.border_bottom_width.is_some()
+			|| es.border_left_width.is_some()
+		{
+			style.border_color = border_color.or(Some(rgb(0x808080).into()));
+		}
+
+		// Border radius
+		if let Some(radius) = es.border_radius {
+			let r = gpui::AbsoluteLength::Pixels(px(radius));
+			style.corner_radii.top_left = r;
+			style.corner_radii.top_right = r;
+			style.corner_radii.bottom_left = r;
+			style.corner_radii.bottom_right = r;
+		}
+
+		// === Box Shadow ===
+		if es.box_shadow_color.is_some()
+			|| es.box_shadow_blur.is_some()
+			|| es.box_shadow_offset_x.is_some()
+			|| es.box_shadow_offset_y.is_some()
+		{
+			let color = es.box_shadow_color.unwrap_or(0x000000);
+			let (r, g, b) = ((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff);
+			style.box_shadow = vec![BoxShadow {
+				color: Hsla::from(Rgba {
+					r: r as f32 / 255.0,
+					g: g as f32 / 255.0,
+					b: b as f32 / 255.0,
+					a: 0.5,
+				}),
+				offset: point(
+					px(es.box_shadow_offset_x.unwrap_or(0.0)),
+					px(es.box_shadow_offset_y.unwrap_or(0.0)),
+				),
+				blur_radius: px(es.box_shadow_blur.unwrap_or(0.0)),
+				spread_radius: px(es.box_shadow_spread.unwrap_or(0.0)),
+			}];
+		}
+
+		// === Background ===
+		if let Some(bg) = es.bg_color {
+			style.background = Some(Fill::Color(rgb(bg).into()));
+		} else {
+			style.background = Some(Fill::Color(rgb(0x2d2d2d).into()));
+		}
+
+		// === Opacity ===
+		if let Some(opacity) = es.opacity {
+			style.opacity = Some(opacity);
+		}
+
+		style
+	}
+
+	fn has_click_handler(&self) -> bool {
+		self.element
+			.event_handlers
+			.as_ref()
+			.and_then(|v| v.get("onClick"))
+			.is_some()
+	}
+}
+
+impl Element for ReactDivElement {
+	type RequestLayoutState = DivLayoutState;
+	type PrepaintState = DivPrepaintState;
+
+	fn id(&self) -> Option<ElementId> {
+		Some(ElementId::Integer(self.element.global_id))
+	}
+
+	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+		None
+	}
+
+	fn request_layout(
+		&mut self,
+		_id: Option<&GlobalElementId>,
+		_inspector_id: Option<&InspectorElementId>,
+		window: &mut Window,
+		cx: &mut App,
+	) -> (LayoutId, Self::RequestLayoutState) {
+		let style = self.build_style();
+
+		// Merge current style with inherited parent style for children
+		// This ensures all inheritable CSS properties cascade down the tree
+		let inherited_style = {
+			let mut merged = self.element.style.clone();
+			if let Some(parent) = &self.parent_style {
+				merged.inherit_from(parent);
+			}
+			merged
+		};
+
+		// Build child elements with inherited style
+		self.children = self
+			.element
 			.children
 			.iter()
-			.map(|c| super::render_to_gpui(c, Some(&element.style), window_id))
+			.map(|child| {
+				super::create_element(child.clone(), self.window_id, Some(inherited_style.clone()))
+					.into_any_element()
+			})
 			.collect();
 
-		log::trace!("  div has {} children", children.len());
+		// If element has text content, add it as a child using GPUI's text element
+		if let Some(ref text) = self.element.text {
+			if !text.is_empty() {
+				// Use inherited text styles
+				let text_color = inherited_style.text_color.unwrap_or(0xffffff);
+				let text_size = inherited_style.text_size.unwrap_or(14.0);
 
-		let is_flex = element.style.display.as_ref().map(|s| s.as_str()) == Some("flex");
+				let text_element = div()
+					.text_color(rgb(text_color))
+					.text_size(px(text_size))
+					.child(text.clone());
+				self.children.push(text_element.into_any_element());
+			}
+		}
 
-		let mut div = div().id(element.global_id as usize);
-		div = div.when(is_flex, |div| div.flex());
+		// Request layout for children
+		let child_layout_ids: Vec<LayoutId> = self
+			.children
+			.iter_mut()
+			.map(|child| child.request_layout(window, cx))
+			.collect();
 
-		div = match element.style.flex_direction.as_ref().map(|s| s.as_str()) {
-			Some("row") => div.flex_row(),
-			Some("column") => div.flex_col(),
-			_ => div,
-		};
+		// Request our own layout
+		let layout_id = window.request_layout(style, child_layout_ids.iter().copied(), cx);
 
-		div = match element.style.justify_content.as_ref().map(|s| s.as_str()) {
-			Some("flex-start") => div.justify_start(),
-			Some("center") => div.justify_center(),
-			Some("flex-end") => div.justify_end(),
-			Some("space-between") => div.justify_between(),
-			Some("space-around") => div.justify_around(),
-			_ => div,
-		};
+		(layout_id, DivLayoutState { child_layout_ids })
+	}
 
-		div = match element.style.align_items.as_ref().map(|s| s.as_str()) {
-			Some("flex-start") => div.items_start(),
-			Some("center") => div.items_center(),
-			Some("flex-end") => div.items_end(),
-			_ => div,
-		};
+	fn prepaint(
+		&mut self,
+		_id: Option<&GlobalElementId>,
+		_inspector_id: Option<&InspectorElementId>,
+		bounds: Bounds<Pixels>,
+		request_layout: &mut Self::RequestLayoutState,
+		window: &mut Window,
+		cx: &mut App,
+	) -> Self::PrepaintState {
+		// Prepaint children
+		for child in &mut self.children {
+			child.prepaint(window, cx);
+		}
 
-		if let Some(bg) = element.style.bg_color {
-			div = div.bg(rgb(bg));
+		// Insert hitbox if we have event handlers
+		let hitbox = if self.has_click_handler() {
+			Some(window.insert_hitbox(bounds, gpui::HitboxBehavior::Normal))
 		} else {
-			div = div.bg(rgb(0x2d2d2d));
-		}
+			None
+		};
 
-		if let Some(width) = element.style.width {
-			div = div.w(px(width));
-		}
+		DivPrepaintState { hitbox }
+	}
 
-		if let Some(height) = element.style.height {
-			div = div.h(px(height));
-		}
+	fn paint(
+		&mut self,
+		_id: Option<&GlobalElementId>,
+		_inspector_id: Option<&InspectorElementId>,
+		bounds: Bounds<Pixels>,
+		_request_layout: &mut Self::RequestLayoutState,
+		prepaint: &mut Self::PrepaintState,
+		window: &mut Window,
+		cx: &mut App,
+	) {
+		let style = self.build_style();
 
-		if let (Some(pt), Some(pr), Some(pb), Some(pl)) = (
-			element.style.padding_top,
-			element.style.padding_right,
-			element.style.padding_bottom,
-			element.style.padding_left,
-		) {
-			div = div.pt(px(pt)).pr(px(pr)).pb(px(pb)).pl(px(pl));
-		}
+		// Paint background
+		style.paint(bounds, window, cx, |window, cx| {
+			// Paint children
+			for child in &mut self.children {
+				child.paint(window, cx);
+			}
+		});
 
-		if let (Some(mt), Some(mr), Some(mb), Some(ml)) = (
-			element.style.margin_top,
-			element.style.margin_right,
-			element.style.margin_bottom,
-			element.style.margin_left,
-		) {
-			div = div.mt(px(mt)).mr(px(mr)).mb(px(mb)).ml(px(ml));
-		}
+		// Register click handler
+		if let Some(hitbox) = prepaint.hitbox.as_ref() {
+			let element_id = self.element.global_id;
+			let window_id = self.window_id;
+			let hitbox = hitbox.clone();
 
-		if let Some(border_radius) = element.style.border_radius {
-			div = div.rounded(px(border_radius));
-		}
-
-		if let Some(gap) = element.style.gap {
-			div = div.gap(px(gap));
-		}
-
-		if let Some(opacity) = element.style.opacity {
-			div = div.opacity(opacity as f32);
-		}
-
-		if element.event_handlers.as_ref().and_then(|v| v.get("onClick")).is_some() {
-			let element_id = element.global_id;
-			div = div.on_click(move |_event, _window, _cx| {
-				log::info!("[Rust] onClick triggered: window_id={}, element_id={}", window_id, element_id);
-				// Test: call dispatch_event_to_js only on actual click, not during setup
-				crate::renderer::dispatch_event_to_js(window_id, element_id, "onClick", None);
+			window.on_mouse_event(move |event: &MouseUpEvent, phase, window, _cx| {
+				if phase == DispatchPhase::Bubble
+					&& event.button == MouseButton::Left
+					&& hitbox.is_hovered(window)
+				{
+					log::info!(
+						"[Rust] onClick triggered: window_id={}, element_id={}",
+						window_id,
+						element_id
+					);
+					dispatch_event_to_js(window_id, element_id, "onClick", None);
+				}
 			});
 		}
+	}
+}
 
-		div.children(children)
+impl IntoElement for ReactDivElement {
+	type Element = Self;
+
+	fn into_element(self) -> Self::Element {
+		self
 	}
 }

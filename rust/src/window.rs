@@ -36,26 +36,21 @@ impl Window {
 	pub fn state_mut(&mut self) -> &mut Arc<WindowState> { &mut self.state }
 
 	/// Render a single element with its children
+	/// This method sets the root element ID and rebuilds the element tree
+	/// It should be called after batch_update_elements has populated the element_map
 	pub fn render_element(
 		&self,
 		global_id: u64,
-		element_type: String,
-		text: Option<String>,
+		_element_type: String,
+		_text: Option<String>,
 		children: &[u64],
 	) {
-		let element = Arc::new(ReactElement {
-			global_id,
-			element_type,
-			text,
-			children: Vec::new(),
-			style: ElementStyle::default(),
-			event_handlers: None,
-		});
-
+		// Don't create a new element if it already exists in the map
+		// batch_update_elements should have already populated the elements with proper styles
 		let mut element_map =
 			self.state.element_map.lock().expect("Failed to acquire element_map lock in render_element");
-		element_map.insert(global_id, element.clone());
 
+		// Only create placeholder elements for children that don't exist
 		for &child_id in children {
 			if !element_map.contains_key(&child_id) {
 				let placeholder = Arc::new(ReactElement {

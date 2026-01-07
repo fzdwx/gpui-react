@@ -1,8 +1,8 @@
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CString, c_char};
 
-use gpui::{App as GpuiAppContext, Application as GpuiApp, ClickEvent, Div, ElementId, Entity, MouseButton, Render, Window, div, prelude::*, px, rgb};
+use gpui::{Application as GpuiApp, Entity, Render, Window, div, prelude::*, rgb};
 
-use crate::{element::render_to_gpui, global_state::GLOBAL_STATE, host_command};
+use crate::{element::create_element, global_state::GLOBAL_STATE, host_command};
 
 /// Dispatch an event directly to JavaScript via the registered callback
 pub(crate) fn dispatch_event_to_js(
@@ -101,7 +101,7 @@ impl Render for RootView {
 
 		let Some(window) = GLOBAL_STATE.get_window(self.window_id) else {
 			log::warn!("RootView.render: window {} not found", self.window_id);
-			return div().child("Window not found");
+			return div().child("Window not found").into_any_element();
 		};
 
 		let tree = window
@@ -111,10 +111,13 @@ impl Render for RootView {
 			.expect("Failed to acquire element_tree lock in RootView.render");
 
 		log::debug!("RootView.render: window_id={}, has_tree={}", self.window_id, tree.is_some());
-		let result = div().h_auto().w_auto().child(match &*tree {
-			Some(element) => render_to_gpui(element, None, self.window_id),
-			None => div().id("base").child("Waiting for React...").text_color(rgb(0x888888)),
-		});
+		let result = match &*tree {
+			Some(element) => {
+				// Use the new Element trait implementation
+				create_element(element.clone(), self.window_id, None)
+			}
+			None => div().id("base").child("Waiting for React...").text_color(rgb(0x888888)).into_any_element(),
+		};
 
 		let render_duration = render_start.elapsed();
 		log::debug!("RootView.render completed in {:?}", render_duration);
