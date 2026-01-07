@@ -1,19 +1,8 @@
-use std::ffi::{c_char, c_void};
+use std::ffi::{CStr, CString, c_char};
 
 use gpui::{App as GpuiAppContext, Application as GpuiApp, ClickEvent, Div, ElementId, Entity, MouseButton, Render, Window, div, prelude::*, px, rgb};
 
 use crate::{element::render_to_gpui, global_state::GLOBAL_STATE, host_command};
-
-use std::sync::Mutex;
-
-/// Static event buffer for passing events to JavaScript
-/// JavaScript can poll this buffer for new events
-static EVENT_BUFFER: Mutex<Option<String>> = Mutex::new(None);
-
-/// Get the current event from the buffer (called from JS via FFI)
-pub fn take_event() -> Option<String> {
-	EVENT_BUFFER.lock().ok()?.take()
-}
 
 /// Dispatch an event directly to JavaScript via the registered callback
 pub(crate) fn dispatch_event_to_js(
@@ -39,25 +28,21 @@ pub(crate) fn dispatch_event_to_js(
 		event_type
 	);
 
-	// Create JSON payload and store in static buffer
 	let json_payload = serde_json::json!({
 		"windowId": window_id,
 		"elementId": element_id,
 		"eventType": event_type
 	});
 	let json_str = json_payload.to_string();
+	let c_string = CString::new(json_str).unwrap();
+	let x = c_string.as_ptr();
+	let len = c_string.count_bytes();
 
-	// Store in event buffer
-	if let Ok(mut buffer) = EVENT_BUFFER.lock() {
-		*buffer = Some(json_str.clone());
-	}
+	log::info!("[Rust] dispatch_event_to_js: calling callback with JSON pointer");
 
-	log::info!("[Rust] dispatch_event_to_js: stored event in buffer, calling callback to notify JS");
-
-	// Call the callback to notify JS (no arguments needed, JS will poll the buffer)
 	unsafe {
-		let callback: extern "C" fn() = std::mem::transmute(callback_ptr);
-		callback();
+		let callback: extern "C" fn(*const c_char, u32) = std::mem::transmute(callback_ptr);
+		callback(x, len as u32);
 	}
 
 	log::info!("[Rust] dispatch_event_to_js: callback returned");

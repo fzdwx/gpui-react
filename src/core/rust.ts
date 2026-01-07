@@ -122,21 +122,15 @@ export class RustLib {
         console.log("[JS] Setting up event bus, creating JSCallback...");
 
         const eventCallback = new JSCallback(
-            () => {
+            (jsonPtr: any,jsonLen:number) => {
                 try {
-                    // Get event data from Rust buffer
-                    const eventPtr = lib.symbols.gpui_take_event();
-                    if (!eventPtr) {
-                        console.log("[JS] Callback: no event in buffer");
+                    if (!jsonPtr) {
+                        console.log("[JS] Callback: null pointer");
                         return;
                     }
 
-                    // Read JSON string from pointer
-                    const jsonStr = new CString(eventPtr).toString();
+                    const jsonStr = new CString(jsonPtr,0,jsonLen).toString();
                     console.log(`[JS] Callback: json=${jsonStr}`);
-
-                    // Free the string
-                    lib.symbols.gpui_free_string(eventPtr);
 
                     if (!jsonStr) {
                         console.log("[JS] Empty JSON, skipping");
@@ -148,7 +142,6 @@ export class RustLib {
 
                     console.log(`[JS] Event: windowId=${windowId}, elementId=${elementId}, type="${eventType}"`);
 
-                    // Get and call the handler
                     const handler = getEventHandler(elementId, eventType);
                     if (handler) {
                         console.log(`[JS] Found handler, calling...`);
@@ -166,7 +159,7 @@ export class RustLib {
                 }
             },
             {
-                args: [],
+                args: [FFIType.ptr,"u32"],
                 returns: "void",
                 threadsafe: true,
             }

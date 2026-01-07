@@ -187,31 +187,3 @@ pub extern "C" fn set_event_callback(callback_ptr: *mut c_void) {
 		log::info!("Event callback registered: {:p}", callback_ptr);
 	}
 }
-
-/// Get the pending event from the buffer (returns pointer to JSON string, or null if none)
-/// The caller is responsible for the returned CString memory
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_take_event() -> *mut c_char {
-	use std::ffi::CString;
-
-	match renderer::take_event() {
-		Some(json) => {
-			log::info!("[Rust] gpui_take_event: returning event: {}", json);
-			match CString::new(json) {
-				Ok(cstr) => cstr.into_raw(),
-				Err(_) => std::ptr::null_mut(),
-			}
-		}
-		None => std::ptr::null_mut(),
-	}
-}
-
-/// Free a string returned by gpui_take_event
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_free_string(ptr: *mut c_char) {
-	if !ptr.is_null() {
-		unsafe {
-			let _ = std::ffi::CString::from_raw(ptr);
-		}
-	}
-}
