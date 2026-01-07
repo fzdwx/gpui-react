@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use gpui::{AnyElement, InteractiveElement, IntoElement, ParentElement};
+use gpui::{
+	point, px, rgb, AlignContent, AlignItems, AlignSelf, AnyElement, BoxShadow, Fill,
+	FlexDirection, FlexWrap, Hsla, InteractiveElement, IntoElement, JustifyContent, Overflow,
+	ParentElement, Position, Rgba, Style,
+};
 use serde_json::Value;
 
 pub mod div;
@@ -233,6 +237,316 @@ impl ElementStyle {
 		// Other inheritable
 		if self.cursor.is_none() { self.cursor = parent.cursor.clone(); }
 		if self.visibility.is_none() { self.visibility = parent.visibility.clone(); }
+	}
+
+	/// Build GPUI Style from ElementStyle
+	/// `default_bg` - Optional default background color (div uses Some(0x2d2d2d), span uses None)
+	pub fn build_gpui_style(&self, default_bg: Option<u32>) -> Style {
+		let mut style = Style::default();
+		let es = self;
+
+		// === Display and Flex ===
+		if es.display.as_ref().map(|s| s.as_str()) == Some("flex") {
+			style.display = gpui::Display::Flex;
+			style.flex_direction = FlexDirection::Row;
+		}
+
+		// Flex direction
+		match es.flex_direction.as_ref().map(|s| s.as_str()) {
+			Some("row") => style.flex_direction = FlexDirection::Row,
+			Some("row-reverse") => style.flex_direction = FlexDirection::RowReverse,
+			Some("column") => style.flex_direction = FlexDirection::Column,
+			Some("column-reverse") => style.flex_direction = FlexDirection::ColumnReverse,
+			_ => {}
+		}
+
+		// Flex wrap
+		match es.flex_wrap.as_ref().map(|s| s.as_str()) {
+			Some("wrap") => style.flex_wrap = FlexWrap::Wrap,
+			Some("wrap-reverse") => style.flex_wrap = FlexWrap::WrapReverse,
+			Some("nowrap") => style.flex_wrap = FlexWrap::NoWrap,
+			_ => {}
+		}
+
+		// Flex grow/shrink/basis
+		if let Some(grow) = es.flex_grow {
+			style.flex_grow = grow;
+		}
+		if let Some(shrink) = es.flex_shrink {
+			style.flex_shrink = shrink;
+		}
+		if let Some(basis) = es.flex_basis {
+			style.flex_basis = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(basis)),
+			));
+		}
+
+		// Justify content
+		match es.justify_content.as_ref().map(|s| s.as_str()) {
+			Some("flex-start") => style.justify_content = Some(JustifyContent::FlexStart),
+			Some("center") => style.justify_content = Some(JustifyContent::Center),
+			Some("flex-end") => style.justify_content = Some(JustifyContent::FlexEnd),
+			Some("space-between") => style.justify_content = Some(JustifyContent::SpaceBetween),
+			Some("space-around") => style.justify_content = Some(JustifyContent::SpaceAround),
+			Some("space-evenly") => style.justify_content = Some(JustifyContent::SpaceEvenly),
+			_ => {}
+		}
+
+		// Align items
+		match es.align_items.as_ref().map(|s| s.as_str()) {
+			Some("flex-start") => style.align_items = Some(AlignItems::FlexStart),
+			Some("center") => style.align_items = Some(AlignItems::Center),
+			Some("flex-end") => style.align_items = Some(AlignItems::FlexEnd),
+			Some("stretch") => style.align_items = Some(AlignItems::Stretch),
+			Some("baseline") => style.align_items = Some(AlignItems::Baseline),
+			_ => {}
+		}
+
+		// Align self
+		match es.align_self.as_ref().map(|s| s.as_str()) {
+			Some("flex-start") => style.align_self = Some(AlignSelf::FlexStart),
+			Some("center") => style.align_self = Some(AlignSelf::Center),
+			Some("flex-end") => style.align_self = Some(AlignSelf::FlexEnd),
+			Some("stretch") => style.align_self = Some(AlignSelf::Stretch),
+			Some("baseline") => style.align_self = Some(AlignSelf::Baseline),
+			_ => {}
+		}
+
+		// Align content
+		match es.align_content.as_ref().map(|s| s.as_str()) {
+			Some("flex-start") => style.align_content = Some(AlignContent::FlexStart),
+			Some("center") => style.align_content = Some(AlignContent::Center),
+			Some("flex-end") => style.align_content = Some(AlignContent::FlexEnd),
+			Some("space-between") => style.align_content = Some(AlignContent::SpaceBetween),
+			Some("space-around") => style.align_content = Some(AlignContent::SpaceAround),
+			Some("stretch") => style.align_content = Some(AlignContent::Stretch),
+			_ => {}
+		}
+
+		// === Position ===
+		match es.position.as_ref().map(|s| s.as_str()) {
+			Some("absolute") => style.position = Position::Absolute,
+			Some("relative") => style.position = Position::Relative,
+			_ => {}
+		}
+
+		// Inset (top, right, bottom, left)
+		if let Some(top) = es.top {
+			style.inset.top = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(top)),
+			));
+		}
+		if let Some(right) = es.right {
+			style.inset.right = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(right)),
+			));
+		}
+		if let Some(bottom) = es.bottom {
+			style.inset.bottom = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(bottom)),
+			));
+		}
+		if let Some(left) = es.left {
+			style.inset.left = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(left)),
+			));
+		}
+
+		// === Size ===
+		if let Some(width) = es.width {
+			style.size.width = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(width)),
+			));
+		}
+		if let Some(height) = es.height {
+			style.size.height = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(height)),
+			));
+		}
+
+		// Min/max size
+		if let Some(min_w) = es.min_width {
+			style.min_size.width = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(min_w)),
+			));
+		}
+		if let Some(max_w) = es.max_width {
+			style.max_size.width = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(max_w)),
+			));
+		}
+		if let Some(min_h) = es.min_height {
+			style.min_size.height = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(min_h)),
+			));
+		}
+		if let Some(max_h) = es.max_height {
+			style.max_size.height = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(max_h)),
+			));
+		}
+
+		// Aspect ratio
+		if let Some(ratio) = es.aspect_ratio {
+			style.aspect_ratio = Some(ratio);
+		}
+
+		// === Padding ===
+		if let Some(pt) = es.padding_top {
+			style.padding.top =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pt)));
+		}
+		if let Some(pr) = es.padding_right {
+			style.padding.right =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pr)));
+		}
+		if let Some(pb) = es.padding_bottom {
+			style.padding.bottom =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pb)));
+		}
+		if let Some(pl) = es.padding_left {
+			style.padding.left =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pl)));
+		}
+
+		// === Margin ===
+		if let Some(mt) = es.margin_top {
+			style.margin.top = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(mt)),
+			));
+		}
+		if let Some(mr) = es.margin_right {
+			style.margin.right = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(mr)),
+			));
+		}
+		if let Some(mb) = es.margin_bottom {
+			style.margin.bottom = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(mb)),
+			));
+		}
+		if let Some(ml) = es.margin_left {
+			style.margin.left = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+				gpui::AbsoluteLength::Pixels(px(ml)),
+			));
+		}
+
+		// === Overflow ===
+		if let Some(ref ox) = es.overflow_x {
+			style.overflow.x = match ox.as_str() {
+				"hidden" => Overflow::Hidden,
+				"scroll" => Overflow::Scroll,
+				"clip" => Overflow::Clip,
+				_ => Overflow::Visible,
+			};
+		}
+		if let Some(ref oy) = es.overflow_y {
+			style.overflow.y = match oy.as_str() {
+				"hidden" => Overflow::Hidden,
+				"scroll" => Overflow::Scroll,
+				"clip" => Overflow::Clip,
+				_ => Overflow::Visible,
+			};
+		}
+
+		// === Gap ===
+		if let Some(gap) = es.gap {
+			style.gap.width =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
+			style.gap.height =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
+		}
+		if let Some(row_gap) = es.row_gap {
+			style.gap.height =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(row_gap)));
+		}
+		if let Some(col_gap) = es.column_gap {
+			style.gap.width =
+				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(col_gap)));
+		}
+
+		// === Border ===
+		if let Some(w) = es.border_top_width {
+			style.border_widths.top = gpui::AbsoluteLength::Pixels(px(w));
+		}
+		if let Some(w) = es.border_right_width {
+			style.border_widths.right = gpui::AbsoluteLength::Pixels(px(w));
+		}
+		if let Some(w) = es.border_bottom_width {
+			style.border_widths.bottom = gpui::AbsoluteLength::Pixels(px(w));
+		}
+		if let Some(w) = es.border_left_width {
+			style.border_widths.left = gpui::AbsoluteLength::Pixels(px(w));
+		}
+
+		// Border color
+		let border_color = es.border_color.map(|c| rgb(c).into());
+		if border_color.is_some()
+			|| es.border_top_width.is_some()
+			|| es.border_right_width.is_some()
+			|| es.border_bottom_width.is_some()
+			|| es.border_left_width.is_some()
+		{
+			style.border_color = border_color.or(Some(rgb(0x808080).into()));
+		}
+
+		// Border radius
+		if let Some(radius) = es.border_radius {
+			let r = gpui::AbsoluteLength::Pixels(px(radius));
+			style.corner_radii.top_left = r;
+			style.corner_radii.top_right = r;
+			style.corner_radii.bottom_left = r;
+			style.corner_radii.bottom_right = r;
+		}
+
+		// === Box Shadow ===
+		if es.box_shadow_color.is_some()
+			|| es.box_shadow_blur.is_some()
+			|| es.box_shadow_offset_x.is_some()
+			|| es.box_shadow_offset_y.is_some()
+		{
+			let color = es.box_shadow_color.unwrap_or(0x000000);
+			let (r, g, b) = ((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff);
+			style.box_shadow = vec![BoxShadow {
+				color: Hsla::from(Rgba {
+					r: r as f32 / 255.0,
+					g: g as f32 / 255.0,
+					b: b as f32 / 255.0,
+					a: 0.5,
+				}),
+				offset: point(
+					px(es.box_shadow_offset_x.unwrap_or(0.0)),
+					px(es.box_shadow_offset_y.unwrap_or(0.0)),
+				),
+				blur_radius: px(es.box_shadow_blur.unwrap_or(0.0)),
+				spread_radius: px(es.box_shadow_spread.unwrap_or(0.0)),
+			}];
+		}
+
+		// === Background ===
+		if let Some(bg) = es.bg_color {
+			style.background = Some(Fill::Color(rgb(bg).into()));
+		} else if let Some(default) = default_bg {
+			style.background = Some(Fill::Color(rgb(default).into()));
+		}
+
+		// === Opacity ===
+		if let Some(opacity) = es.opacity {
+			style.opacity = Some(opacity);
+		}
+
+		style
+	}
+
+	/// Check if overflow clipping should be applied
+	pub fn should_clip(&self) -> bool {
+		matches!(
+			self.overflow_x.as_ref().map(|s| s.as_str()),
+			Some("hidden") | Some("clip")
+		) || matches!(
+			self.overflow_y.as_ref().map(|s| s.as_str()),
+			Some("hidden") | Some("clip")
+		)
 	}
 }
 

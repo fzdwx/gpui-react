@@ -173,7 +173,7 @@ impl WindowState {
 			if let Some(root) = element_map.get_mut(&root_id) {
 				let root_mut = Arc::make_mut(root);
 				root_mut.children = child_elements;
-				root_mut.style = crate::element::ElementStyle::default();
+				// Note: Don't reset style here - it was already parsed from JSON in batch_update_elements
 			}
 		}
 	}
