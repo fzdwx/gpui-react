@@ -141,7 +141,6 @@ export class RustLib {
 
                     const rawEvent = JSON.parse(jsonStr) as RawEventData;
                     const { elementId, eventType } = rawEvent;
-
                     // Create the event and dispatch through the router
                     const gpuiEvent = createEvent(rawEvent);
                     eventRouter.dispatchToHandler(elementId, eventType, gpuiEvent);

@@ -1,7 +1,6 @@
-import { dlopen, FFIType, ptr, read } from "bun:ffi";
+import { dlopen, FFIType } from "bun:ffi";
 import { info } from "../utils/logging";
 import { getNativeLibPath } from "../utils/plat";
-import { sleep } from "bun";
 
 // ============================================================================
 // GPUI FFI Binding

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use gpui::{AnyElement, App, Bounds, DispatchPhase, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseUpEvent, Pixels, Style, Window, div, prelude::*, px, rgb};
 
 use super::{ElementStyle, ReactElement};
+use crate::event_types::{props, types};
 use crate::renderer::{EventData, dispatch_event_to_js};
 
 /// A React element that implements GPUI's Element trait directly
@@ -43,13 +44,13 @@ impl ReactDivElement {
 	}
 
 	fn has_click_handler(&self) -> bool {
-		self.element.event_handlers.as_ref().and_then(|v| v.get("onClick")).is_some()
+		self.element.event_handlers.as_ref().and_then(|v| v.get(props::ON_CLICK)).is_some()
 	}
 }
 
 impl Element for ReactDivElement {
-	type PrepaintState = DivPrepaintState;
 	type RequestLayoutState = DivLayoutState;
+	type PrepaintState = DivPrepaintState;
 
 	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 
@@ -191,7 +192,7 @@ impl Element for ReactDivElement {
 						client_x,
 						client_y
 					);
-					dispatch_event_to_js(window_id, element_id, "onClick", Some(event_data));
+					dispatch_event_to_js(window_id, element_id, types::CLICK, Some(event_data));
 				}
 			});
 		}

@@ -3,10 +3,9 @@
  * Re-exports all event types and utilities
  */
 
-// Base types
+// Base types (GPUIEventType now comes from types.ts -> generated.ts)
 export type {
     GPUIBaseEvent,
-    GPUIEventType,
     EventPhase,
     ModifierKeys,
     MutableGPUIEvent,
@@ -39,13 +38,15 @@ export type { GPUIScrollEvent, GPUIWheelEvent, ScrollEventType, WheelDeltaMode }
 
 export { isScrollEvent, isWheelEvent } from "./scroll";
 
-// Type mappings and handlers
+// Type mappings and handlers (includes generated types)
 export type {
     GPUIEvent,
     GPUIEventMap,
     GPUIEventHandler,
     AnyGPUIEventHandler,
     GPUIEventHandlerProps,
+    GPUIEventType,
+    GPUIEventPropName,
 } from "./types";
 
 export {
@@ -53,6 +54,10 @@ export {
     EVENT_TYPE_TO_PROP,
     SUPPORTED_EVENT_PROPS,
     isEventHandlerProp,
+    MOUSE_EVENT_TYPES,
+    KEYBOARD_EVENT_TYPES,
+    FOCUS_EVENT_TYPES,
+    SCROLL_EVENT_TYPES,
 } from "./types";
 
 // Event factory

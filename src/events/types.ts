@@ -8,6 +8,33 @@ import { GPUIKeyboardEvent } from "./keyboard";
 import { GPUIFocusEvent } from "./focus";
 import { GPUIScrollEvent, GPUIWheelEvent } from "./scroll";
 
+// Import generated constants for local use and re-export
+import {
+    EVENT_PROP_TO_TYPE as _EVENT_PROP_TO_TYPE,
+    EVENT_TYPE_TO_PROP as _EVENT_TYPE_TO_PROP,
+    isEventHandlerProp as _isEventHandlerProp,
+    MOUSE_EVENT_TYPES as _MOUSE_EVENT_TYPES,
+    KEYBOARD_EVENT_TYPES as _KEYBOARD_EVENT_TYPES,
+    FOCUS_EVENT_TYPES as _FOCUS_EVENT_TYPES,
+    SCROLL_EVENT_TYPES as _SCROLL_EVENT_TYPES,
+} from "./generated";
+
+import type {
+    GPUIEventType as _GPUIEventType,
+    GPUIEventPropName as _GPUIEventPropName,
+} from "./generated";
+
+// Re-export with original names
+export const EVENT_PROP_TO_TYPE = _EVENT_PROP_TO_TYPE;
+export const EVENT_TYPE_TO_PROP = _EVENT_TYPE_TO_PROP;
+export const isEventHandlerProp = _isEventHandlerProp;
+export const MOUSE_EVENT_TYPES = _MOUSE_EVENT_TYPES;
+export const KEYBOARD_EVENT_TYPES = _KEYBOARD_EVENT_TYPES;
+export const FOCUS_EVENT_TYPES = _FOCUS_EVENT_TYPES;
+export const SCROLL_EVENT_TYPES = _SCROLL_EVENT_TYPES;
+export type GPUIEventType = _GPUIEventType;
+export type GPUIEventPropName = _GPUIEventPropName;
+
 /**
  * Union type of all GPUI events
  */
@@ -89,59 +116,8 @@ export interface GPUIEventHandlerProps {
 }
 
 /**
- * Maps React prop names to internal event type names
- */
-export const EVENT_PROP_TO_TYPE: Record<keyof GPUIEventHandlerProps, keyof GPUIEventMap> = {
-    onClick: "click",
-    onDoubleClick: "dblclick",
-    onMouseDown: "mousedown",
-    onMouseUp: "mouseup",
-    onMouseMove: "mousemove",
-    onMouseEnter: "mouseenter",
-    onMouseLeave: "mouseleave",
-    onHover: "hover",
-    onKeyDown: "keydown",
-    onKeyUp: "keyup",
-    onKeyPress: "keypress",
-    onFocus: "focus",
-    onBlur: "blur",
-    onScroll: "scroll",
-    onWheel: "wheel",
-};
-
-/**
- * Maps internal event type names to React prop names
- */
-export const EVENT_TYPE_TO_PROP: Record<keyof GPUIEventMap, keyof GPUIEventHandlerProps> = {
-    click: "onClick",
-    dblclick: "onDoubleClick",
-    mousedown: "onMouseDown",
-    mouseup: "onMouseUp",
-    mousemove: "onMouseMove",
-    mouseenter: "onMouseEnter",
-    mouseleave: "onMouseLeave",
-    hover: "onHover",
-    keydown: "onKeyDown",
-    keyup: "onKeyUp",
-    keypress: "onKeyPress",
-    focus: "onFocus",
-    blur: "onBlur",
-    focusin: "onFocus", // focusin maps to onFocus (bubbling version)
-    focusout: "onBlur", // focusout maps to onBlur (bubbling version)
-    scroll: "onScroll",
-    wheel: "onWheel",
-};
-
-/**
  * List of all supported event prop names
  */
 export const SUPPORTED_EVENT_PROPS = Object.keys(
     EVENT_PROP_TO_TYPE
 ) as (keyof GPUIEventHandlerProps)[];
-
-/**
- * Check if a prop name is an event handler prop
- */
-export function isEventHandlerProp(propName: string): propName is keyof GPUIEventHandlerProps {
-    return propName in EVENT_PROP_TO_TYPE;
-}

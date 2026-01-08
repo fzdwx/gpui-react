@@ -1,6 +1,7 @@
 extern crate core;
 
 mod element;
+mod event_types;
 mod ffi_helpers;
 mod ffi_types;
 mod global_state;

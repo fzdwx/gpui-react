@@ -3,32 +3,14 @@
  * Completely independent from DOM Event - custom event system for GPUI
  */
 
+// Import generated event type
+import type { GPUIEventType } from "./generated";
+
+// Re-export for backward compatibility
+export type { GPUIEventType };
+
 /** Event propagation phase */
 export type EventPhase = "capture" | "target" | "bubble";
-
-/** All supported GPUI event types */
-export type GPUIEventType =
-    // Mouse events
-    | "click"
-    | "dblclick"
-    | "mousedown"
-    | "mouseup"
-    | "mousemove"
-    | "mouseenter"
-    | "mouseleave"
-    | "hover"
-    // Keyboard events
-    | "keydown"
-    | "keyup"
-    | "keypress"
-    // Focus events
-    | "focus"
-    | "blur"
-    | "focusin"
-    | "focusout"
-    // Scroll events
-    | "scroll"
-    | "wheel";
 
 /** Modifier keys state */
 export interface ModifierKeys {
