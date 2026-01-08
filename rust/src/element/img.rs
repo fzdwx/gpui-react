@@ -29,15 +29,6 @@ impl ReactImgElement {
 		Self { element, parent_style, placeholder_child: None }
 	}
 
-	/// Get effective style with inheritance applied
-	fn effective_style(&self) -> ElementStyle {
-		let mut style = self.element.style.clone();
-		if let Some(parent) = &self.parent_style {
-			style.inherit_from(parent);
-		}
-		style
-	}
-
 	fn build_style(&self) -> Style {
 		let es = &self.element.style;
 		let mut style = Style::default();
@@ -115,7 +106,7 @@ impl Element for ReactImgElement {
 		cx: &mut App,
 	) -> (LayoutId, Self::RequestLayoutState) {
 		let es = &self.element.style;
-		let effective = self.effective_style();
+		let effective = self.element.effective_style(self.parent_style.as_ref());
 		let style = self.build_style();
 
 		// Create placeholder text

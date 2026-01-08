@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Bounds, DispatchPhase, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseUpEvent, Pixels, Style, Window, div, prelude::*, px, rgb};
+use gpui::{AnyElement, App, Bounds, DispatchPhase, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseUpEvent, Pixels, Window, div, prelude::*, px, rgb};
 
 use super::{ElementStyle, ReactElement};
 use crate::event_types::{props, types};
@@ -33,16 +33,6 @@ impl ReactDivElement {
 		Self { element, window_id, parent_style, children: Vec::new() }
 	}
 
-	/// Convert ElementStyle to GPUI Style - uses cached style if available
-	fn build_style(&self) -> Style {
-		// Use cached style if available (pre-computed in batch_update_elements)
-		if let Some(ref cached) = self.element.cached_gpui_style {
-			return cached.clone();
-		}
-		// Fallback: compute style (shouldn't normally happen)
-		self.element.style.build_gpui_style(None)
-	}
-
 	fn has_click_handler(&self) -> bool {
 		self.element.event_handlers.as_ref().and_then(|v| v.get(props::ON_CLICK)).is_some()
 	}
@@ -63,17 +53,8 @@ impl Element for ReactDivElement {
 		window: &mut Window,
 		cx: &mut App,
 	) -> (LayoutId, Self::RequestLayoutState) {
-		let style = self.build_style();
-
-		// Merge current style with inherited parent style for children
-		// This ensures all inheritable CSS properties cascade down the tree
-		let inherited_style = {
-			let mut merged = self.element.style.clone();
-			if let Some(parent) = &self.parent_style {
-				merged.inherit_from(parent);
-			}
-			merged
-		};
+		let style = self.element.build_gpui_style(None);
+		let inherited_style = self.element.effective_style(self.parent_style.as_ref());
 
 		// Build child elements with inherited style
 		self.children = self
@@ -143,7 +124,7 @@ impl Element for ReactDivElement {
 		window: &mut Window,
 		cx: &mut App,
 	) {
-		let style = self.build_style();
+		let style = self.element.build_gpui_style(None);
 
 		// Paint background and children
 		style.paint(bounds, window, cx, |window, cx| {

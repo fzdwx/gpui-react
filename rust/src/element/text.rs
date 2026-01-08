@@ -26,15 +26,6 @@ impl ReactTextElement {
 	) -> Self {
 		Self { element, parent_style, text_child: None }
 	}
-
-	/// Get effective style with inheritance applied
-	fn effective_style(&self) -> ElementStyle {
-		let mut style = self.element.style.clone();
-		if let Some(parent) = &self.parent_style {
-			style.inherit_from(parent);
-		}
-		style
-	}
 }
 
 impl Element for ReactTextElement {
@@ -52,7 +43,7 @@ impl Element for ReactTextElement {
 		window: &mut Window,
 		cx: &mut App,
 	) -> (LayoutId, Self::RequestLayoutState) {
-		let effective = self.effective_style();
+		let effective = self.element.effective_style(self.parent_style.as_ref());
 		let text = self.element.text.clone().unwrap_or_default();
 
 		// Build style for the container

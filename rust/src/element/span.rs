@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb};
+use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Window, div, prelude::*, px, rgb};
 
 use super::{ElementStyle, ReactElement};
 
@@ -29,25 +29,6 @@ impl ReactSpanElement {
 	) -> Self {
 		Self { element, window_id, parent_style, children: Vec::new() }
 	}
-
-	/// Get effective style with inheritance applied
-	fn effective_style(&self) -> ElementStyle {
-		let mut style = self.element.style.clone();
-		if let Some(parent) = &self.parent_style {
-			style.inherit_from(parent);
-		}
-		style
-	}
-
-	/// Convert ElementStyle to GPUI Style - uses cached style if available
-	fn build_style(&self) -> Style {
-		// Use cached style if available (pre-computed in batch_update_elements)
-		if let Some(ref cached) = self.element.cached_gpui_style {
-			return cached.clone();
-		}
-		// Fallback: compute style (shouldn't normally happen)
-		self.element.style.build_gpui_style(None)
-	}
 }
 
 impl Element for ReactSpanElement {
@@ -65,8 +46,8 @@ impl Element for ReactSpanElement {
 		window: &mut Window,
 		cx: &mut App,
 	) -> (LayoutId, Self::RequestLayoutState) {
-		let style = self.build_style();
-		let inherited_style = self.effective_style();
+		let style = self.element.build_gpui_style(None);
+		let inherited_style = self.element.effective_style(self.parent_style.as_ref());
 
 		// Build child elements with inherited style
 		self.children = self
@@ -124,7 +105,7 @@ impl Element for ReactSpanElement {
 		window: &mut Window,
 		cx: &mut App,
 	) {
-		let style = self.build_style();
+		let style = self.element.build_gpui_style(None);
 
 		// Paint background and children
 		style.paint(bounds, window, cx, |window, cx| {

@@ -48,6 +48,28 @@ pub struct ReactElement {
 	pub cached_gpui_style: Option<Style>,
 }
 
+impl ReactElement {
+	/// Get effective style with inheritance applied from parent
+	pub fn effective_style(&self, parent_style: Option<&ElementStyle>) -> ElementStyle {
+		let mut style = self.style.clone();
+		if let Some(parent) = parent_style {
+			style.inherit_from(parent);
+		}
+		style
+	}
+
+	/// Build GPUI Style - uses cached style if available, otherwise computes it
+	/// `default_bg` - Optional default background color (e.g., div uses Some(0x2d2d2d), span uses None)
+	pub fn build_gpui_style(&self, default_bg: Option<u32>) -> Style {
+		// Use cached style if available (pre-computed in batch_update_elements)
+		if let Some(ref cached) = self.cached_gpui_style {
+			return cached.clone();
+		}
+		// Fallback: compute style (shouldn't normally happen)
+		self.style.build_gpui_style(default_bg)
+	}
+}
+
 #[derive(Clone, PartialEq, Default, Debug)]
 pub struct ElementStyle {
 	// Text properties (inheritable)
