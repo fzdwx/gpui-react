@@ -4,7 +4,9 @@
  * Handles conversion between React style props and GPUI style values
  */
 
-export interface StyleProps {
+import type { GPUIEventHandlerProps } from "../events";
+
+export interface StyleProps extends GPUIEventHandlerProps {
     // Text properties (inheritable)
     color?: string;
     fontSize?: number | string;
@@ -111,14 +113,8 @@ export interface StyleProps {
     src?: string;
     alt?: string;
 
-    // Event handlers
-    onClick?: (event: MouseEvent) => void;
-    onHover?: (event: MouseEvent) => void;
-    onMouseEnter?: (event: MouseEvent) => void;
-    onMouseLeave?: (event: MouseEvent) => void;
-
-    // Hover styles (pseudo-class)
-    _hover?: Omit<StyleProps, "_hover" | "onClick" | "onHover" | "onMouseEnter" | "onMouseLeave">;
+    // Hover styles (pseudo-class) - excludes event handlers
+    _hover?: Omit<StyleProps, "_hover" | keyof GPUIEventHandlerProps>;
 }
 
 /**
@@ -281,9 +277,7 @@ export function parseSpacing(value: number | string): [number, number, number, n
  * Supports: "1px solid #000", "2px dashed red"
  * Returns: { width, style, color }
  */
-export function parseBorder(
-    value: string
-): { width: number; style: string; color: number } | null {
+export function parseBorder(value: string): { width: number; style: string; color: number } | null {
     if (!value) return null;
 
     const parts = value.trim().split(/\s+/);
@@ -340,7 +334,10 @@ export function parseBoxShadow(
     }
 
     // Parse numeric values
-    const numParts = remaining.trim().split(/\s+/).filter((p) => p);
+    const numParts = remaining
+        .trim()
+        .split(/\s+/)
+        .filter((p) => p);
     const nums = numParts.map((p) => parseSize(p));
 
     return {
@@ -570,8 +567,7 @@ export function mapStyleToProps(props: StyleProps): Record<string, any> {
     }
 
     // Individual border widths
-    if (props.borderTopWidth !== undefined)
-        result.borderTopWidth = parseSize(props.borderTopWidth);
+    if (props.borderTopWidth !== undefined) result.borderTopWidth = parseSize(props.borderTopWidth);
     if (props.borderRightWidth !== undefined)
         result.borderRightWidth = parseSize(props.borderRightWidth);
     if (props.borderBottomWidth !== undefined)
@@ -675,4 +671,3 @@ export function mapStyleToProps(props: StyleProps): Record<string, any> {
 
     return result;
 }
-

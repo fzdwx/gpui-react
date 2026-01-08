@@ -1,10 +1,10 @@
 import { lib } from "./ffi";
 import { peek, sleep } from "bun";
 import { JSCallback, Pointer, ptr, read, toArrayBuffer, FFIType, CString } from "bun:ffi";
-import { info, trace } from "../reconciler/utils/logging";
+import { info, trace } from "../utils/logging";
 import { decoder, FfiState } from "./ffi-state";
 import { EventEmitter } from "events";
-import { getEventHandler } from "../reconciler/event-router";
+import { eventRouter, createEvent, RawEventData } from "../events";
 
 export interface ElementData {
     globalId: number;
@@ -139,24 +139,18 @@ export class RustLib {
                         return;
                     }
 
-                    const event = JSON.parse(jsonStr);
-                    const { windowId, elementId, eventType } = event;
+                    const rawEvent = JSON.parse(jsonStr) as RawEventData;
+                    const { elementId, eventType } = rawEvent;
 
-                    const handler = getEventHandler(elementId, eventType);
-                    if (handler) {
-                        handler({
-                            type: eventType,
-                            target: elementId,
-                            windowId: windowId,
-                            timestamp: Date.now(),
-                        });
-                    }
+                    // Create the event and dispatch through the router
+                    const gpuiEvent = createEvent(rawEvent);
+                    eventRouter.dispatchToHandler(elementId, eventType, gpuiEvent);
                 } catch (err) {
                     console.error("[JS] Event callback error:", err);
                 }
             },
             {
-                args: [FFIType.ptr,"u32"],
+                args: [FFIType.ptr, "u32"],
                 returns: "void",
                 threadsafe: true,
             }

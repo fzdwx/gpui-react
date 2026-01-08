@@ -1,4 +1,4 @@
-import { trace, debug } from "./utils/logging";
+import { trace, debug } from "../utils/logging";
 import { ElementData } from "../core";
 
 const STORE_SYMBOL = Symbol("store");

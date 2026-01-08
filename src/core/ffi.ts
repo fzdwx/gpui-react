@@ -1,6 +1,6 @@
 import { dlopen, FFIType, ptr, read } from "bun:ffi";
-import { info, debug, trace } from "../reconciler/utils/logging";
-import { getNativeLibPath } from "../reconciler/utils/plat";
+import { info } from "../utils/logging";
+import { getNativeLibPath } from "../utils/plat";
 import { sleep } from "bun";
 
 // ============================================================================

@@ -3,9 +3,9 @@ import { ElementStore } from "./element-store";
 import { mapStyleToProps, StyleProps } from "./styles";
 import { HostConfig, OpaqueHandle } from "react-reconciler";
 import { DefaultEventPriority, NoEventPriority } from "react-reconciler/constants";
-import { trace, debug, info, warn } from "./utils/logging";
+import { trace, info, warn } from "../utils/logging";
 import { rustLib } from "../core";
-import {bindEventToElement, registerEventHandler} from "./event-router";
+import { eventRouter, EVENT_PROP_TO_TYPE, isEventHandlerProp } from "../events";
 
 type ReactContext<T> = ReactReconciler.ReactContext<T>;
 
@@ -54,20 +54,11 @@ function extractStyleProps(props: any): StyleProps {
         warn("className not yet supported, use style prop instead");
     }
 
-    if (props.onClick) {
-        styleProps.onClick = props.onClick;
-    }
-
-    if (props.onHover) {
-        styleProps.onHover = props.onHover;
-    }
-
-    if (props.onMouseEnter) {
-        styleProps.onMouseEnter = props.onMouseEnter;
-    }
-
-    if (props.onMouseLeave) {
-        styleProps.onMouseLeave = props.onMouseLeave;
+    // Copy event handlers to styleProps for Rust-side event registration
+    for (const propName of Object.keys(props)) {
+        if (isEventHandlerProp(propName) && typeof props[propName] === "function") {
+            (styleProps as any)[propName] = props[propName];
+        }
     }
 
     return styleProps;
@@ -76,20 +67,11 @@ function extractStyleProps(props: any): StyleProps {
 function extractEventHandlers(props: any): Record<string, number> {
     const handlers: Record<string, number> = {};
 
-    if (props.onClick) {
-        handlers["onClick"] = registerEventHandler(props.onClick);
-    }
-
-    if (props.onHover) {
-        handlers["onHover"] = registerEventHandler(props.onHover);
-    }
-
-    if (props.onMouseEnter) {
-        handlers["onMouseEnter"] = registerEventHandler(props.onMouseEnter);
-    }
-
-    if (props.onMouseLeave) {
-        handlers["onMouseLeave"] = registerEventHandler(props.onMouseLeave);
+    for (const propName of Object.keys(props)) {
+        if (isEventHandlerProp(propName) && typeof props[propName] === "function") {
+            const handlerId = eventRouter.registerHandler(props[propName]);
+            handlers[propName] = handlerId;
+        }
     }
 
     return handlers;
@@ -218,8 +200,12 @@ export const hostConfig: HostConfig<
         const id = rootContainer.createElement(type, undefined, styles, eventHandlers);
         trace("createInstance", { type, id, styles, eventHandlers });
 
-        for (const [eventType, handlerId] of Object.entries(eventHandlers || {})) {
-            bindEventToElement(id, eventType, handlerId);
+        // Bind event handlers to the element
+        for (const [propName, handlerId] of Object.entries(eventHandlers || {})) {
+            const eventType = EVENT_PROP_TO_TYPE[propName as keyof typeof EVENT_PROP_TO_TYPE];
+            if (eventType) {
+                eventRouter.bindEvent(id, eventType, handlerId);
+            }
         }
 
         const instance: Instance = {
@@ -236,15 +222,21 @@ export const hostConfig: HostConfig<
 
     appendInitialChild(parentInstance: Instance, child: Instance | TextInstance): void {
         trace("appendInitialChild", { parent: parentInstance, child });
-        parentInstance.children.push(child as Instance);
-        parentInstance.store.appendChild(parentInstance.id, (child as Instance).id);
+        const childInstance = child as Instance;
+        parentInstance.children.push(childInstance);
+        parentInstance.store.appendChild(parentInstance.id, childInstance.id);
+        // Track parent-child relationship for event bubbling
+        eventRouter.setParent(childInstance.id, parentInstance.id);
         queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
     appendChild(parentInstance: Instance, child: Instance | TextInstance): void {
         trace("appendChild", { parent: parentInstance, child });
-        parentInstance.children.push(child as Instance);
-        parentInstance.store.appendChild(parentInstance.id, (child as Instance).id);
+        const childInstance = child as Instance;
+        parentInstance.children.push(childInstance);
+        parentInstance.store.appendChild(parentInstance.id, childInstance.id);
+        // Track parent-child relationship for event bubbling
+        eventRouter.setParent(childInstance.id, parentInstance.id);
         queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
@@ -287,6 +279,8 @@ export const hostConfig: HostConfig<
             parentInstance.children.splice(index, 1);
         }
         parentInstance.store.removeChild(parentInstance.id, childInstance.id);
+        // Clean up event handlers for the removed element
+        eventRouter.cleanupElement(childInstance.id);
         queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
     },
 
@@ -294,6 +288,8 @@ export const hostConfig: HostConfig<
         trace("removeChildFromContainer", { container: _container, child });
         const childInstance = child as Instance;
         _container.removeChild(_container.getRoot().globalId, childInstance.id);
+        // Clean up event handlers for the removed element
+        eventRouter.cleanupElement(childInstance.id);
     },
 
     commitUpdate(
@@ -311,10 +307,33 @@ export const hostConfig: HostConfig<
             needsUpdate = true;
         }
 
-        // Update event handlers - re-register to capture new closure values
+        // Clean up old handlers and register new ones
+        const oldHandlers = instance.eventHandlers || {};
         const newHandlers = extractEventHandlers(nextProps);
-        for (const [eventType, handlerId] of Object.entries(newHandlers)) {
-            bindEventToElement(instance.id, eventType, handlerId);
+
+        // Remove handlers that no longer exist
+        for (const [propName, handlerId] of Object.entries(oldHandlers)) {
+            if (!(propName in newHandlers)) {
+                const eventType = EVENT_PROP_TO_TYPE[propName as keyof typeof EVENT_PROP_TO_TYPE];
+                if (eventType) {
+                    eventRouter.unbindEvent(instance.id, eventType, handlerId);
+                    eventRouter.unregisterHandler(handlerId);
+                }
+            }
+        }
+
+        // Bind new handlers (this will update existing ones due to the closure re-creation)
+        for (const [propName, handlerId] of Object.entries(newHandlers)) {
+            const eventType = EVENT_PROP_TO_TYPE[propName as keyof typeof EVENT_PROP_TO_TYPE];
+            if (eventType) {
+                // Unbind old handler for this event type first
+                const oldHandlerId = oldHandlers[propName];
+                if (oldHandlerId !== undefined) {
+                    eventRouter.unbindEvent(instance.id, eventType, oldHandlerId);
+                    eventRouter.unregisterHandler(oldHandlerId);
+                }
+                eventRouter.bindEvent(instance.id, eventType, handlerId);
+            }
         }
         instance.eventHandlers = newHandlers;
 
@@ -344,6 +363,17 @@ export const hostConfig: HostConfig<
 
     detachDeletedInstance(instance: Instance): void {
         trace("detachDeletedInstance", { instance });
+        // Recursively clean up event handlers for the instance and all descendants
+        const collectChildIds = (inst: Instance): number[] => {
+            const ids: number[] = [];
+            for (const child of inst.children) {
+                ids.push(child.id);
+                ids.push(...collectChildIds(child));
+            }
+            return ids;
+        };
+        const childIds = collectChildIds(instance);
+        eventRouter.cleanupElementTree(instance.id, childIds);
     },
 
     prepareScopeUpdate(_scopeInstance: any, _instance: any): void {},
