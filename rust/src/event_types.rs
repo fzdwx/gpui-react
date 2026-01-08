@@ -46,6 +46,52 @@ pub mod types {
     pub const FOCUSOUT: &str = "focusout";
 }
 
+// ============ Event Data Structures ============
+
+/// Mouse event data
+#[derive(Default, Clone)]
+pub struct MouseEventData {
+    pub client_x: f32,
+    pub client_y: f32,
+    pub button: u8,
+}
+
+/// Keyboard event data
+#[derive(Default, Clone)]
+pub struct KeyboardEventData {
+    pub key: String,
+    pub code: String,
+    pub repeat: bool,
+    pub ctrl: bool,
+    pub shift: bool,
+    pub alt: bool,
+    pub meta: bool,
+}
+
+/// Scroll/wheel event data
+#[derive(Default, Clone)]
+pub struct ScrollEventData {
+    pub delta_x: f32,
+    pub delta_y: f32,
+    pub delta_mode: u8,
+}
+
+/// Focus event data
+#[derive(Default, Clone)]
+pub struct FocusEventData {
+    pub related_target: Option<u64>,
+}
+
+/// Unified event data enum
+#[derive(Clone)]
+pub enum EventData {
+    Mouse(MouseEventData),
+    Keyboard(KeyboardEventData),
+    Scroll(ScrollEventData),
+    Focus(FocusEventData),
+    None,
+}
+
 /// Convert prop name to event type
 /// Returns None if the prop is not a recognized event handler
 pub fn prop_to_event_type(prop: &str) -> Option<&'static str> {
@@ -67,4 +113,32 @@ pub fn prop_to_event_type(prop: &str) -> Option<&'static str> {
         props::ON_WHEEL => Some(types::WHEEL),
         _ => None,
     }
+}
+
+/// Check if event type is a mouse event
+pub fn is_mouse_event(event_type: &str) -> bool {
+    matches!(event_type,
+        types::CLICK | types::DBLCLICK | types::MOUSEDOWN | types::MOUSEUP | types::MOUSEMOVE | types::MOUSEENTER | types::MOUSELEAVE | types::HOVER
+    )
+}
+
+/// Check if event type is a keyboard event
+pub fn is_keyboard_event(event_type: &str) -> bool {
+    matches!(event_type,
+        types::KEYDOWN | types::KEYUP | types::KEYPRESS
+    )
+}
+
+/// Check if event type is a focus event
+pub fn is_focus_event(event_type: &str) -> bool {
+    matches!(event_type,
+        types::FOCUS | types::BLUR | types::FOCUSIN | types::FOCUSOUT
+    )
+}
+
+/// Check if event type is a scroll event
+pub fn is_scroll_event(event_type: &str) -> bool {
+    matches!(event_type,
+        types::SCROLL | types::WHEEL
+    )
 }

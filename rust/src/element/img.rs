@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb};
+use gpui::{
+	AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId,
+	IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb,
+};
 
+use super::events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers};
 use super::{ElementStyle, ReactElement};
 
 /// An image element
@@ -10,6 +14,7 @@ use super::{ElementStyle, ReactElement};
 /// - Supports width/height sizing
 pub struct ReactImgElement {
 	element:           Arc<ReactElement>,
+	window_id:         u64,
 	parent_style:      Option<ElementStyle>,
 	placeholder_child: Option<AnyElement>,
 }
@@ -18,15 +23,18 @@ pub struct ImgLayoutState {
 	child_layout_id: Option<LayoutId>,
 }
 
-pub struct ImgPrepaintState;
+pub struct ImgPrepaintState {
+	hitbox: Option<Hitbox>,
+	event_flags: EventHandlerFlags,
+}
 
 impl ReactImgElement {
 	pub fn new(
 		element: Arc<ReactElement>,
-		_window_id: u64,
+		window_id: u64,
 		parent_style: Option<ElementStyle>,
 	) -> Self {
-		Self { element, parent_style, placeholder_child: None }
+		Self { element, window_id, parent_style, placeholder_child: None }
 	}
 
 	fn build_style(&self) -> Style {
@@ -137,7 +145,7 @@ impl Element for ReactImgElement {
 		&mut self,
 		_id: Option<&GlobalElementId>,
 		_inspector_id: Option<&InspectorElementId>,
-		_bounds: Bounds<Pixels>,
+		bounds: Bounds<Pixels>,
 		_request_layout: &mut Self::RequestLayoutState,
 		window: &mut Window,
 		cx: &mut App,
@@ -145,7 +153,12 @@ impl Element for ReactImgElement {
 		if let Some(ref mut child) = self.placeholder_child {
 			child.prepaint(window, cx);
 		}
-		ImgPrepaintState
+
+		// Check event handlers and insert hitbox if needed
+		let event_flags = EventHandlerFlags::from_handlers(self.element.event_handlers.as_ref());
+		let hitbox = insert_hitbox_if_needed(&event_flags, bounds, window);
+
+		ImgPrepaintState { hitbox, event_flags }
 	}
 
 	fn paint(
@@ -154,7 +167,7 @@ impl Element for ReactImgElement {
 		_inspector_id: Option<&InspectorElementId>,
 		bounds: Bounds<Pixels>,
 		_request_layout: &mut Self::RequestLayoutState,
-		_prepaint: &mut Self::PrepaintState,
+		prepaint: &mut Self::PrepaintState,
 		window: &mut Window,
 		cx: &mut App,
 	) {
@@ -166,6 +179,15 @@ impl Element for ReactImgElement {
 				child.paint(window, cx);
 			}
 		});
+
+		// Register event handlers using shared module
+		register_event_handlers(
+			&prepaint.event_flags,
+			prepaint.hitbox.as_ref(),
+			self.window_id,
+			self.element.global_id,
+			window,
+		);
 	}
 }
 

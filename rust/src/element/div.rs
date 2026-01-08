@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Bounds, DispatchPhase, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseUpEvent, Pixels, Window, div, prelude::*, px, rgb};
+use gpui::{
+	AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId,
+	IntoElement, LayoutId, Pixels, Window, div, prelude::*, px, rgb,
+};
 
+use super::events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers};
 use super::{ElementStyle, ReactElement};
-use crate::event_types::{props, types};
-use crate::renderer::{EventData, dispatch_event_to_js};
 
 /// A React element that implements GPUI's Element trait directly
 pub struct ReactDivElement {
@@ -22,6 +24,7 @@ pub struct DivLayoutState {
 /// State returned from prepaint
 pub struct DivPrepaintState {
 	hitbox: Option<Hitbox>,
+	event_flags: EventHandlerFlags,
 }
 
 impl ReactDivElement {
@@ -31,10 +34,6 @@ impl ReactDivElement {
 		parent_style: Option<ElementStyle>,
 	) -> Self {
 		Self { element, window_id, parent_style, children: Vec::new() }
-	}
-
-	fn has_click_handler(&self) -> bool {
-		self.element.event_handlers.as_ref().and_then(|v| v.get(props::ON_CLICK)).is_some()
 	}
 }
 
@@ -95,7 +94,7 @@ impl Element for ReactDivElement {
 		_id: Option<&GlobalElementId>,
 		_inspector_id: Option<&InspectorElementId>,
 		bounds: Bounds<Pixels>,
-		request_layout: &mut Self::RequestLayoutState,
+		_request_layout: &mut Self::RequestLayoutState,
 		window: &mut Window,
 		cx: &mut App,
 	) -> Self::PrepaintState {
@@ -104,14 +103,11 @@ impl Element for ReactDivElement {
 			child.prepaint(window, cx);
 		}
 
-		// Insert hitbox if we have event handlers
-		let hitbox = if self.has_click_handler() {
-			Some(window.insert_hitbox(bounds, gpui::HitboxBehavior::Normal))
-		} else {
-			None
-		};
+		// Check event handlers and insert hitbox if needed
+		let event_flags = EventHandlerFlags::from_handlers(self.element.event_handlers.as_ref());
+		let hitbox = insert_hitbox_if_needed(&event_flags, bounds, window);
 
-		DivPrepaintState { hitbox }
+		DivPrepaintState { hitbox, event_flags }
 	}
 
 	fn paint(
@@ -139,44 +135,14 @@ impl Element for ReactDivElement {
 			);
 		});
 
-		// Register click handler
-		if let Some(hitbox) = prepaint.hitbox.as_ref() {
-			let element_id = self.element.global_id;
-			let window_id = self.window_id;
-			let hitbox = hitbox.clone();
-
-			window.on_mouse_event(move |event: &MouseUpEvent, phase, window, _cx| {
-				if phase == DispatchPhase::Bubble
-					&& event.button == MouseButton::Left
-					&& hitbox.is_hovered(window)
-				{
-					// Extract mouse position (convert Pixels to f32)
-					let position = event.position;
-					let client_x: f32 = position.x.into();
-					let client_y: f32 = position.y.into();
-
-					let event_data = EventData {
-						client_x: Some(client_x),
-						client_y: Some(client_y),
-						button:   Some(match event.button {
-							MouseButton::Left => 0,
-							MouseButton::Right => 2,
-							MouseButton::Middle => 1,
-							MouseButton::Navigate(_) => 3,
-						}),
-					};
-
-					log::info!(
-						"[Rust] onClick triggered: window_id={}, element_id={}, position=({}, {})",
-						window_id,
-						element_id,
-						client_x,
-						client_y
-					);
-					dispatch_event_to_js(window_id, element_id, types::CLICK, Some(event_data));
-				}
-			});
-		}
+		// Register event handlers using shared module
+		register_event_handlers(
+			&prepaint.event_flags,
+			prepaint.hitbox.as_ref(),
+			self.window_id,
+			self.element.global_id,
+			window,
+		);
 	}
 }
 

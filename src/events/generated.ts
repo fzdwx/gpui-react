@@ -117,3 +117,71 @@ export const SCROLL_EVENT_TYPES = [
     "scroll",
     "wheel",
 ] as const;
+
+// ============ Event Data Interfaces ============
+
+/** Base event data from Rust */
+export interface RawEventDataBase {
+    windowId: number;
+    elementId: number;
+    eventType: GPUIEventType;
+    timestamp: number;
+}
+
+/** Raw mouse event data from Rust */
+export interface RawMouseEventData extends RawEventDataBase {
+    clientX: number;
+    clientY: number;
+    button: number;
+}
+
+/** Raw keyboard event data from Rust */
+export interface RawKeyboardEventData extends RawEventDataBase {
+    key: string;
+    code: string;
+    repeat: boolean;
+    ctrlKey: boolean;
+    shiftKey: boolean;
+    altKey: boolean;
+    metaKey: boolean;
+}
+
+/** Raw scroll event data from Rust */
+export interface RawScrollEventData extends RawEventDataBase {
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+}
+
+/** Raw focus event data from Rust */
+export interface RawFocusEventData extends RawEventDataBase {
+    relatedTarget: number | null | undefined;
+}
+
+/** All raw event data types */
+export type RawEventData =
+    | RawMouseEventData
+    | RawKeyboardEventData
+    | RawScrollEventData
+    | RawFocusEventData
+    | RawEventDataBase;
+
+/** Type guard: Check if event is a mouse event */
+export function isMouseEventData(data: RawEventData): data is RawMouseEventData {
+    return MOUSE_EVENT_TYPES.includes(data.eventType as any);
+}
+
+/** Type guard: Check if event is a keyboard event */
+export function isKeyboardEventData(data: RawEventData): data is RawKeyboardEventData {
+    return KEYBOARD_EVENT_TYPES.includes(data.eventType as any);
+}
+
+/** Type guard: Check if event is a scroll event */
+export function isScrollEventData(data: RawEventData): data is RawScrollEventData {
+    return SCROLL_EVENT_TYPES.includes(data.eventType as any);
+}
+
+/** Type guard: Check if event is a focus event */
+export function isFocusEventData(data: RawEventData): data is RawFocusEventData {
+    return FOCUS_EVENT_TYPES.includes(data.eventType as any);
+}

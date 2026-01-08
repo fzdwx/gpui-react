@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Window, div, prelude::*, px, rgb};
+use gpui::{
+	AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId,
+	IntoElement, LayoutId, Pixels, Window, div, prelude::*, px, rgb,
+};
 
+use super::events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers};
 use super::{ElementStyle, ReactElement};
 
 /// A span element - similar to div but:
@@ -19,7 +23,10 @@ pub struct SpanLayoutState {
 	child_layout_ids: Vec<LayoutId>,
 }
 
-pub struct SpanPrepaintState;
+pub struct SpanPrepaintState {
+	hitbox: Option<Hitbox>,
+	event_flags: EventHandlerFlags,
+}
 
 impl ReactSpanElement {
 	pub fn new(
@@ -84,7 +91,7 @@ impl Element for ReactSpanElement {
 		&mut self,
 		_id: Option<&GlobalElementId>,
 		_inspector_id: Option<&InspectorElementId>,
-		_bounds: Bounds<Pixels>,
+		bounds: Bounds<Pixels>,
 		_request_layout: &mut Self::RequestLayoutState,
 		window: &mut Window,
 		cx: &mut App,
@@ -92,7 +99,12 @@ impl Element for ReactSpanElement {
 		for child in &mut self.children {
 			child.prepaint(window, cx);
 		}
-		SpanPrepaintState
+
+		// Check event handlers and insert hitbox if needed
+		let event_flags = EventHandlerFlags::from_handlers(self.element.event_handlers.as_ref());
+		let hitbox = insert_hitbox_if_needed(&event_flags, bounds, window);
+
+		SpanPrepaintState { hitbox, event_flags }
 	}
 
 	fn paint(
@@ -101,7 +113,7 @@ impl Element for ReactSpanElement {
 		_inspector_id: Option<&InspectorElementId>,
 		bounds: Bounds<Pixels>,
 		_request_layout: &mut Self::RequestLayoutState,
-		_prepaint: &mut Self::PrepaintState,
+		prepaint: &mut Self::PrepaintState,
 		window: &mut Window,
 		cx: &mut App,
 	) {
@@ -119,6 +131,15 @@ impl Element for ReactSpanElement {
 				|child, window, cx| child.paint(window, cx),
 			);
 		});
+
+		// Register event handlers using shared module
+		register_event_handlers(
+			&prepaint.event_flags,
+			prepaint.hitbox.as_ref(),
+			self.window_id,
+			self.element.global_id,
+			window,
+		);
 	}
 }
 

@@ -4,6 +4,7 @@ use gpui::{AlignContent, AlignItems, AlignSelf, AnyElement, BoxShadow, Fill, Fle
 use serde_json::Value;
 
 pub mod div;
+pub mod events;
 pub mod img;
 pub mod span;
 pub mod text;

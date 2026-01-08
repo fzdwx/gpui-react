@@ -1,13 +1,18 @@
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb};
+use gpui::{
+	AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId,
+	IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb,
+};
 
+use super::events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers};
 use super::{ElementStyle, ReactElement};
 
 /// A specialized text element that renders text content
 /// Uses GPUI's built-in text rendering for proper layout integration
 pub struct ReactTextElement {
 	element:      Arc<ReactElement>,
+	window_id:    u64,
 	parent_style: Option<ElementStyle>,
 	text_child:   Option<AnyElement>,
 }
@@ -16,15 +21,18 @@ pub struct TextLayoutState {
 	child_layout_id: Option<LayoutId>,
 }
 
-pub struct TextPrepaintState;
+pub struct TextPrepaintState {
+	hitbox: Option<Hitbox>,
+	event_flags: EventHandlerFlags,
+}
 
 impl ReactTextElement {
 	pub fn new(
 		element: Arc<ReactElement>,
-		_window_id: u64,
+		window_id: u64,
 		parent_style: Option<ElementStyle>,
 	) -> Self {
-		Self { element, parent_style, text_child: None }
+		Self { element, window_id, parent_style, text_child: None }
 	}
 }
 
@@ -95,7 +103,7 @@ impl Element for ReactTextElement {
 		&mut self,
 		_id: Option<&GlobalElementId>,
 		_inspector_id: Option<&InspectorElementId>,
-		_bounds: Bounds<Pixels>,
+		bounds: Bounds<Pixels>,
 		_request_layout: &mut Self::RequestLayoutState,
 		window: &mut Window,
 		cx: &mut App,
@@ -104,7 +112,12 @@ impl Element for ReactTextElement {
 		if let Some(ref mut child) = self.text_child {
 			child.prepaint(window, cx);
 		}
-		TextPrepaintState
+
+		// Check event handlers and insert hitbox if needed
+		let event_flags = EventHandlerFlags::from_handlers(self.element.event_handlers.as_ref());
+		let hitbox = insert_hitbox_if_needed(&event_flags, bounds, window);
+
+		TextPrepaintState { hitbox, event_flags }
 	}
 
 	fn paint(
@@ -113,7 +126,7 @@ impl Element for ReactTextElement {
 		_inspector_id: Option<&InspectorElementId>,
 		_bounds: Bounds<Pixels>,
 		_request_layout: &mut Self::RequestLayoutState,
-		_prepaint: &mut Self::PrepaintState,
+		prepaint: &mut Self::PrepaintState,
 		window: &mut Window,
 		cx: &mut App,
 	) {
@@ -121,6 +134,15 @@ impl Element for ReactTextElement {
 		if let Some(ref mut child) = self.text_child {
 			child.paint(window, cx);
 		}
+
+		// Register event handlers using shared module
+		register_event_handlers(
+			&prepaint.event_flags,
+			prepaint.hitbox.as_ref(),
+			self.window_id,
+			self.element.global_id,
+			window,
+		);
 	}
 }
 
