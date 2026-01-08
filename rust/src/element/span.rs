@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use gpui::{
-	div, prelude::*, px, rgb, AnyElement, App, Bounds, ContentMask, Element, ElementId,
-	GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window,
-};
+use gpui::{AnyElement, App, Bounds, ContentMask, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb};
 
 use super::{ElementStyle, ReactElement};
 
@@ -25,7 +22,11 @@ pub struct SpanLayoutState {
 pub struct SpanPrepaintState;
 
 impl ReactSpanElement {
-	pub fn new(element: Arc<ReactElement>, window_id: u64, parent_style: Option<ElementStyle>) -> Self {
+	pub fn new(
+		element: Arc<ReactElement>,
+		window_id: u64,
+		parent_style: Option<ElementStyle>,
+	) -> Self {
 		Self { element, window_id, parent_style, children: Vec::new() }
 	}
 
@@ -38,24 +39,24 @@ impl ReactSpanElement {
 		style
 	}
 
-	/// Convert ElementStyle to GPUI Style using shared builder - no default background
+	/// Convert ElementStyle to GPUI Style - uses cached style if available
 	fn build_style(&self) -> Style {
-		// span uses no default background (transparent)
+		// Use cached style if available (pre-computed in batch_update_elements)
+		if let Some(ref cached) = self.element.cached_gpui_style {
+			return cached.clone();
+		}
+		// Fallback: compute style (shouldn't normally happen)
 		self.element.style.build_gpui_style(None)
 	}
 }
 
 impl Element for ReactSpanElement {
-	type RequestLayoutState = SpanLayoutState;
 	type PrepaintState = SpanPrepaintState;
+	type RequestLayoutState = SpanLayoutState;
 
-	fn id(&self) -> Option<ElementId> {
-		Some(ElementId::Integer(self.element.global_id))
-	}
+	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 
-	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-		None
-	}
+	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> { None }
 
 	fn request_layout(
 		&mut self,
@@ -84,20 +85,15 @@ impl Element for ReactSpanElement {
 				let text_color = inherited_style.text_color.unwrap_or(0xffffff);
 				let text_size = inherited_style.text_size.unwrap_or(14.0);
 
-				let text_element = div()
-					.text_color(rgb(text_color))
-					.text_size(px(text_size))
-					.child(text.clone());
+				let text_element =
+					div().text_color(rgb(text_color)).text_size(px(text_size)).child(text.clone());
 				self.children.push(text_element.into_any_element());
 			}
 		}
 
 		// Request layout for children
-		let child_layout_ids: Vec<LayoutId> = self
-			.children
-			.iter_mut()
-			.map(|child| child.request_layout(window, cx))
-			.collect();
+		let child_layout_ids: Vec<LayoutId> =
+			self.children.iter_mut().map(|child| child.request_layout(window, cx)).collect();
 
 		let layout_id = window.request_layout(style, child_layout_ids.iter().copied(), cx);
 		(layout_id, SpanLayoutState { child_layout_ids })
@@ -152,7 +148,5 @@ impl Element for ReactSpanElement {
 impl IntoElement for ReactSpanElement {
 	type Element = Self;
 
-	fn into_element(self) -> Self::Element {
-		self
-	}
+	fn into_element(self) -> Self::Element { self }
 }

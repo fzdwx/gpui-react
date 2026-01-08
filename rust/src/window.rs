@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}
 
 use gpui::{AnyWindowHandle, App, AppContext};
 
-use crate::element::{ElementStyle, ReactElement};
+use crate::element::{ElementKind, ElementStyle, ReactElement};
 
 pub struct Window {
 	/// The GPUI window handle
@@ -37,7 +37,8 @@ impl Window {
 
 	/// Render a single element with its children
 	/// This method sets the root element ID and rebuilds the element tree
-	/// It should be called after batch_update_elements has populated the element_map
+	/// It should be called after batch_update_elements has populated the
+	/// element_map
 	pub fn render_element(
 		&self,
 		global_id: u64,
@@ -46,7 +47,8 @@ impl Window {
 		children: &[u64],
 	) {
 		// Don't create a new element if it already exists in the map
-		// batch_update_elements should have already populated the elements with proper styles
+		// batch_update_elements should have already populated the elements with proper
+		// styles
 		let mut element_map =
 			self.state.element_map.lock().expect("Failed to acquire element_map lock in render_element");
 
@@ -54,12 +56,14 @@ impl Window {
 		for &child_id in children {
 			if !element_map.contains_key(&child_id) {
 				let placeholder = Arc::new(ReactElement {
-					global_id:      child_id,
-					element_type:   "placeholder".to_string(),
-					text:           None,
-					children:       Vec::new(),
-					style:          ElementStyle::default(),
-					event_handlers: None,
+					global_id:         child_id,
+					element_type:      "placeholder".to_string(),
+					element_kind:      ElementKind::Unknown,
+					text:              None,
+					children:          Vec::new(),
+					style:             ElementStyle::default(),
+					event_handlers:    None,
+					cached_gpui_style: None,
 				});
 				element_map.insert(child_id, placeholder);
 			}
@@ -95,13 +99,19 @@ impl Window {
 
 				let event_handlers = elem_obj.get("eventHandlers").cloned();
 
+				// Pre-compute GPUI Style (div and span have no default background)
+				let cached_gpui_style = Some(style.build_gpui_style(None));
+
+				let element_kind = ElementKind::from_str(&element_type);
 				let element = Arc::new(ReactElement {
 					global_id,
 					element_type,
+					element_kind,
 					text,
 					children: Vec::new(),
 					style,
 					event_handlers,
+					cached_gpui_style,
 				});
 
 				element_map.insert(global_id, element);
@@ -173,7 +183,8 @@ impl WindowState {
 			if let Some(root) = element_map.get_mut(&root_id) {
 				let root_mut = Arc::make_mut(root);
 				root_mut.children = child_elements;
-				// Note: Don't reset style here - it was already parsed from JSON in batch_update_elements
+				// Note: Don't reset style here - it was already parsed from JSON in
+				// batch_update_elements
 			}
 		}
 	}

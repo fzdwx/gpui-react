@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use gpui::{
-	point, px, rgb, AlignContent, AlignItems, AlignSelf, AnyElement, BoxShadow, Fill,
-	FlexDirection, FlexWrap, Hsla, InteractiveElement, IntoElement, JustifyContent, Overflow,
-	ParentElement, Position, Rgba, Style,
-};
+use gpui::{AlignContent, AlignItems, AlignSelf, AnyElement, BoxShadow, Fill, FlexDirection, FlexWrap, Hsla, InteractiveElement, IntoElement, JustifyContent, Overflow, ParentElement, Position, Rgba, Style, point, px, rgb};
 use serde_json::Value;
 
 pub mod div;
@@ -17,72 +13,97 @@ pub use img::ReactImgElement;
 pub use span::ReactSpanElement;
 pub use text::ReactTextElement;
 
-#[derive(Clone, PartialEq)]
+/// Pre-computed element kind to avoid string matching every frame
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum ElementKind {
+	Div,
+	Span,
+	Text,
+	Img,
+	Unknown,
+}
+
+impl ElementKind {
+	pub fn from_str(s: &str) -> Self {
+		match s {
+			"div" => ElementKind::Div,
+			"span" => ElementKind::Span,
+			"text" => ElementKind::Text,
+			"img" => ElementKind::Img,
+			_ => ElementKind::Unknown,
+		}
+	}
+}
+
+#[derive(Clone)]
 pub struct ReactElement {
-	pub global_id:      u64,
-	pub element_type:   String,
-	pub text:           Option<String>,
-	pub children:       Vec<Arc<ReactElement>>,
-	pub style:          ElementStyle,
-	pub event_handlers: Option<serde_json::Value>,
+	pub global_id:         u64,
+	pub element_type:      String,
+	pub element_kind:      ElementKind,  // Pre-computed for fast dispatch
+	pub text:              Option<String>,
+	pub children:          Vec<Arc<ReactElement>>,
+	pub style:             ElementStyle,
+	pub event_handlers:    Option<serde_json::Value>,
+	/// Cached GPUI Style to avoid recomputing every frame
+	pub cached_gpui_style: Option<Style>,
 }
 
 #[derive(Clone, PartialEq, Default, Debug)]
 pub struct ElementStyle {
 	// Text properties (inheritable)
-	pub text_color:      Option<u32>,
-	pub text_size:       Option<f32>,
-	pub font_weight:     Option<u32>,      // 100-900
-	pub font_family:     Option<String>,
-	pub line_height:     Option<f32>,
-	pub text_align:      Option<String>,   // "left", "center", "right"
-	pub letter_spacing:  Option<f32>,
+	pub text_color:     Option<u32>,
+	pub text_size:      Option<f32>,
+	pub font_weight:    Option<u32>, // 100-900
+	pub font_family:    Option<String>,
+	pub line_height:    Option<f32>,
+	pub text_align:     Option<String>, // "left", "center", "right"
+	pub letter_spacing: Option<f32>,
 
 	// Other inheritable properties
-	pub cursor:          Option<String>,
-	pub visibility:      Option<String>,   // "visible", "hidden"
+	pub cursor:     Option<String>,
+	pub visibility: Option<String>, // "visible", "hidden"
 
 	// Non-inheritable properties
-	pub bg_color:        Option<u32>,
-	pub width:           Option<f32>,
-	pub height:          Option<f32>,
+	pub bg_color: Option<u32>,
+	pub width:    Option<f32>,
+	pub height:   Option<f32>,
 
 	// Size constraints
-	pub min_width:       Option<f32>,
-	pub max_width:       Option<f32>,
-	pub min_height:      Option<f32>,
-	pub max_height:      Option<f32>,
-	pub aspect_ratio:    Option<f32>,
+	pub min_width:    Option<f32>,
+	pub max_width:    Option<f32>,
+	pub min_height:   Option<f32>,
+	pub max_height:   Option<f32>,
+	pub aspect_ratio: Option<f32>,
 
 	// Margin
-	pub margin_top:      Option<f32>,
-	pub margin_right:    Option<f32>,
-	pub margin_bottom:   Option<f32>,
-	pub margin_left:     Option<f32>,
+	pub margin_top:    Option<f32>,
+	pub margin_right:  Option<f32>,
+	pub margin_bottom: Option<f32>,
+	pub margin_left:   Option<f32>,
 
 	// Padding
-	pub padding_top:     Option<f32>,
-	pub padding_right:   Option<f32>,
-	pub padding_bottom:  Option<f32>,
-	pub padding_left:    Option<f32>,
+	pub padding_top:    Option<f32>,
+	pub padding_right:  Option<f32>,
+	pub padding_bottom: Option<f32>,
+	pub padding_left:   Option<f32>,
 
 	// Position
-	pub position:        Option<String>,   // "relative", "absolute"
-	pub top:             Option<f32>,
-	pub right:           Option<f32>,
-	pub bottom:          Option<f32>,
-	pub left:            Option<f32>,
+	pub position: Option<String>, // "relative", "absolute"
+	pub top:      Option<f32>,
+	pub right:    Option<f32>,
+	pub bottom:   Option<f32>,
+	pub left:     Option<f32>,
 
 	// Overflow
-	pub overflow_x:      Option<String>,   // "visible", "hidden", "scroll", "clip"
-	pub overflow_y:      Option<String>,
+	pub overflow_x: Option<String>, // "visible", "hidden", "scroll", "clip"
+	pub overflow_y: Option<String>,
 
 	// Border widths (4 sides)
 	pub border_top_width:    Option<f32>,
 	pub border_right_width:  Option<f32>,
 	pub border_bottom_width: Option<f32>,
 	pub border_left_width:   Option<f32>,
-	pub border_style:        Option<String>,  // "solid", "dashed"
+	pub border_style:        Option<String>, // "solid", "dashed"
 	pub border_color:        Option<u32>,
 	pub border_top_color:    Option<u32>,
 	pub border_right_color:  Option<u32>,
@@ -100,7 +121,7 @@ pub struct ElementStyle {
 	// Flexbox
 	pub display:         Option<String>,
 	pub flex_direction:  Option<String>,
-	pub flex_wrap:       Option<String>,   // "nowrap", "wrap", "wrap-reverse"
+	pub flex_wrap:       Option<String>, // "nowrap", "wrap", "wrap-reverse"
 	pub flex_grow:       Option<f32>,
 	pub flex_shrink:     Option<f32>,
 	pub flex_basis:      Option<f32>,
@@ -113,12 +134,12 @@ pub struct ElementStyle {
 	pub column_gap:      Option<f32>,
 
 	// Other
-	pub opacity:         Option<f32>,
-	pub src:             Option<String>,
-	pub alt:             Option<String>,
+	pub opacity: Option<f32>,
+	pub src:     Option<String>,
+	pub alt:     Option<String>,
 
 	// Hover style
-	pub hover_style:     Option<Box<ElementStyle>>,
+	pub hover_style: Option<Box<ElementStyle>>,
 }
 
 impl ElementStyle {
@@ -227,20 +248,39 @@ impl ElementStyle {
 	/// This follows CSS inheritance rules where text/font properties cascade down
 	pub fn inherit_from(&mut self, parent: &ElementStyle) {
 		// Text properties
-		if self.text_color.is_none() { self.text_color = parent.text_color; }
-		if self.text_size.is_none() { self.text_size = parent.text_size; }
-		if self.font_weight.is_none() { self.font_weight = parent.font_weight; }
-		if self.font_family.is_none() { self.font_family = parent.font_family.clone(); }
-		if self.line_height.is_none() { self.line_height = parent.line_height; }
-		if self.text_align.is_none() { self.text_align = parent.text_align.clone(); }
-		if self.letter_spacing.is_none() { self.letter_spacing = parent.letter_spacing; }
+		if self.text_color.is_none() {
+			self.text_color = parent.text_color;
+		}
+		if self.text_size.is_none() {
+			self.text_size = parent.text_size;
+		}
+		if self.font_weight.is_none() {
+			self.font_weight = parent.font_weight;
+		}
+		if self.font_family.is_none() {
+			self.font_family = parent.font_family.clone();
+		}
+		if self.line_height.is_none() {
+			self.line_height = parent.line_height;
+		}
+		if self.text_align.is_none() {
+			self.text_align = parent.text_align.clone();
+		}
+		if self.letter_spacing.is_none() {
+			self.letter_spacing = parent.letter_spacing;
+		}
 		// Other inheritable
-		if self.cursor.is_none() { self.cursor = parent.cursor.clone(); }
-		if self.visibility.is_none() { self.visibility = parent.visibility.clone(); }
+		if self.cursor.is_none() {
+			self.cursor = parent.cursor.clone();
+		}
+		if self.visibility.is_none() {
+			self.visibility = parent.visibility.clone();
+		}
 	}
 
 	/// Build GPUI Style from ElementStyle
-	/// `default_bg` - Optional default background color (div uses Some(0x2d2d2d), span uses None)
+	/// `default_bg` - Optional default background color (div uses Some(0x2d2d2d),
+	/// span uses None)
 	pub fn build_gpui_style(&self, default_bg: Option<u32>) -> Style {
 		let mut style = Style::default();
 		let es = self;
@@ -393,20 +433,16 @@ impl ElementStyle {
 
 		// === Padding ===
 		if let Some(pt) = es.padding_top {
-			style.padding.top =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pt)));
+			style.padding.top = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pt)));
 		}
 		if let Some(pr) = es.padding_right {
-			style.padding.right =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pr)));
+			style.padding.right = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pr)));
 		}
 		if let Some(pb) = es.padding_bottom {
-			style.padding.bottom =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pb)));
+			style.padding.bottom = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pb)));
 		}
 		if let Some(pl) = es.padding_left {
-			style.padding.left =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pl)));
+			style.padding.left = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pl)));
 		}
 
 		// === Margin ===
@@ -451,18 +487,14 @@ impl ElementStyle {
 
 		// === Gap ===
 		if let Some(gap) = es.gap {
-			style.gap.width =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
-			style.gap.height =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
+			style.gap.width = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
+			style.gap.height = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
 		}
 		if let Some(row_gap) = es.row_gap {
-			style.gap.height =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(row_gap)));
+			style.gap.height = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(row_gap)));
 		}
 		if let Some(col_gap) = es.column_gap {
-			style.gap.width =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(col_gap)));
+			style.gap.width = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(col_gap)));
 		}
 
 		// === Border ===
@@ -508,17 +540,17 @@ impl ElementStyle {
 			let color = es.box_shadow_color.unwrap_or(0x000000);
 			let (r, g, b) = ((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff);
 			style.box_shadow = vec![BoxShadow {
-				color: Hsla::from(Rgba {
+				color:         Hsla::from(Rgba {
 					r: r as f32 / 255.0,
 					g: g as f32 / 255.0,
 					b: b as f32 / 255.0,
 					a: 0.5,
 				}),
-				offset: point(
+				offset:        point(
 					px(es.box_shadow_offset_x.unwrap_or(0.0)),
 					px(es.box_shadow_offset_y.unwrap_or(0.0)),
 				),
-				blur_radius: px(es.box_shadow_blur.unwrap_or(0.0)),
+				blur_radius:   px(es.box_shadow_blur.unwrap_or(0.0)),
 				spread_radius: px(es.box_shadow_spread.unwrap_or(0.0)),
 			}];
 		}
@@ -540,40 +572,24 @@ impl ElementStyle {
 
 	/// Check if overflow clipping should be applied
 	pub fn should_clip(&self) -> bool {
-		matches!(
-			self.overflow_x.as_ref().map(|s| s.as_str()),
-			Some("hidden") | Some("clip")
-		) || matches!(
-			self.overflow_y.as_ref().map(|s| s.as_str()),
-			Some("hidden") | Some("clip")
-		)
+		matches!(self.overflow_x.as_ref().map(|s| s.as_str()), Some("hidden") | Some("clip"))
+			|| matches!(self.overflow_y.as_ref().map(|s| s.as_str()), Some("hidden") | Some("clip"))
 	}
 }
 
 /// Create a new element that implements Element trait directly
-/// This is the new optimized path that avoids recreating gpui::Div every frame
+/// Uses pre-computed ElementKind for fast dispatch (no string matching)
 pub fn create_element(
 	element: Arc<ReactElement>,
 	window_id: u64,
 	parent_style: Option<ElementStyle>,
 ) -> AnyElement {
-	match element.element_type.as_str() {
-		"div" => {
-			ReactDivElement::new(element, window_id, parent_style).into_any_element()
-		}
-		"span" => {
-			// span uses specialized ReactSpanElement (no default background)
-			ReactSpanElement::new(element, window_id, parent_style).into_any_element()
-		}
-		"text" => {
-			// text uses specialized lightweight ReactTextElement
-			ReactTextElement::new(element, window_id, parent_style).into_any_element()
-		}
-		"img" => {
-			// img uses specialized ReactImgElement for images
-			ReactImgElement::new(element, window_id, parent_style).into_any_element()
-		}
-		_ => gpui::div()
+	match element.element_kind {
+		ElementKind::Div => ReactDivElement::new(element, window_id, parent_style).into_any_element(),
+		ElementKind::Span => ReactSpanElement::new(element, window_id, parent_style).into_any_element(),
+		ElementKind::Text => ReactTextElement::new(element, window_id, parent_style).into_any_element(),
+		ElementKind::Img => ReactImgElement::new(element, window_id, parent_style).into_any_element(),
+		ElementKind::Unknown => gpui::div()
 			.id(element.global_id as usize)
 			.child(format!("[Unknown: {}]", element.element_type))
 			.into_any_element(),

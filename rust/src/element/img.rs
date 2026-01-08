@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use gpui::{
-	div, prelude::*, px, rgb, AnyElement, App, Bounds, Element, ElementId, GlobalElementId,
-	InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window,
-};
+use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb};
 
 use super::{ElementStyle, ReactElement};
 
@@ -24,7 +21,11 @@ pub struct ImgLayoutState {
 pub struct ImgPrepaintState;
 
 impl ReactImgElement {
-	pub fn new(element: Arc<ReactElement>, _window_id: u64, parent_style: Option<ElementStyle>) -> Self {
+	pub fn new(
+		element: Arc<ReactElement>,
+		_window_id: u64,
+		parent_style: Option<ElementStyle>,
+	) -> Self {
 		Self { element, parent_style, placeholder_child: None }
 	}
 
@@ -55,20 +56,16 @@ impl ReactImgElement {
 
 		// Apply padding if specified
 		if let Some(pt) = es.padding_top {
-			style.padding.top =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pt)));
+			style.padding.top = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pt)));
 		}
 		if let Some(pr) = es.padding_right {
-			style.padding.right =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pr)));
+			style.padding.right = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pr)));
 		}
 		if let Some(pb) = es.padding_bottom {
-			style.padding.bottom =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pb)));
+			style.padding.bottom = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pb)));
 		}
 		if let Some(pl) = es.padding_left {
-			style.padding.left =
-				gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pl)));
+			style.padding.left = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pl)));
 		}
 
 		// Border radius for rounded images
@@ -103,16 +100,12 @@ impl ReactImgElement {
 }
 
 impl Element for ReactImgElement {
-	type RequestLayoutState = ImgLayoutState;
 	type PrepaintState = ImgPrepaintState;
+	type RequestLayoutState = ImgLayoutState;
 
-	fn id(&self) -> Option<ElementId> {
-		Some(ElementId::Integer(self.element.global_id))
-	}
+	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 
-	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-		None
-	}
+	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> { None }
 
 	fn request_layout(
 		&mut self,
@@ -138,10 +131,8 @@ impl Element for ReactImgElement {
 		let text_color = effective.text_color.unwrap_or(0x888888);
 		let text_size = effective.text_size.unwrap_or(12.0);
 
-		let placeholder = div()
-			.text_color(rgb(text_color))
-			.text_size(px(text_size))
-			.child(placeholder_text);
+		let placeholder =
+			div().text_color(rgb(text_color)).text_size(px(text_size)).child(placeholder_text);
 
 		let mut child = placeholder.into_any_element();
 		let child_layout_id = child.request_layout(window, cx);
@@ -190,7 +181,5 @@ impl Element for ReactImgElement {
 impl IntoElement for ReactImgElement {
 	type Element = Self;
 
-	fn into_element(self) -> Self::Element {
-		self
-	}
+	fn into_element(self) -> Self::Element { self }
 }

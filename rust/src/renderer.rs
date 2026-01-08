@@ -116,7 +116,9 @@ impl Render for RootView {
 				// Use the new Element trait implementation
 				create_element(element.clone(), self.window_id, None)
 			}
-			None => div().id("base").child("Waiting for React...").text_color(rgb(0x888888)).into_any_element(),
+			None => {
+				div().id("base").child("Waiting for React...").text_color(rgb(0x888888)).into_any_element()
+			}
 		};
 
 		let render_duration = render_start.elapsed();

@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use gpui::{
-	div, prelude::*, px, rgb, AnyElement, App, Bounds, ContentMask, DispatchPhase, Element,
-	ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, MouseButton,
-	MouseUpEvent, Pixels, Style, Window,
-};
+use gpui::{AnyElement, App, Bounds, ContentMask, DispatchPhase, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseUpEvent, Pixels, Style, Window, div, prelude::*, px, rgb};
 
 use super::{ElementStyle, ReactElement};
 use crate::renderer::dispatch_event_to_js;
@@ -28,22 +24,26 @@ pub struct DivPrepaintState {
 }
 
 impl ReactDivElement {
-	pub fn new(element: Arc<ReactElement>, window_id: u64, parent_style: Option<ElementStyle>) -> Self {
+	pub fn new(
+		element: Arc<ReactElement>,
+		window_id: u64,
+		parent_style: Option<ElementStyle>,
+	) -> Self {
 		Self { element, window_id, parent_style, children: Vec::new() }
 	}
 
-	/// Convert ElementStyle to GPUI Style using shared builder
+	/// Convert ElementStyle to GPUI Style - uses cached style if available
 	fn build_style(&self) -> Style {
-		// div has no default background (transparent like CSS)
+		// Use cached style if available (pre-computed in batch_update_elements)
+		if let Some(ref cached) = self.element.cached_gpui_style {
+			return cached.clone();
+		}
+		// Fallback: compute style (shouldn't normally happen)
 		self.element.style.build_gpui_style(None)
 	}
 
 	fn has_click_handler(&self) -> bool {
-		self.element
-			.event_handlers
-			.as_ref()
-			.and_then(|v| v.get("onClick"))
-			.is_some()
+		self.element.event_handlers.as_ref().and_then(|v| v.get("onClick")).is_some()
 	}
 }
 
@@ -51,13 +51,9 @@ impl Element for ReactDivElement {
 	type RequestLayoutState = DivLayoutState;
 	type PrepaintState = DivPrepaintState;
 
-	fn id(&self) -> Option<ElementId> {
-		Some(ElementId::Integer(self.element.global_id))
-	}
+	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 
-	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-		None
-	}
+	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> { None }
 
 	fn request_layout(
 		&mut self,
@@ -96,20 +92,15 @@ impl Element for ReactDivElement {
 				let text_color = inherited_style.text_color.unwrap_or(0xffffff);
 				let text_size = inherited_style.text_size.unwrap_or(14.0);
 
-				let text_element = div()
-					.text_color(rgb(text_color))
-					.text_size(px(text_size))
-					.child(text.clone());
+				let text_element =
+					div().text_color(rgb(text_color)).text_size(px(text_size)).child(text.clone());
 				self.children.push(text_element.into_any_element());
 			}
 		}
 
 		// Request layout for children
-		let child_layout_ids: Vec<LayoutId> = self
-			.children
-			.iter_mut()
-			.map(|child| child.request_layout(window, cx))
-			.collect();
+		let child_layout_ids: Vec<LayoutId> =
+			self.children.iter_mut().map(|child| child.request_layout(window, cx)).collect();
 
 		// Request our own layout
 		let layout_id = window.request_layout(style, child_layout_ids.iter().copied(), cx);
@@ -196,7 +187,5 @@ impl Element for ReactDivElement {
 impl IntoElement for ReactDivElement {
 	type Element = Self;
 
-	fn into_element(self) -> Self::Element {
-		self
-	}
+	fn into_element(self) -> Self::Element { self }
 }

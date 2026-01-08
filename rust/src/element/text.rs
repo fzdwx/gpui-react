@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use gpui::{
-	div, prelude::*, px, rgb, AnyElement, App, Bounds, Element, ElementId, GlobalElementId,
-	InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window,
-};
+use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb};
 
 use super::{ElementStyle, ReactElement};
 
@@ -22,7 +19,11 @@ pub struct TextLayoutState {
 pub struct TextPrepaintState;
 
 impl ReactTextElement {
-	pub fn new(element: Arc<ReactElement>, _window_id: u64, parent_style: Option<ElementStyle>) -> Self {
+	pub fn new(
+		element: Arc<ReactElement>,
+		_window_id: u64,
+		parent_style: Option<ElementStyle>,
+	) -> Self {
 		Self { element, parent_style, text_child: None }
 	}
 
@@ -37,16 +38,12 @@ impl ReactTextElement {
 }
 
 impl Element for ReactTextElement {
-	type RequestLayoutState = TextLayoutState;
 	type PrepaintState = TextPrepaintState;
+	type RequestLayoutState = TextLayoutState;
 
-	fn id(&self) -> Option<ElementId> {
-		Some(ElementId::Integer(self.element.global_id))
-	}
+	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 
-	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-		None
-	}
+	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> { None }
 
 	fn request_layout(
 		&mut self,
@@ -78,10 +75,7 @@ impl Element for ReactTextElement {
 			let text_color = effective.text_color.unwrap_or(0xffffff);
 			let text_size = effective.text_size.unwrap_or(14.0);
 
-			let mut text_element = div()
-				.text_color(rgb(text_color))
-				.text_size(px(text_size))
-				.child(text);
+			let mut text_element = div().text_color(rgb(text_color)).text_size(px(text_size)).child(text);
 
 			// Apply font weight if specified
 			if let Some(weight) = effective.font_weight {
@@ -142,7 +136,5 @@ impl Element for ReactTextElement {
 impl IntoElement for ReactTextElement {
 	type Element = Self;
 
-	fn into_element(self) -> Self::Element {
-		self
-	}
+	fn into_element(self) -> Self::Element { self }
 }
