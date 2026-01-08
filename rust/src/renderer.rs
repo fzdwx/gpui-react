@@ -4,12 +4,26 @@ use gpui::{Application as GpuiApp, Entity, Render, Window, div, prelude::*, rgb}
 
 use crate::{element::create_element, global_state::GLOBAL_STATE, host_command};
 
+/// Event data structure for enhanced event information
+pub struct EventData {
+	pub client_x: Option<f32>,
+	pub client_y: Option<f32>,
+	pub button: Option<u8>,
+}
+
+impl Default for EventData {
+	fn default() -> Self {
+		Self { client_x: None, client_y: None, button: None }
+	}
+}
+
 /// Dispatch an event directly to JavaScript via the registered callback
+/// Now supports additional event data like mouse coordinates
 pub(crate) fn dispatch_event_to_js(
 	window_id: u64,
 	element_id: u64,
 	event_type: &str,
-	_event_data: Option<&serde_json::Value>,
+	event_data: Option<EventData>,
 ) {
 	use crate::get_event_callback;
 
@@ -28,11 +42,32 @@ pub(crate) fn dispatch_event_to_js(
 		event_type
 	);
 
-	let json_payload = serde_json::json!({
-		"windowId": window_id,
-		"elementId": element_id,
-		"eventType": event_type
-	});
+	// Build JSON payload with optional event data
+	let json_payload = if let Some(data) = event_data {
+		serde_json::json!({
+			"windowId": window_id,
+			"elementId": element_id,
+			"eventType": event_type,
+			"clientX": data.client_x,
+			"clientY": data.client_y,
+			"button": data.button,
+			"timestamp": std::time::SystemTime::now()
+				.duration_since(std::time::UNIX_EPOCH)
+				.map(|d| d.as_millis() as u64)
+				.unwrap_or(0)
+		})
+	} else {
+		serde_json::json!({
+			"windowId": window_id,
+			"elementId": element_id,
+			"eventType": event_type,
+			"timestamp": std::time::SystemTime::now()
+				.duration_since(std::time::UNIX_EPOCH)
+				.map(|d| d.as_millis() as u64)
+				.unwrap_or(0)
+		})
+	};
+
 	let json_str = json_payload.to_string();
 	let c_string = CString::new(json_str).unwrap();
 	let len = c_string.count_bytes();

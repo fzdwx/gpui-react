@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Bounds, ContentMask, DispatchPhase, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseUpEvent, Pixels, Style, Window, div, prelude::*, px, rgb};
+use gpui::{AnyElement, App, Bounds, DispatchPhase, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseUpEvent, Pixels, Style, Window, div, prelude::*, px, rgb};
 
 use super::{ElementStyle, ReactElement};
-use crate::renderer::dispatch_event_to_js;
+use crate::renderer::{EventData, dispatch_event_to_js};
 
 /// A React element that implements GPUI's Element trait directly
 pub struct ReactDivElement {
@@ -146,19 +146,15 @@ impl Element for ReactDivElement {
 
 		// Paint background and children
 		style.paint(bounds, window, cx, |window, cx| {
-			// Apply content mask for overflow clipping
-			if self.element.style.should_clip() {
-				let mask = ContentMask { bounds };
-				window.with_content_mask(Some(mask), |window| {
-					for child in &mut self.children {
-						child.paint(window, cx);
-					}
-				});
-			} else {
-				for child in &mut self.children {
-					child.paint(window, cx);
-				}
-			}
+			// Use shared helper for overflow clipping
+			super::paint_children_with_clip(
+				&mut self.children,
+				bounds,
+				self.element.style.should_clip(),
+				window,
+				cx,
+				|child, window, cx| child.paint(window, cx),
+			);
 		});
 
 		// Register click handler
@@ -172,12 +168,30 @@ impl Element for ReactDivElement {
 					&& event.button == MouseButton::Left
 					&& hitbox.is_hovered(window)
 				{
+					// Extract mouse position (convert Pixels to f32)
+					let position = event.position;
+					let client_x: f32 = position.x.into();
+					let client_y: f32 = position.y.into();
+
+					let event_data = EventData {
+						client_x: Some(client_x),
+						client_y: Some(client_y),
+						button: Some(match event.button {
+							MouseButton::Left => 0,
+							MouseButton::Right => 2,
+							MouseButton::Middle => 1,
+							MouseButton::Navigate(_) => 3,
+						}),
+					};
+
 					log::info!(
-						"[Rust] onClick triggered: window_id={}, element_id={}",
+						"[Rust] onClick triggered: window_id={}, element_id={}, position=({}, {})",
 						window_id,
-						element_id
+						element_id,
+						client_x,
+						client_y
 					);
-					dispatch_event_to_js(window_id, element_id, "onClick", None);
+					dispatch_event_to_js(window_id, element_id, "onClick", Some(event_data));
 				}
 			});
 		}

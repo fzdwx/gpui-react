@@ -11,10 +11,15 @@ command bus.
 
 ```
 rust/src/
-├── lib.rs              # FFI exports (gpui_init, gpui_trigger_render, gpui_batch_update_elements)
+├── lib.rs              # FFI exports (gpui_init, gpui_create_window, gpui_batch_update_elements)
 ├── ffi_helpers.rs      # FFI helper functions (ptr_to_u64, read_c_string, etc.)
-├── renderer.rs         # RootView, render_element_to_gpui (div/text/span/img)
-├── element.rs         # ReactElement, ElementStyle, ElementData structures
+├── renderer.rs         # RootView, render_element_to_gpui
+├── element/            # CSS-capable element implementations
+│   ├── mod.rs          # ElementKind, ReactElement, ElementStyle (CSS property structs)
+│   ├── div.rs          # ReactDivElement with full CSS support
+│   ├── span.rs         # ReactSpanElement with CSS support
+│   ├── text.rs         # ReactTextElement for text nodes
+│   └── img.rs          # ReactImgElement for images
 ├── host_command.rs     # async_channel command bus (TriggerRender, UpdateElement, BatchUpdateElements)
 ├── window.rs           # Window, WindowState, element tree management
 ├── global_state.rs     # Global state management (lazy_static)
@@ -26,12 +31,13 @@ rust/src/
 
 | Task               | File            | Notes                                                          |
 | ------------------ | --------------- | -------------------------------------------------------------- |
-| FFI exports        | lib.rs          | gpui_init, gpui_trigger_render, gpui_batch_update_elements     |
+| FFI exports        | lib.rs          | gpui_init, gpui_create_window, gpui_batch_update_elements      |
 | FFI helpers        | ffi_helpers.rs  | ptr_to_u64, read_c_string, validate_result_ptr                 |
 | GPUI rendering     | renderer.rs     | render_element_to_gpui (div/text/span/img)                     |
 | Command bus        | host_command.rs | HostCommand enum, handle_on_app_thread, send_host_command      |
 | Window             | window.rs       | Window, WindowState, render_element(), batch_update_elements() |
-| Element structures | element.rs      | ReactElement, ElementStyle, ChildElement                       |
+| Element structures | element/mod.rs  | ReactElement, ElementStyle, ElementKind enum                   |
+| CSS styling        | element/\*.rs   | Individual element implementations with CSS property mapping   |
 
 ## CONVENTIONS
 
@@ -46,6 +52,7 @@ rust/src/
 - **Window handle:** Window uses AnyWindowHandle for type-erased GPUI window reference
 - **Window ID tracking:** Window struct stores window_id for easier tracking
 - **FFI sync:** Call batchElementUpdates() in resetAfterCommit, then renderFrame()
+- **CSS caching:** ElementStyle.cached_gpui_style avoids recomputing every frame
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -67,3 +74,5 @@ rust/src/
     - FFI functions send HostCommand via send_host_command()
     - host_command.rs processes commands on app thread via handle_on_app_thread()
     - Window methods contain actual element processing logic
+- **CSS support:** ElementStyle struct maps CSS properties to GPUI Style (text_color, bg_color, margin, padding, flex,
+  etc.)

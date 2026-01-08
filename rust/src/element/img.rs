@@ -100,8 +100,8 @@ impl ReactImgElement {
 }
 
 impl Element for ReactImgElement {
-	type PrepaintState = ImgPrepaintState;
 	type RequestLayoutState = ImgLayoutState;
+	type PrepaintState = ImgPrepaintState;
 
 	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 

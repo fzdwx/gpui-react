@@ -10,15 +10,19 @@ mod renderer;
 mod window;
 
 use std::ffi::{CStr, CString, c_char, c_void};
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 use tokio::sync::oneshot;
 
 use crate::{ffi_helpers::{ptr_to_u64, read_c_string, read_opt_c_string, validate_result_ptr}, ffi_types::{FfiResult, WindowCreateResult, WindowOptions}, global_state::GLOBAL_STATE, host_command::{HostCommand, is_bus_ready, send_host_command}, renderer::start_gpui_thread};
 
-/// Global event callback pointer for routing events to JavaScript
-static mut EVENT_CALLBACK_PTR: Option<*mut c_void> = None;
+/// Global event callback pointer for routing events to JavaScript (thread-safe using AtomicPtr)
+static EVENT_CALLBACK: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 
-pub(crate) fn get_event_callback() -> Option<*mut c_void> { unsafe { EVENT_CALLBACK_PTR } }
+pub(crate) fn get_event_callback() -> Option<*mut c_void> {
+	let ptr = EVENT_CALLBACK.load(Ordering::Acquire);
+	if ptr.is_null() { None } else { Some(ptr) }
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_init(result: *mut FfiResult) {
@@ -155,14 +159,26 @@ pub extern "C" fn gpui_batch_update_elements(
 	unsafe {
 		let window_id = ptr_to_u64(window_id_ptr);
 		let _count = std::ptr::read_volatile(count_ptr) as u64;
-		let elements_json_str = CStr::from_ptr(elements_json_ptr)
-			.to_str()
-			.map_err(|e| format!("Invalid UTF-8 in elements JSON: {}", e))
-			.unwrap();
 
-		let elements_value: serde_json::Value = serde_json::from_str(&elements_json_str)
-			.map_err(|e| format!("Failed to parse elements JSON: {}", e))
-			.unwrap();
+		// Safe UTF-8 conversion with error handling
+		let elements_json_str = match CStr::from_ptr(elements_json_ptr).to_str() {
+			Ok(s) => s,
+			Err(e) => {
+				log::error!("Invalid UTF-8 in elements JSON: {}", e);
+				*result = FfiResult::error(&format!("Invalid UTF-8 in elements JSON: {}", e));
+				return;
+			}
+		};
+
+		// Safe JSON parsing with error handling
+		let elements_value: serde_json::Value = match serde_json::from_str(elements_json_str) {
+			Ok(v) => v,
+			Err(e) => {
+				log::error!("Failed to parse elements JSON: {}", e);
+				*result = FfiResult::error(&format!("Failed to parse elements JSON: {}", e));
+				return;
+			}
+		};
 
 		let _ = GLOBAL_STATE.get_window(window_id);
 
@@ -173,8 +189,25 @@ pub extern "C" fn gpui_batch_update_elements(
 	}
 }
 
+/// Free the memory allocated for FfiResult's error message
 #[unsafe(no_mangle)]
-pub extern "C" fn gpui_free_result(_result: FfiResult) {}
+pub extern "C" fn gpui_free_result(result: FfiResult) {
+	if !result.error_msg.is_null() {
+		unsafe {
+			let _ = CString::from_raw(result.error_msg);
+		}
+	}
+}
+
+/// Free the memory allocated for WindowCreateResult's error message
+#[unsafe(no_mangle)]
+pub extern "C" fn gpui_free_window_result(result: WindowCreateResult) {
+	if !result.error_msg.is_null() {
+		unsafe {
+			let _ = CString::from_raw(result.error_msg);
+		}
+	}
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_is_ready() -> bool { is_bus_ready() }
@@ -192,8 +225,6 @@ pub extern "C" fn gpui_free_event_string(ptr: *mut c_char) {
 /// Set the event callback for receiving events from Rust to JavaScript
 #[unsafe(no_mangle)]
 pub extern "C" fn set_event_callback(callback_ptr: *mut c_void) {
-	unsafe {
-		EVENT_CALLBACK_PTR = Some(callback_ptr);
-		log::info!("Event callback registered: {:p}", callback_ptr);
-	}
+	EVENT_CALLBACK.store(callback_ptr, Ordering::Release);
+	log::info!("Event callback registered: {:p}", callback_ptr);
 }

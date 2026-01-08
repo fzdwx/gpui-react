@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Bounds, ContentMask, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb};
+use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb};
 
 use super::{ElementStyle, ReactElement};
 
@@ -51,8 +51,8 @@ impl ReactSpanElement {
 }
 
 impl Element for ReactSpanElement {
-	type PrepaintState = SpanPrepaintState;
 	type RequestLayoutState = SpanLayoutState;
+	type PrepaintState = SpanPrepaintState;
 
 	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 
@@ -128,19 +128,15 @@ impl Element for ReactSpanElement {
 
 		// Paint background and children
 		style.paint(bounds, window, cx, |window, cx| {
-			// Apply content mask for overflow clipping
-			if self.element.style.should_clip() {
-				let mask = ContentMask { bounds };
-				window.with_content_mask(Some(mask), |window| {
-					for child in &mut self.children {
-						child.paint(window, cx);
-					}
-				});
-			} else {
-				for child in &mut self.children {
-					child.paint(window, cx);
-				}
-			}
+			// Use shared helper for overflow clipping
+			super::paint_children_with_clip(
+				&mut self.children,
+				bounds,
+				self.element.style.should_clip(),
+				window,
+				cx,
+				|child, window, cx| child.paint(window, cx),
+			);
 		});
 	}
 }

@@ -38,8 +38,8 @@ impl ReactTextElement {
 }
 
 impl Element for ReactTextElement {
-	type PrepaintState = TextPrepaintState;
 	type RequestLayoutState = TextLayoutState;
+	type PrepaintState = TextPrepaintState;
 
 	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 

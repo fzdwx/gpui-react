@@ -283,16 +283,29 @@ impl ElementStyle {
 	/// span uses None)
 	pub fn build_gpui_style(&self, default_bg: Option<u32>) -> Style {
 		let mut style = Style::default();
-		let es = self;
 
-		// === Display and Flex ===
-		if es.display.as_ref().map(|s| s.as_str()) == Some("flex") {
+		self.apply_display_flex(&mut style);
+		self.apply_positioning(&mut style);
+		self.apply_sizing(&mut style);
+		self.apply_spacing(&mut style);
+		self.apply_overflow(&mut style);
+		self.apply_borders(&mut style);
+		self.apply_box_shadow(&mut style);
+		self.apply_visual_effects(&mut style, default_bg);
+
+		style
+	}
+
+	/// Apply display and flexbox properties
+	fn apply_display_flex(&self, style: &mut Style) {
+		// Display and flex
+		if self.display.as_ref().map(|s| s.as_str()) == Some("flex") {
 			style.display = gpui::Display::Flex;
 			style.flex_direction = FlexDirection::Row;
 		}
 
 		// Flex direction
-		match es.flex_direction.as_ref().map(|s| s.as_str()) {
+		match self.flex_direction.as_ref().map(|s| s.as_str()) {
 			Some("row") => style.flex_direction = FlexDirection::Row,
 			Some("row-reverse") => style.flex_direction = FlexDirection::RowReverse,
 			Some("column") => style.flex_direction = FlexDirection::Column,
@@ -301,7 +314,7 @@ impl ElementStyle {
 		}
 
 		// Flex wrap
-		match es.flex_wrap.as_ref().map(|s| s.as_str()) {
+		match self.flex_wrap.as_ref().map(|s| s.as_str()) {
 			Some("wrap") => style.flex_wrap = FlexWrap::Wrap,
 			Some("wrap-reverse") => style.flex_wrap = FlexWrap::WrapReverse,
 			Some("nowrap") => style.flex_wrap = FlexWrap::NoWrap,
@@ -309,20 +322,20 @@ impl ElementStyle {
 		}
 
 		// Flex grow/shrink/basis
-		if let Some(grow) = es.flex_grow {
+		if let Some(grow) = self.flex_grow {
 			style.flex_grow = grow;
 		}
-		if let Some(shrink) = es.flex_shrink {
+		if let Some(shrink) = self.flex_shrink {
 			style.flex_shrink = shrink;
 		}
-		if let Some(basis) = es.flex_basis {
+		if let Some(basis) = self.flex_basis {
 			style.flex_basis = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(basis)),
 			));
 		}
 
 		// Justify content
-		match es.justify_content.as_ref().map(|s| s.as_str()) {
+		match self.justify_content.as_ref().map(|s| s.as_str()) {
 			Some("flex-start") => style.justify_content = Some(JustifyContent::FlexStart),
 			Some("center") => style.justify_content = Some(JustifyContent::Center),
 			Some("flex-end") => style.justify_content = Some(JustifyContent::FlexEnd),
@@ -333,7 +346,7 @@ impl ElementStyle {
 		}
 
 		// Align items
-		match es.align_items.as_ref().map(|s| s.as_str()) {
+		match self.align_items.as_ref().map(|s| s.as_str()) {
 			Some("flex-start") => style.align_items = Some(AlignItems::FlexStart),
 			Some("center") => style.align_items = Some(AlignItems::Center),
 			Some("flex-end") => style.align_items = Some(AlignItems::FlexEnd),
@@ -343,7 +356,7 @@ impl ElementStyle {
 		}
 
 		// Align self
-		match es.align_self.as_ref().map(|s| s.as_str()) {
+		match self.align_self.as_ref().map(|s| s.as_str()) {
 			Some("flex-start") => style.align_self = Some(AlignSelf::FlexStart),
 			Some("center") => style.align_self = Some(AlignSelf::Center),
 			Some("flex-end") => style.align_self = Some(AlignSelf::FlexEnd),
@@ -353,7 +366,7 @@ impl ElementStyle {
 		}
 
 		// Align content
-		match es.align_content.as_ref().map(|s| s.as_str()) {
+		match self.align_content.as_ref().map(|s| s.as_str()) {
 			Some("flex-start") => style.align_content = Some(AlignContent::FlexStart),
 			Some("center") => style.align_content = Some(AlignContent::Center),
 			Some("flex-end") => style.align_content = Some(AlignContent::FlexEnd),
@@ -362,113 +375,136 @@ impl ElementStyle {
 			Some("stretch") => style.align_content = Some(AlignContent::Stretch),
 			_ => {}
 		}
+	}
 
-		// === Position ===
-		match es.position.as_ref().map(|s| s.as_str()) {
+	/// Apply position and inset properties
+	fn apply_positioning(&self, style: &mut Style) {
+		// Position type
+		match self.position.as_ref().map(|s| s.as_str()) {
 			Some("absolute") => style.position = Position::Absolute,
 			Some("relative") => style.position = Position::Relative,
 			_ => {}
 		}
 
 		// Inset (top, right, bottom, left)
-		if let Some(top) = es.top {
+		if let Some(top) = self.top {
 			style.inset.top = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(top)),
 			));
 		}
-		if let Some(right) = es.right {
+		if let Some(right) = self.right {
 			style.inset.right = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(right)),
 			));
 		}
-		if let Some(bottom) = es.bottom {
+		if let Some(bottom) = self.bottom {
 			style.inset.bottom = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(bottom)),
 			));
 		}
-		if let Some(left) = es.left {
+		if let Some(left) = self.left {
 			style.inset.left = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(left)),
 			));
 		}
+	}
 
-		// === Size ===
-		if let Some(width) = es.width {
+	/// Apply width, height, and size constraints
+	fn apply_sizing(&self, style: &mut Style) {
+		// Size
+		if let Some(width) = self.width {
 			style.size.width = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(width)),
 			));
 		}
-		if let Some(height) = es.height {
+		if let Some(height) = self.height {
 			style.size.height = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(height)),
 			));
 		}
 
 		// Min/max size
-		if let Some(min_w) = es.min_width {
+		if let Some(min_w) = self.min_width {
 			style.min_size.width = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(min_w)),
 			));
 		}
-		if let Some(max_w) = es.max_width {
+		if let Some(max_w) = self.max_width {
 			style.max_size.width = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(max_w)),
 			));
 		}
-		if let Some(min_h) = es.min_height {
+		if let Some(min_h) = self.min_height {
 			style.min_size.height = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(min_h)),
 			));
 		}
-		if let Some(max_h) = es.max_height {
+		if let Some(max_h) = self.max_height {
 			style.max_size.height = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(max_h)),
 			));
 		}
 
 		// Aspect ratio
-		if let Some(ratio) = es.aspect_ratio {
+		if let Some(ratio) = self.aspect_ratio {
 			style.aspect_ratio = Some(ratio);
 		}
+	}
 
-		// === Padding ===
-		if let Some(pt) = es.padding_top {
+	/// Apply padding, margin, and gap properties
+	fn apply_spacing(&self, style: &mut Style) {
+		// Padding
+		if let Some(pt) = self.padding_top {
 			style.padding.top = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pt)));
 		}
-		if let Some(pr) = es.padding_right {
+		if let Some(pr) = self.padding_right {
 			style.padding.right = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pr)));
 		}
-		if let Some(pb) = es.padding_bottom {
+		if let Some(pb) = self.padding_bottom {
 			style.padding.bottom = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pb)));
 		}
-		if let Some(pl) = es.padding_left {
+		if let Some(pl) = self.padding_left {
 			style.padding.left = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(pl)));
 		}
 
-		// === Margin ===
-		if let Some(mt) = es.margin_top {
+		// Margin
+		if let Some(mt) = self.margin_top {
 			style.margin.top = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(mt)),
 			));
 		}
-		if let Some(mr) = es.margin_right {
+		if let Some(mr) = self.margin_right {
 			style.margin.right = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(mr)),
 			));
 		}
-		if let Some(mb) = es.margin_bottom {
+		if let Some(mb) = self.margin_bottom {
 			style.margin.bottom = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(mb)),
 			));
 		}
-		if let Some(ml) = es.margin_left {
+		if let Some(ml) = self.margin_left {
 			style.margin.left = gpui::Length::Definite(gpui::DefiniteLength::Absolute(
 				gpui::AbsoluteLength::Pixels(px(ml)),
 			));
 		}
 
-		// === Overflow ===
-		if let Some(ref ox) = es.overflow_x {
+		// Gap
+		if let Some(gap) = self.gap {
+			style.gap.width = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
+			style.gap.height = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
+		}
+		if let Some(row_gap) = self.row_gap {
+			style.gap.height = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(row_gap)));
+		}
+		if let Some(col_gap) = self.column_gap {
+			style.gap.width = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(col_gap)));
+		}
+	}
+
+	/// Apply overflow properties
+	fn apply_overflow(&self, style: &mut Style) {
+		if let Some(ref ox) = self.overflow_x {
 			style.overflow.x = match ox.as_str() {
 				"hidden" => Overflow::Hidden,
 				"scroll" => Overflow::Scroll,
@@ -476,7 +512,7 @@ impl ElementStyle {
 				_ => Overflow::Visible,
 			};
 		}
-		if let Some(ref oy) = es.overflow_y {
+		if let Some(ref oy) = self.overflow_y {
 			style.overflow.y = match oy.as_str() {
 				"hidden" => Overflow::Hidden,
 				"scroll" => Overflow::Scroll,
@@ -484,60 +520,53 @@ impl ElementStyle {
 				_ => Overflow::Visible,
 			};
 		}
+	}
 
-		// === Gap ===
-		if let Some(gap) = es.gap {
-			style.gap.width = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
-			style.gap.height = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(gap)));
-		}
-		if let Some(row_gap) = es.row_gap {
-			style.gap.height = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(row_gap)));
-		}
-		if let Some(col_gap) = es.column_gap {
-			style.gap.width = gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(px(col_gap)));
-		}
-
-		// === Border ===
-		if let Some(w) = es.border_top_width {
+	/// Apply border width, color, and radius properties
+	fn apply_borders(&self, style: &mut Style) {
+		// Border widths
+		if let Some(w) = self.border_top_width {
 			style.border_widths.top = gpui::AbsoluteLength::Pixels(px(w));
 		}
-		if let Some(w) = es.border_right_width {
+		if let Some(w) = self.border_right_width {
 			style.border_widths.right = gpui::AbsoluteLength::Pixels(px(w));
 		}
-		if let Some(w) = es.border_bottom_width {
+		if let Some(w) = self.border_bottom_width {
 			style.border_widths.bottom = gpui::AbsoluteLength::Pixels(px(w));
 		}
-		if let Some(w) = es.border_left_width {
+		if let Some(w) = self.border_left_width {
 			style.border_widths.left = gpui::AbsoluteLength::Pixels(px(w));
 		}
 
 		// Border color
-		let border_color = es.border_color.map(|c| rgb(c).into());
+		let border_color = self.border_color.map(|c| rgb(c).into());
 		if border_color.is_some()
-			|| es.border_top_width.is_some()
-			|| es.border_right_width.is_some()
-			|| es.border_bottom_width.is_some()
-			|| es.border_left_width.is_some()
+			|| self.border_top_width.is_some()
+			|| self.border_right_width.is_some()
+			|| self.border_bottom_width.is_some()
+			|| self.border_left_width.is_some()
 		{
 			style.border_color = border_color.or(Some(rgb(0x808080).into()));
 		}
 
 		// Border radius
-		if let Some(radius) = es.border_radius {
+		if let Some(radius) = self.border_radius {
 			let r = gpui::AbsoluteLength::Pixels(px(radius));
 			style.corner_radii.top_left = r;
 			style.corner_radii.top_right = r;
 			style.corner_radii.bottom_left = r;
 			style.corner_radii.bottom_right = r;
 		}
+	}
 
-		// === Box Shadow ===
-		if es.box_shadow_color.is_some()
-			|| es.box_shadow_blur.is_some()
-			|| es.box_shadow_offset_x.is_some()
-			|| es.box_shadow_offset_y.is_some()
+	/// Apply box shadow properties
+	fn apply_box_shadow(&self, style: &mut Style) {
+		if self.box_shadow_color.is_some()
+			|| self.box_shadow_blur.is_some()
+			|| self.box_shadow_offset_x.is_some()
+			|| self.box_shadow_offset_y.is_some()
 		{
-			let color = es.box_shadow_color.unwrap_or(0x000000);
+			let color = self.box_shadow_color.unwrap_or(0x000000);
 			let (r, g, b) = ((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff);
 			style.box_shadow = vec![BoxShadow {
 				color:         Hsla::from(Rgba {
@@ -547,33 +576,62 @@ impl ElementStyle {
 					a: 0.5,
 				}),
 				offset:        point(
-					px(es.box_shadow_offset_x.unwrap_or(0.0)),
-					px(es.box_shadow_offset_y.unwrap_or(0.0)),
+					px(self.box_shadow_offset_x.unwrap_or(0.0)),
+					px(self.box_shadow_offset_y.unwrap_or(0.0)),
 				),
-				blur_radius:   px(es.box_shadow_blur.unwrap_or(0.0)),
-				spread_radius: px(es.box_shadow_spread.unwrap_or(0.0)),
+				blur_radius:   px(self.box_shadow_blur.unwrap_or(0.0)),
+				spread_radius: px(self.box_shadow_spread.unwrap_or(0.0)),
 			}];
 		}
+	}
 
-		// === Background ===
-		if let Some(bg) = es.bg_color {
+	/// Apply background, opacity, and other visual effects
+	fn apply_visual_effects(&self, style: &mut Style, default_bg: Option<u32>) {
+		// Background
+		if let Some(bg) = self.bg_color {
 			style.background = Some(Fill::Color(rgb(bg).into()));
 		} else if let Some(default) = default_bg {
 			style.background = Some(Fill::Color(rgb(default).into()));
 		}
 
-		// === Opacity ===
-		if let Some(opacity) = es.opacity {
+		// Opacity
+		if let Some(opacity) = self.opacity {
 			style.opacity = Some(opacity);
 		}
-
-		style
 	}
 
 	/// Check if overflow clipping should be applied
 	pub fn should_clip(&self) -> bool {
 		matches!(self.overflow_x.as_ref().map(|s| s.as_str()), Some("hidden") | Some("clip"))
 			|| matches!(self.overflow_y.as_ref().map(|s| s.as_str()), Some("hidden") | Some("clip"))
+	}
+}
+
+/// Paint children with optional overflow clipping
+/// This helper function reduces code duplication across element types
+pub fn paint_children_with_clip<F>(
+	children: &mut [AnyElement],
+	bounds: gpui::Bounds<gpui::Pixels>,
+	should_clip: bool,
+	window: &mut gpui::Window,
+	cx: &mut gpui::App,
+	mut paint_child: F,
+) where
+	F: FnMut(&mut AnyElement, &mut gpui::Window, &mut gpui::App),
+{
+	use gpui::ContentMask;
+
+	if should_clip {
+		let mask = ContentMask { bounds };
+		window.with_content_mask(Some(mask), |window| {
+			for child in children.iter_mut() {
+				paint_child(child, window, cx);
+			}
+		});
+	} else {
+		for child in children.iter_mut() {
+			paint_child(child, window, cx);
+		}
 	}
 }
 
