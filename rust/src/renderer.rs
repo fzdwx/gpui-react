@@ -8,13 +8,11 @@ use crate::{element::create_element, global_state::GLOBAL_STATE, host_command};
 pub struct EventData {
 	pub client_x: Option<f32>,
 	pub client_y: Option<f32>,
-	pub button: Option<u8>,
+	pub button:   Option<u8>,
 }
 
 impl Default for EventData {
-	fn default() -> Self {
-		Self { client_x: None, client_y: None, button: None }
-	}
+	fn default() -> Self { Self { client_x: None, client_y: None, button: None } }
 }
 
 /// Dispatch an event directly to JavaScript via the registered callback

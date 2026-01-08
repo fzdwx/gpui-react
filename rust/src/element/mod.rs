@@ -39,7 +39,7 @@ impl ElementKind {
 pub struct ReactElement {
 	pub global_id:         u64,
 	pub element_type:      String,
-	pub element_kind:      ElementKind,  // Pre-computed for fast dispatch
+	pub element_kind:      ElementKind, // Pre-computed for fast dispatch
 	pub text:              Option<String>,
 	pub children:          Vec<Arc<ReactElement>>,
 	pub style:             ElementStyle,

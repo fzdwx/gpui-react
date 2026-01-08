@@ -48,8 +48,8 @@ impl ReactDivElement {
 }
 
 impl Element for ReactDivElement {
-	type RequestLayoutState = DivLayoutState;
 	type PrepaintState = DivPrepaintState;
+	type RequestLayoutState = DivLayoutState;
 
 	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 
@@ -176,7 +176,7 @@ impl Element for ReactDivElement {
 					let event_data = EventData {
 						client_x: Some(client_x),
 						client_y: Some(client_y),
-						button: Some(match event.button {
+						button:   Some(match event.button {
 							MouseButton::Left => 0,
 							MouseButton::Right => 2,
 							MouseButton::Middle => 1,

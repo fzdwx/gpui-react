@@ -135,7 +135,9 @@ export const EVENT_TYPE_TO_PROP: Record<keyof GPUIEventMap, keyof GPUIEventHandl
 /**
  * List of all supported event prop names
  */
-export const SUPPORTED_EVENT_PROPS = Object.keys(EVENT_PROP_TO_TYPE) as (keyof GPUIEventHandlerProps)[];
+export const SUPPORTED_EVENT_PROPS = Object.keys(
+    EVENT_PROP_TO_TYPE
+) as (keyof GPUIEventHandlerProps)[];
 
 /**
  * Check if a prop name is an event handler prop

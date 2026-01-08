@@ -4,14 +4,8 @@
  * Supports event capture/bubble phases, memory management, and type-safe handlers
  */
 
-import type {
-    GPUIEvent,
-    AnyGPUIEventHandler,
-} from "./types";
-import {
-    GPUIBaseEvent,
-    MutableGPUIEvent,
-} from "./base";
+import type { GPUIEvent, AnyGPUIEventHandler } from "./types";
+import { GPUIBaseEvent, MutableGPUIEvent } from "./base";
 
 /** Handler registration options */
 export interface HandlerOptions {
@@ -62,10 +56,7 @@ export class EventRouter {
     /**
      * Register an event handler and return its ID
      */
-    registerHandler(
-        handler: AnyGPUIEventHandler,
-        options: HandlerOptions = {}
-    ): number {
+    registerHandler(handler: AnyGPUIEventHandler, options: HandlerOptions = {}): number {
         const id = this.nextHandlerId++;
         this.handlerStore.set(id, {
             handler,
@@ -212,11 +203,7 @@ export class EventRouter {
     /**
      * Get handlers for an element and event type
      */
-    getHandlers(
-        elementId: number,
-        eventType: string,
-        capturePhase: boolean
-    ): HandlerEntry[] {
+    getHandlers(elementId: number, eventType: string, capturePhase: boolean): HandlerEntry[] {
         const elementData = this.elementStore.get(elementId);
         if (!elementData) return [];
 
@@ -295,9 +282,15 @@ export class EventRouter {
                 if (entry.once) {
                     const handlerIds = this.elementStore.get(elementId)?.handlers.get(type);
                     if (handlerIds) {
-                        const idx = handlerIds.findIndex(id => this.handlerStore.get(id) === entry);
+                        const idx = handlerIds.findIndex(
+                            (id) => this.handlerStore.get(id) === entry
+                        );
                         if (idx !== -1) {
-                            handlersToRemove.push({ elementId, eventType: type, handlerId: handlerIds[idx] });
+                            handlersToRemove.push({
+                                elementId,
+                                eventType: type,
+                                handlerId: handlerIds[idx],
+                            });
                         }
                     }
                 }
@@ -321,9 +314,15 @@ export class EventRouter {
                 if (entry.once) {
                     const handlerIds = this.elementStore.get(targetId)?.handlers.get(type);
                     if (handlerIds) {
-                        const idx = handlerIds.findIndex(id => this.handlerStore.get(id) === entry);
+                        const idx = handlerIds.findIndex(
+                            (id) => this.handlerStore.get(id) === entry
+                        );
                         if (idx !== -1) {
-                            handlersToRemove.push({ elementId: targetId, eventType: type, handlerId: handlerIds[idx] });
+                            handlersToRemove.push({
+                                elementId: targetId,
+                                eventType: type,
+                                handlerId: handlerIds[idx],
+                            });
                         }
                     }
                 }
@@ -344,9 +343,15 @@ export class EventRouter {
                     if (entry.once) {
                         const handlerIds = this.elementStore.get(elementId)?.handlers.get(type);
                         if (handlerIds) {
-                            const idx = handlerIds.findIndex(id => this.handlerStore.get(id) === entry);
+                            const idx = handlerIds.findIndex(
+                                (id) => this.handlerStore.get(id) === entry
+                            );
                             if (idx !== -1) {
-                                handlersToRemove.push({ elementId, eventType: type, handlerId: handlerIds[idx] });
+                                handlersToRemove.push({
+                                    elementId,
+                                    eventType: type,
+                                    handlerId: handlerIds[idx],
+                                });
                             }
                         }
                     }

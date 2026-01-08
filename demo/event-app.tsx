@@ -1,8 +1,7 @@
-import React, {useState, useEffect} from "react";
-
+import React, { useState, useEffect } from "react";
 
 export function EventApp() {
-    const [count, setCount] = useState(0)
+    const [count, setCount] = useState(0);
 
     return (
         <div

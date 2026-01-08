@@ -51,8 +51,8 @@ impl ReactSpanElement {
 }
 
 impl Element for ReactSpanElement {
-	type RequestLayoutState = SpanLayoutState;
 	type PrepaintState = SpanPrepaintState;
+	type RequestLayoutState = SpanLayoutState;
 
 	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 

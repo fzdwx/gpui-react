@@ -9,14 +9,14 @@ mod logging;
 mod renderer;
 mod window;
 
-use std::ffi::{CStr, CString, c_char, c_void};
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::{ffi::{CStr, CString, c_char, c_void}, sync::atomic::{AtomicPtr, Ordering}};
 
 use tokio::sync::oneshot;
 
 use crate::{ffi_helpers::{ptr_to_u64, read_c_string, read_opt_c_string, validate_result_ptr}, ffi_types::{FfiResult, WindowCreateResult, WindowOptions}, global_state::GLOBAL_STATE, host_command::{HostCommand, is_bus_ready, send_host_command}, renderer::start_gpui_thread};
 
-/// Global event callback pointer for routing events to JavaScript (thread-safe using AtomicPtr)
+/// Global event callback pointer for routing events to JavaScript (thread-safe
+/// using AtomicPtr)
 static EVENT_CALLBACK: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 
 pub(crate) fn get_event_callback() -> Option<*mut c_void> {

@@ -3,11 +3,7 @@
  * Creates properly typed GPUI events from raw Rust event data
  */
 
-import {
-    EventPhase,
-    ModifierKeys,
-    createEventMethods,
-} from "./base";
+import { EventPhase, ModifierKeys, createEventMethods } from "./base";
 import { GPUIMouseEvent, MouseEventType, MouseButton } from "./mouse";
 import { GPUIKeyboardEvent, KeyboardEventType } from "./keyboard";
 import { GPUIFocusEvent, FocusEventType } from "./focus";
@@ -65,8 +61,12 @@ export function createEvent(raw: RawEventData): GPUIEvent {
         windowId: raw.windowId,
         timestamp: Date.now(),
         phase: "target" as EventPhase,
-        get propagationStopped() { return methods.propagationStopped; },
-        get defaultPrevented() { return methods.defaultPrevented; },
+        get propagationStopped() {
+            return methods.propagationStopped;
+        },
+        get defaultPrevented() {
+            return methods.defaultPrevented;
+        },
         stopPropagation: methods.stopPropagation,
         preventDefault: methods.preventDefault,
     };
@@ -151,8 +151,14 @@ export function createEvent(raw: RawEventData): GPUIEvent {
 // Type guards for event types
 function isMouseEventType(type: string): type is MouseEventType {
     return [
-        "click", "dblclick", "mousedown", "mouseup",
-        "mousemove", "mouseenter", "mouseleave", "hover"
+        "click",
+        "dblclick",
+        "mousedown",
+        "mouseup",
+        "mousemove",
+        "mouseenter",
+        "mouseleave",
+        "hover",
     ].includes(type);
 }
 
