@@ -155,7 +155,10 @@ impl Element for ReactImgElement {
 		}
 
 		// Check event handlers and insert hitbox if needed
-		let event_flags = EventHandlerFlags::from_handlers(self.element.event_handlers.as_ref());
+		let event_flags = EventHandlerFlags::from_handlers(
+			self.element.event_handlers.as_ref(),
+			self.element.style.tab_index,
+		);
 		let hitbox = insert_hitbox_if_needed(&event_flags, bounds, window);
 
 		ImgPrepaintState { hitbox, event_flags }

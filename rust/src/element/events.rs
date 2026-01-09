@@ -9,8 +9,11 @@ use gpui::{
 };
 
 use crate::event_types::{props, types};
+use crate::focus;
+use crate::hover::get_hover_state;
 use crate::renderer::{
-	EventData, KeyboardEventData, MouseEventData, ScrollEventData, dispatch_event_to_js,
+	EventData, FocusEventData, KeyboardEventData, MouseEventData, ScrollEventData,
+	dispatch_event_to_js,
 };
 
 /// Flags indicating which event handlers are registered
@@ -25,15 +28,17 @@ pub struct EventHandlerFlags {
 	pub has_key_up: bool,
 	pub has_scroll: bool,
 	pub has_wheel: bool,
+	pub has_focus: bool,
+	pub has_blur: bool,
+	/// Tab index for focus management (-1 = programmatic only, 0+ = tab order)
+	pub tab_index: Option<i32>,
 }
 
 impl EventHandlerFlags {
-	/// Create flags from event_handlers JSON value
-	pub fn from_handlers(event_handlers: Option<&serde_json::Value>) -> Self {
+	/// Create flags from event_handlers JSON value and tab_index
+	pub fn from_handlers(event_handlers: Option<&serde_json::Value>, tab_index: Option<i32>) -> Self {
 		let has = |prop: &str| -> bool {
-			event_handlers
-				.and_then(|v| v.get(prop))
-				.is_some()
+			event_handlers.and_then(|v| v.get(prop)).is_some()
 		};
 
 		Self {
@@ -47,6 +52,9 @@ impl EventHandlerFlags {
 			has_key_up: has(props::ON_KEY_UP),
 			has_scroll: has(props::ON_SCROLL),
 			has_wheel: has(props::ON_WHEEL),
+			has_focus: has(props::ON_FOCUS),
+			has_blur: has(props::ON_BLUR),
+			tab_index,
 		}
 	}
 
@@ -67,12 +75,22 @@ impl EventHandlerFlags {
 
 	/// Check if any handler requires a hitbox
 	pub fn needs_hitbox(&self) -> bool {
-		self.has_any_mouse_handler() || self.has_any_scroll_handler()
+		self.has_any_mouse_handler() || self.has_any_scroll_handler() || self.is_focusable()
 	}
 
 	/// Check if any keyboard handler is registered
 	pub fn has_any_keyboard_handler(&self) -> bool {
 		self.has_key_down || self.has_key_up
+	}
+
+	/// Check if element is focusable (has tabIndex)
+	pub fn is_focusable(&self) -> bool {
+		self.tab_index.is_some()
+	}
+
+	/// Check if focus-related event handlers or attributes are present
+	pub fn needs_focus_handling(&self) -> bool {
+		self.is_focusable() || self.has_any_keyboard_handler() || self.has_focus || self.has_blur
 	}
 }
 
@@ -97,14 +115,27 @@ pub fn register_event_handlers(
 	element_id: u64,
 	window: &mut Window,
 ) {
+	// Register tab index for focus management
+	if let Some(tab_index) = flags.tab_index {
+		focus::register_tab_index(window_id, element_id, tab_index);
+	}
+
 	// Register mouse event handlers (require hitbox)
 	if let Some(hitbox) = hitbox {
 		register_mouse_handlers(flags, hitbox, window_id, element_id, window);
 		register_scroll_handlers(flags, hitbox, window_id, element_id, window);
+		register_hover_handlers(flags, hitbox, window_id, element_id, window);
+
+		// Register focus-on-click for focusable elements
+		if flags.is_focusable() {
+			register_focus_on_click(flags, hitbox, window_id, element_id, window);
+		}
 	}
 
-	// Register keyboard event handlers (no hitbox needed)
-	register_keyboard_handlers(flags, window_id, element_id, window);
+	// Register keyboard event handlers (only for focusable elements or elements with keyboard handlers)
+	if flags.needs_focus_handling() {
+		register_keyboard_handlers(flags, window_id, element_id, window);
+	}
 }
 
 /// Register mouse event handlers
@@ -203,11 +234,137 @@ fn register_mouse_handlers(
 			}
 		});
 	}
+}
 
-	// TODO: MouseEnter/MouseLeave require tracking hover state changes
+/// Register hover event handlers (mouseenter/mouseleave)
+fn register_hover_handlers(
+	flags: &EventHandlerFlags,
+	hitbox: &Hitbox,
+	window_id: u64,
+	element_id: u64,
+	window: &mut Window,
+) {
+	let has_mouse_enter = flags.has_mouse_enter;
+	let has_mouse_leave = flags.has_mouse_leave;
+
+	if !has_mouse_enter && !has_mouse_leave {
+		return;
+	}
+
+	let hitbox = hitbox.clone();
+
+	// Use MouseMove event to track hover state changes
+	window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, _cx| {
+		if phase != DispatchPhase::Bubble {
+			return;
+		}
+
+		let is_hovered = hitbox.is_hovered(window);
+		let hover_state = get_hover_state();
+
+		// Lock and check/update hover state
+		if let Ok(mut state) = hover_state.lock() {
+			let was_hovered = state.is_hovered(element_id);
+
+			if is_hovered && !was_hovered {
+				// Mouse entered
+				state.set_hovered(element_id);
+				if has_mouse_enter {
+					let position = event.position;
+					let event_data = EventData::Mouse(MouseEventData {
+						client_x: position.x.into(),
+						client_y: position.y.into(),
+						button: 0,
+					});
+					log::debug!(
+						"[Rust] onMouseEnter: window_id={}, element_id={}",
+						window_id, element_id
+					);
+					dispatch_event_to_js(window_id, element_id, types::MOUSEENTER, event_data);
+				}
+			} else if !is_hovered && was_hovered {
+				// Mouse left
+				state.set_not_hovered(element_id);
+				if has_mouse_leave {
+					let position = event.position;
+					let event_data = EventData::Mouse(MouseEventData {
+						client_x: position.x.into(),
+						client_y: position.y.into(),
+						button: 0,
+					});
+					log::debug!(
+						"[Rust] onMouseLeave: window_id={}, element_id={}",
+						window_id, element_id
+					);
+					dispatch_event_to_js(window_id, element_id, types::MOUSELEAVE, event_data);
+				}
+			}
+		}
+	});
+}
+
+/// Register focus-on-click handler for focusable elements
+fn register_focus_on_click(
+	flags: &EventHandlerFlags,
+	hitbox: &Hitbox,
+	window_id: u64,
+	element_id: u64,
+	window: &mut Window,
+) {
+	let hitbox = hitbox.clone();
+	let has_focus = flags.has_focus;
+	let has_blur = flags.has_blur;
+
+	window.on_mouse_event(move |_event: &MouseDownEvent, phase, window, _cx| {
+		if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
+			// Set focus to this element
+			let (blur_id, focus_id) = focus::set_focus(window_id, element_id);
+
+			// Dispatch blur event to previously focused element
+			if let Some(blur_element_id) = blur_id {
+				if blur_element_id != element_id {
+					log::debug!(
+						"[Rust] onBlur: window_id={}, element_id={}",
+						window_id, blur_element_id
+					);
+					dispatch_event_to_js(
+						window_id,
+						blur_element_id,
+						types::BLUR,
+						EventData::Focus(FocusEventData {
+							related_target: Some(element_id),
+						}),
+					);
+				}
+			}
+
+			// Dispatch focus event to this element
+			if let Some(focus_element_id) = focus_id {
+				if has_focus && (blur_id.is_none() || blur_id != Some(element_id)) {
+					log::debug!(
+						"[Rust] onFocus: window_id={}, element_id={}",
+						window_id, focus_element_id
+					);
+					dispatch_event_to_js(
+						window_id,
+						focus_element_id,
+						types::FOCUS,
+						EventData::Focus(FocusEventData {
+							related_target: blur_id,
+						}),
+					);
+				}
+			}
+
+			// Suppress unused variable warning
+			let _ = has_blur;
+		}
+	});
 }
 
 /// Register keyboard event handlers
+/// Keyboard events are only dispatched to the currently focused element
+/// Tab navigation is always enabled for focusable elements
 fn register_keyboard_handlers(
 	flags: &EventHandlerFlags,
 	window_id: u64,
@@ -216,39 +373,101 @@ fn register_keyboard_handlers(
 ) {
 	let has_key_down = flags.has_key_down;
 	let has_key_up = flags.has_key_up;
+	let is_focusable = flags.is_focusable();
 
-	if !has_key_down && !has_key_up {
+	// Skip if no keyboard handling needed
+	if !has_key_down && !has_key_up && !is_focusable {
 		return;
 	}
 
-	// KeyDown handler
-	if has_key_down {
+	// KeyDown handler - handles Tab navigation and keydown events
+	// Register if element is focusable OR has keydown handler
+	if is_focusable || has_key_down {
 		window.on_key_event(move |event: &KeyDownEvent, phase, _window, _cx| {
 			if phase == DispatchPhase::Bubble {
-				let keystroke = &event.keystroke;
-				let event_data = EventData::Keyboard(KeyboardEventData {
-					key: keystroke.key.clone(),
-					code: keystroke.key.clone(),
-					repeat: false,
-					ctrl: keystroke.modifiers.control,
-					shift: keystroke.modifiers.shift,
-					alt: keystroke.modifiers.alt,
-					meta: keystroke.modifiers.platform,
-				});
+				// Check if this element is currently focused
+				if !focus::is_focused(window_id, element_id) {
+					return;
+				}
 
-				log::debug!(
-					"[Rust] onKeyDown: window_id={}, element_id={}, key={}",
-					window_id, element_id, keystroke.key
-				);
-				dispatch_event_to_js(window_id, element_id, types::KEYDOWN, event_data);
+				let keystroke = &event.keystroke;
+
+				// Handle Tab key for focus navigation (always for focusable elements)
+				if keystroke.key == "tab" {
+					log::debug!(
+						"[Rust] Tab key pressed on element {}, shift={}",
+						element_id, keystroke.modifiers.shift
+					);
+
+					let (blur_id, focus_id) = if keystroke.modifiers.shift {
+						focus::focus_prev(window_id)
+					} else {
+						focus::focus_next(window_id)
+					};
+
+					log::debug!(
+						"[Rust] Focus navigation: blur_id={:?}, focus_id={:?}",
+						blur_id, focus_id
+					);
+
+					// Dispatch blur event
+					if let Some(blur_element_id) = blur_id {
+						dispatch_event_to_js(
+							window_id,
+							blur_element_id,
+							types::BLUR,
+							EventData::Focus(FocusEventData {
+								related_target: focus_id,
+							}),
+						);
+					}
+
+					// Dispatch focus event
+					if let Some(focus_element_id) = focus_id {
+						dispatch_event_to_js(
+							window_id,
+							focus_element_id,
+							types::FOCUS,
+							EventData::Focus(FocusEventData {
+								related_target: blur_id,
+							}),
+						);
+					}
+
+					return; // Don't dispatch Tab as keydown to the element
+				}
+
+				// Only dispatch keydown event if element has a handler
+				if has_key_down {
+					let event_data = EventData::Keyboard(KeyboardEventData {
+						key: keystroke.key.clone(),
+						code: keystroke.key.clone(),
+						repeat: event.is_held,
+						ctrl: keystroke.modifiers.control,
+						shift: keystroke.modifiers.shift,
+						alt: keystroke.modifiers.alt,
+						meta: keystroke.modifiers.platform,
+					});
+
+					log::debug!(
+						"[Rust] onKeyDown: element_id={}, key={}",
+						element_id, keystroke.key
+					);
+					dispatch_event_to_js(window_id, element_id, types::KEYDOWN, event_data);
+				}
 			}
 		});
 	}
 
-	// KeyUp handler
+	// KeyUp handler - only dispatches to focused element
 	if has_key_up {
 		window.on_key_event(move |event: &KeyUpEvent, phase, _window, _cx| {
 			if phase == DispatchPhase::Bubble {
+				// Check if this element is currently focused
+				if !focus::is_focused(window_id, element_id) {
+					return;
+				}
+
 				let keystroke = &event.keystroke;
 				let event_data = EventData::Keyboard(KeyboardEventData {
 					key: keystroke.key.clone(),

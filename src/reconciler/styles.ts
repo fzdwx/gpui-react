@@ -113,6 +113,9 @@ export interface StyleProps extends GPUIEventHandlerProps {
     src?: string;
     alt?: string;
 
+    // Focus properties
+    tabIndex?: number; // -1 = programmatic focus only, 0+ = Tab navigation order
+
     // Hover styles (pseudo-class) - excludes event handlers
     _hover?: Omit<StyleProps, "_hover" | keyof GPUIEventHandlerProps>;
 }
@@ -667,6 +670,11 @@ export function mapStyleToProps(props: StyleProps): Record<string, any> {
     // Hover styles
     if (props._hover) {
         result.hoverStyle = mapStyleToProps(props._hover);
+    }
+
+    // Focus properties
+    if (props.tabIndex !== undefined) {
+        result.tabIndex = props.tabIndex;
     }
 
     return result;

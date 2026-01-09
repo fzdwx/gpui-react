@@ -161,6 +161,9 @@ pub struct ElementStyle {
 	pub src:     Option<String>,
 	pub alt:     Option<String>,
 
+	// Focus properties
+	pub tab_index: Option<i32>,
+
 	// Hover style
 	pub hover_style: Option<Box<ElementStyle>>,
 }
@@ -261,6 +264,9 @@ impl ElementStyle {
             opacity: style_obj.get("opacity").and_then(|v| v.as_f64()).map(|v| v as f32),
             src: style_obj.get("src").and_then(|v| v.as_str()).map(|s| s.to_string()),
             alt: style_obj.get("alt").and_then(|v| v.as_str()).map(|s| s.to_string()),
+
+            // Focus properties
+            tab_index: style_obj.get("tabIndex").and_then(|v| v.as_i64()).map(|v| v as i32),
 
             // Hover style
             hover_style,

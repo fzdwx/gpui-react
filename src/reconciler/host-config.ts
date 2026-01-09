@@ -61,6 +61,11 @@ function extractStyleProps(props: any): StyleProps {
         }
     }
 
+    // Copy tabIndex from top-level props (it's a focusability attribute, not a style)
+    if (props.tabIndex !== undefined) {
+        styleProps.tabIndex = props.tabIndex;
+    }
+
     return styleProps;
 }
 
