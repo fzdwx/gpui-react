@@ -33,6 +33,7 @@ src/core/
 - **Event setup:** JSCallback with threadsafe:true for Rust→JS events
 - **Error handling:** checkResult() and checkWindowCreateResult() throw on failure
 - **Ready check:** waitReady() polls gpui_is_ready() with exponential backoff
+- **Focus/hover:** Event callback receives JSON, parses, routes via event-router
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -46,3 +47,4 @@ src/core/
 - **Window creation:** options JSON → encodeCString → gpui_create_window → extract windowId
 - **Batch updates:** elements JSON → encodeCString → gpui_batch_update_elements
 - **Event callback:** JSCallback(threadsaf:true) receives JSON from Rust, parses, routes via event-router
+- **Focus/hover routing:** Events dispatched via event-router based on element ID and event type

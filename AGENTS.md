@@ -1,39 +1,22 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-01-08 **Branch:** main **Commit:** 1b52f4e
+**Generated:** 2026-01-10 **Branch:** main **Commit:** 00afaca
 
 ## OVERVIEW
 
 React renderer for GPUI (Zed's GPU-accelerated UI) using Bun native FFI. Architecture: React → Reconciler → Element
 Store → Bun FFI → Rust → GPUI → GPU.
 
-## 规则：
-
-1. 每次修改代码后都要调用工具格式化代码(如果没有则可以告诉用户是否要集成格式化工具)
-2. 不要轻易放弃任务；在合理范围内尝试不同思路
-3. 代码首先是写给人类阅读和维护的，机器执行只是副产品
-4. 主动留意并指出以下"坏味道"：
-    - 重复逻辑 / 复制粘贴代码；
-    - 模块间耦合过紧或循环依赖；
-    - 改动一处导致大量无关部分破坏的脆弱设计；
-    - 意图不清晰、抽象混乱、命名含糊；
-    - 没有实际收益的过度设计与不必要复杂度。
-5. 当识别到坏味道时：
-    - 用简洁自然语言说明问题；
-    - 给出 1–2 个可行的重构方向，并简要说明优缺点与影响范围。
-
 ## STRUCTURE
 
 ```
 gpui-react/
 ├── rust/              # Rust FFI library (cdylib)
-│   ├── src/         # 11 files: FFI exports, GPUI rendering, command bus
-│   │   └── element/ # CSS-capable elements (div, span, img, text)
-│   └── Cargo.toml   # cdylib output, GPUI dependency
+│   └── src/         # 12 files: FFI exports, GPUI rendering, command bus
 ├── src/              # TypeScript source
 │   ├── core/        # FFI abstraction (RustLib, FFI state, bindings)
 │   └── reconciler/ # React reconciler + FFI bindings + event router
-└── demo/            # Demo apps (5 entry points)
+└── demo/            # Demo apps (7 entry points)
 ```
 
 ## WHERE TO LOOK
@@ -52,11 +35,12 @@ gpui-react/
 | Element styles     | rust/src/element/mod.rs         | ElementStyle struct, CSS property mapping                 |
 | Command bus        | rust/src/host_command.rs        | HostCommand enum, async_channel                           |
 | Window             | rust/src/window.rs              | Window (holds AnyWindowHandle + WindowState)              |
+| Focus handling     | rust/src/focus.rs               | Focus management, hover states, tab navigation            |
 
 ## CONVENTIONS
 
 - **Rust subdir:** Rust code in rust/src/ (not root src/)
-- **Rust edition:** 2021, formatting with Rust 2024 rules (hard tabs, 2 spaces)
+- **Rust edition:** 2024, formatting with Rust 2024 rules (hard tabs, 2 spaces)
 - **Build command:** Run `just native` to compile Rust library after changes
 - **FFI sync:** Call batchElementUpdates() + renderFrame() after batch updates
 - **Root tracking:** ROOT_ELEMENT_ID AtomicU64 (HashMap iteration is non-deterministic)
@@ -77,6 +61,8 @@ gpui-react/
 - Don't use className prop - use style prop instead (handled by reconciler)
 - Don't let FFI buffers be GC'd before call returns - push to liveBuffers
 - Don't create element with ID 1 - elementStore starts IDs at 2
+- Don't return false from shouldSetTextContent for text children
+- Don't skip bindEventToElement after registering handlers - handlers won't fire
 
 ## UNIQUE STYLES
 
@@ -89,6 +75,8 @@ gpui-react/
 - Isolated Rust crate in subdirectory with cdylib output
 - Window struct: holds AnyWindowHandle (type-erased) + WindowState
 - ElementStyle: CSS property struct with caching (cached_gpui_style)
+- Auto-generated event files: events/generated.ts, element/events.rs - DO NOT EDIT
+- Focus implementation: Simplified tab navigation, automatic focus handling
 
 ## COMMANDS
 
@@ -99,6 +87,7 @@ bun run styled-demo                     # CSS styling demo
 bun run flex-demo                       # Flexbox layout demo
 bun run elements-demo                   # Element types demo
 bun run event-demo                      # Event handling demo
+bun run focus-demo                      # Focus/hover demo
 bun run src/reconciler/__tests__/element-store.test.ts  # Run tests
 bun run format                          # Format all code (staged files)
 bun run format:ts                       # Format TypeScript only
@@ -111,6 +100,8 @@ bun run format:rust                     # Format Rust only
 - Element IDs start from 2 to reserve ID 1 for special purposes
 - FfiState.liveBuffers array prevents GC from collecting FFI buffers during calls
 - Rust crate uses cdylib for native library output, not WebAssembly
-- HostCommand: TriggerRender, UpdateElement, BatchUpdateElements
-- ElementStyle supports: text properties, sizing, margin, padding, position, overflow, background
+- HostCommand: TriggerRender, UpdateElement, BatchUpdateElements, UpdateFocus, UpdateHover
+- ElementStyle supports: text properties, sizing, margin, padding, position, overflow, background, flex
 - Event router uses Map<number, Map<string, number>> for element → eventType → handlerId
+- Focus events: onFocus, onBlur - automatic tab navigation for focusable elements
+- Hover events: onMouseEnter, onMouseLeave - built-in GPUI hover support

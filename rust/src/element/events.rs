@@ -9,12 +9,10 @@ use gpui::{
 };
 
 use crate::event_types::{props, types};
+use crate::event_types::{EventData, FocusEventData, KeyboardEventData, MouseEventData, ScrollEventData};
 use crate::focus;
 use crate::hover::get_hover_state;
-use crate::renderer::{
-	EventData, FocusEventData, KeyboardEventData, MouseEventData, ScrollEventData,
-	dispatch_event_to_js,
-};
+use crate::renderer::dispatch_event_to_js;
 
 /// Flags indicating which event handlers are registered
 pub struct EventHandlerFlags {
@@ -132,10 +130,8 @@ pub fn register_event_handlers(
 		}
 	}
 
-	// Register keyboard event handlers (only for focusable elements or elements with keyboard handlers)
-	if flags.needs_focus_handling() {
-		register_keyboard_handlers(flags, window_id, element_id, window);
-	}
+	// Note: Keyboard event handlers are now registered at the window level
+	// via register_window_keyboard_handlers() in host_command.rs
 }
 
 /// Register mouse event handlers
@@ -362,133 +358,6 @@ fn register_focus_on_click(
 	});
 }
 
-/// Register keyboard event handlers
-/// Keyboard events are only dispatched to the currently focused element
-/// Tab navigation is always enabled for focusable elements
-fn register_keyboard_handlers(
-	flags: &EventHandlerFlags,
-	window_id: u64,
-	element_id: u64,
-	window: &mut Window,
-) {
-	let has_key_down = flags.has_key_down;
-	let has_key_up = flags.has_key_up;
-	let is_focusable = flags.is_focusable();
-
-	// Skip if no keyboard handling needed
-	if !has_key_down && !has_key_up && !is_focusable {
-		return;
-	}
-
-	// KeyDown handler - handles Tab navigation and keydown events
-	// Register if element is focusable OR has keydown handler
-	if is_focusable || has_key_down {
-		window.on_key_event(move |event: &KeyDownEvent, phase, _window, _cx| {
-			if phase == DispatchPhase::Bubble {
-				// Check if this element is currently focused
-				if !focus::is_focused(window_id, element_id) {
-					return;
-				}
-
-				let keystroke = &event.keystroke;
-
-				// Handle Tab key for focus navigation (always for focusable elements)
-				if keystroke.key == "tab" {
-					log::debug!(
-						"[Rust] Tab key pressed on element {}, shift={}",
-						element_id, keystroke.modifiers.shift
-					);
-
-					let (blur_id, focus_id) = if keystroke.modifiers.shift {
-						focus::focus_prev(window_id)
-					} else {
-						focus::focus_next(window_id)
-					};
-
-					log::debug!(
-						"[Rust] Focus navigation: blur_id={:?}, focus_id={:?}",
-						blur_id, focus_id
-					);
-
-					// Dispatch blur event
-					if let Some(blur_element_id) = blur_id {
-						dispatch_event_to_js(
-							window_id,
-							blur_element_id,
-							types::BLUR,
-							EventData::Focus(FocusEventData {
-								related_target: focus_id,
-							}),
-						);
-					}
-
-					// Dispatch focus event
-					if let Some(focus_element_id) = focus_id {
-						dispatch_event_to_js(
-							window_id,
-							focus_element_id,
-							types::FOCUS,
-							EventData::Focus(FocusEventData {
-								related_target: blur_id,
-							}),
-						);
-					}
-
-					return; // Don't dispatch Tab as keydown to the element
-				}
-
-				// Only dispatch keydown event if element has a handler
-				if has_key_down {
-					let event_data = EventData::Keyboard(KeyboardEventData {
-						key: keystroke.key.clone(),
-						code: keystroke.key.clone(),
-						repeat: event.is_held,
-						ctrl: keystroke.modifiers.control,
-						shift: keystroke.modifiers.shift,
-						alt: keystroke.modifiers.alt,
-						meta: keystroke.modifiers.platform,
-					});
-
-					log::debug!(
-						"[Rust] onKeyDown: element_id={}, key={}",
-						element_id, keystroke.key
-					);
-					dispatch_event_to_js(window_id, element_id, types::KEYDOWN, event_data);
-				}
-			}
-		});
-	}
-
-	// KeyUp handler - only dispatches to focused element
-	if has_key_up {
-		window.on_key_event(move |event: &KeyUpEvent, phase, _window, _cx| {
-			if phase == DispatchPhase::Bubble {
-				// Check if this element is currently focused
-				if !focus::is_focused(window_id, element_id) {
-					return;
-				}
-
-				let keystroke = &event.keystroke;
-				let event_data = EventData::Keyboard(KeyboardEventData {
-					key: keystroke.key.clone(),
-					code: keystroke.key.clone(),
-					repeat: false,
-					ctrl: keystroke.modifiers.control,
-					shift: keystroke.modifiers.shift,
-					alt: keystroke.modifiers.alt,
-					meta: keystroke.modifiers.platform,
-				});
-
-				log::debug!(
-					"[Rust] onKeyUp: window_id={}, element_id={}, key={}",
-					window_id, element_id, keystroke.key
-				);
-				dispatch_event_to_js(window_id, element_id, types::KEYUP, event_data);
-			}
-		});
-	}
-}
-
 /// Register scroll/wheel event handlers
 fn register_scroll_handlers(
 	flags: &EventHandlerFlags,
@@ -545,4 +414,122 @@ fn mouse_button_to_u8(button: MouseButton) -> u8 {
 		MouseButton::Right => 2,
 		MouseButton::Navigate(_) => 3,
 	}
+}
+
+/// Register window-level keyboard event handlers
+/// This should be called once when a window is created
+/// Note: GPUI's on_key_event does not return a Subscription, the handler lives
+/// for the duration of the Window's scope
+pub fn register_window_keyboard_handlers(window_id: u64, window: &mut Window) {
+	log::info!("[Rust] Registering window-level keyboard handlers for window {}", window_id);
+
+	// KeyDown handler - handles Tab navigation and dispatches keydown to focused element
+	window.on_key_event(move |event: &KeyDownEvent, phase, _window, _cx| {
+		if phase != DispatchPhase::Bubble {
+			return;
+		}
+
+		let keystroke = &event.keystroke;
+		log::debug!(
+			"[Rust] Window {} received KeyDown: key={}, shift={}",
+			window_id, keystroke.key, keystroke.modifiers.shift
+		);
+
+		// Get the currently focused element for this window
+		let focused_element = focus::get_focused(window_id);
+
+		// Handle Tab key for focus navigation
+		if keystroke.key == "tab" {
+			log::debug!(
+				"[Rust] Tab key pressed, current focused={:?}, shift={}",
+				focused_element, keystroke.modifiers.shift
+			);
+
+			let (blur_id, focus_id) = if keystroke.modifiers.shift {
+				focus::focus_prev(window_id)
+			} else {
+				focus::focus_next(window_id)
+			};
+
+			log::debug!(
+				"[Rust] Focus navigation result: blur_id={:?}, focus_id={:?}",
+				blur_id, focus_id
+			);
+
+			// Dispatch blur event
+			if let Some(blur_element_id) = blur_id {
+				dispatch_event_to_js(
+					window_id,
+					blur_element_id,
+					types::BLUR,
+					EventData::Focus(FocusEventData {
+						related_target: focus_id,
+					}),
+				);
+			}
+
+			// Dispatch focus event
+			if let Some(focus_element_id) = focus_id {
+				dispatch_event_to_js(
+					window_id,
+					focus_element_id,
+					types::FOCUS,
+					EventData::Focus(FocusEventData {
+						related_target: blur_id,
+					}),
+				);
+			}
+
+			return; // Don't dispatch Tab as keydown to the element
+		}
+
+		// Dispatch keydown event to the focused element
+		if let Some(element_id) = focused_element {
+			let event_data = EventData::Keyboard(KeyboardEventData {
+				key: keystroke.key.clone(),
+				code: keystroke.key.clone(),
+				repeat: event.is_held,
+				ctrl: keystroke.modifiers.control,
+				shift: keystroke.modifiers.shift,
+				alt: keystroke.modifiers.alt,
+				meta: keystroke.modifiers.platform,
+			});
+
+			log::debug!(
+				"[Rust] Dispatching onKeyDown to element_id={}, key={}",
+				element_id, keystroke.key
+			);
+			dispatch_event_to_js(window_id, element_id, types::KEYDOWN, event_data);
+		}
+	});
+
+	// KeyUp handler - dispatches keyup to focused element
+	window.on_key_event(move |event: &KeyUpEvent, phase, _window, _cx| {
+		if phase != DispatchPhase::Bubble {
+			return;
+		}
+
+		// Get the currently focused element for this window
+		let focused_element = focus::get_focused(window_id);
+
+		// Dispatch keyup event to the focused element
+		if let Some(element_id) = focused_element {
+			let keystroke = &event.keystroke;
+			let event_data = EventData::Keyboard(KeyboardEventData {
+				key: keystroke.key.clone(),
+				code: keystroke.key.clone(),
+				repeat: false,
+				ctrl: keystroke.modifiers.control,
+				shift: keystroke.modifiers.shift,
+				alt: keystroke.modifiers.alt,
+				meta: keystroke.modifiers.platform,
+			});
+
+			log::debug!(
+				"[Rust] Dispatching onKeyUp to element_id={}, key={}",
+				element_id, keystroke.key
+			);
+			dispatch_event_to_js(window_id, element_id, types::KEYUP, event_data);
+		}
+	});
 }

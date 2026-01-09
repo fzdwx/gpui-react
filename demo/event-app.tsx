@@ -17,6 +17,7 @@ export function EventApp() {
                 padding: 40,
                 width: 600,
             }}
+            tabIndex={0}
             onKeyDown={(e) => setLastKey("Down: " + e.key)}
             onKeyUp={(e) => setLastKey("Up: " + e.key)}
         >

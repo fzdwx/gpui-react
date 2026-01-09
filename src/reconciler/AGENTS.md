@@ -17,8 +17,8 @@ src/reconciler/
 ├── gpui-binding.ts     # Bun FFI bindings (226 lines)
 ├── reconciler.ts       # Reconciler instance
 ├── renderer.ts         # Renderer instance
-├── ctx.ts             # Context utilities
-├── events.ts          # Event type definitions
+├── ctx.ts              # Context utilities
+├── events.ts           # Event type definitions (auto-generated from Rust)
 ├── styles.ts          # Style mapping utilities
 ├── event-router.ts    # Event handler routing (Map<elementId, Map<eventType, handlerId>>)
 ├── utils/
@@ -35,7 +35,7 @@ src/reconciler/
 | Reconciler hooks | host-config.ts   | appendChild, commitUpdate, resetAfterCommit               |
 | Element store    | element-store.ts | Map<globalId, ElementData>, nextId starts at 2            |
 | FFI bindings     | gpui-binding.ts  | dlopen, liveBuffers, renderFrame, batchElementUpdates     |
-| Event handlers   | events.ts        | EventHandler, MouseEvent types                            |
+| Event handlers   | events.ts        | EventHandler, MouseEvent, FocusEvent types                |
 | Event routing    | event-router.ts  | registerEventHandler, bindEventToElement, getEventHandler |
 
 ## CONVENTIONS
@@ -47,6 +47,7 @@ src/reconciler/
 - **Element IDs:** CreateElement returns nextId++, starts at 2
 - **Style props:** Extract via extractStyleProps(), map to GPUI format via mapStyleToProps()
 - **Event binding:** bindEventToElement(elementId, eventType, handlerId) stores mapping in elementEventMap
+- **Focus/hover:** Events registered and routed via same event-router pattern
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -65,3 +66,5 @@ src/reconciler/
 - **resetAfterCommit:** Processes pendingUpdates → batchElementUpdates → renderFrame
 - **liveBuffers pattern:** Prevents GC during blocking FFI calls
 - **Event router:** Two-level Map for element → eventType → handlerId routing
+- **Focus events:** onFocus, onBlur - routed via event-router to registered handlers
+- **Hover events:** onMouseEnter, onMouseLeave - routed via event-router

@@ -19,25 +19,29 @@ rust/src/
 │   ├── div.rs          # ReactDivElement with full CSS support
 │   ├── span.rs         # ReactSpanElement with CSS support
 │   ├── text.rs         # ReactTextElement for text nodes
-│   └── img.rs          # ReactImgElement for images
+│   ├── img.rs          # ReactImgElement for images
+│   └── events.rs       # Auto-generated event handlers (DO NOT EDIT)
 ├── host_command.rs     # async_channel command bus (TriggerRender, UpdateElement, BatchUpdateElements)
 ├── window.rs           # Window, WindowState, element tree management
 ├── global_state.rs     # Global state management (lazy_static)
 ├── ffi_types.rs       # FFI type bindings (serde)
+├── focus.rs           # Focus management, hover states, tab navigation
 └── logging.rs         # Logging utilities (logforth)
 ```
 
 ## WHERE TO LOOK
 
-| Task               | File            | Notes                                                          |
-| ------------------ | --------------- | -------------------------------------------------------------- |
-| FFI exports        | lib.rs          | gpui_init, gpui_create_window, gpui_batch_update_elements      |
-| FFI helpers        | ffi_helpers.rs  | ptr_to_u64, read_c_string, validate_result_ptr                 |
-| GPUI rendering     | renderer.rs     | render_element_to_gpui (div/text/span/img)                     |
-| Command bus        | host_command.rs | HostCommand enum, handle_on_app_thread, send_host_command      |
-| Window             | window.rs       | Window, WindowState, render_element(), batch_update_elements() |
-| Element structures | element/mod.rs  | ReactElement, ElementStyle, ElementKind enum                   |
-| CSS styling        | element/\*.rs   | Individual element implementations with CSS property mapping   |
+| Task               | File              | Notes                                                          |
+| ------------------ | ----------------- | -------------------------------------------------------------- |
+| FFI exports        | lib.rs            | gpui_init, gpui_create_window, gpui_batch_update_elements      |
+| FFI helpers        | ffi_helpers.rs    | ptr_to_u64, read_c_string, validate_result_ptr                 |
+| GPUI rendering     | renderer.rs       | render_element_to_gpui (div/text/span/img)                     |
+| Command bus        | host_command.rs   | HostCommand enum, handle_on_app_thread, send_host_command      |
+| Window             | window.rs         | Window, WindowState, render_element(), batch_update_elements() |
+| Element structures | element/mod.rs    | ReactElement, ElementStyle, ElementKind enum                   |
+| CSS styling        | element/\*.rs     | Individual element implementations with CSS property mapping   |
+| Focus/hover        | focus.rs          | onFocus, onBlur, onMouseEnter, onMouseLeave                    |
+| Events             | element/events.rs | Auto-generated event types (DO NOT EDIT)                       |
 
 ## CONVENTIONS
 
@@ -53,6 +57,7 @@ rust/src/
 - **Window ID tracking:** Window struct stores window_id for easier tracking
 - **FFI sync:** Call batchElementUpdates() in resetAfterCommit, then renderFrame()
 - **CSS caching:** ElementStyle.cached_gpui_style avoids recomputing every frame
+- **Tab navigation:** Automatic for focusable elements (div with onClick/onFocus)
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -62,6 +67,7 @@ rust/src/
 - Don't call gpui_render_frame without rebuild_tree first
 - Don't forget to wrap elements in Arc before storing
 - Don't skip send_host_command(TriggerRender) after updates
+- Don't reset style parsing in window.rs - already parsed from JSON
 
 ## KEY PATTERNS
 
@@ -76,3 +82,5 @@ rust/src/
     - Window methods contain actual element processing logic
 - **CSS support:** ElementStyle struct maps CSS properties to GPUI Style (text_color, bg_color, margin, padding, flex,
   etc.)
+- **Focus system:** Simplified tab navigation, auto-focus for clickable elements
+- **Hover support:** onMouseEnter/onMouseLeave via GPUI's built-in hover detection
