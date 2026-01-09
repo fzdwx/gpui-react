@@ -12,20 +12,11 @@ mod logging;
 mod renderer;
 mod window;
 
-use std::{ffi::{CStr, CString, c_char, c_void}, sync::atomic::{AtomicPtr, Ordering}};
+use std::ffi::{CStr, CString, c_char};
 
 use tokio::sync::oneshot;
 
 use crate::{ffi_helpers::{ptr_to_u64, read_c_string, read_opt_c_string, validate_result_ptr}, ffi_types::{FfiResult, WindowCreateResult, WindowOptions}, global_state::GLOBAL_STATE, host_command::{HostCommand, is_bus_ready, send_host_command}, renderer::start_gpui_thread};
-
-/// Global event callback pointer for routing events to JavaScript (thread-safe
-/// using AtomicPtr)
-static EVENT_CALLBACK: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
-
-pub(crate) fn get_event_callback() -> Option<*mut c_void> {
-	let ptr = EVENT_CALLBACK.load(Ordering::Acquire);
-	if ptr.is_null() { None } else { Some(ptr) }
-}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_init(result: *mut FfiResult) {
@@ -225,9 +216,35 @@ pub extern "C" fn gpui_free_event_string(ptr: *mut c_char) {
 	}
 }
 
-/// Set the event callback for receiving events from Rust to JavaScript
+/// Poll events from a window's event queue
+/// Returns a JSON array string of events, caller must free with gpui_free_event_string
+/// Returns null if no events or window not found
 #[unsafe(no_mangle)]
-pub extern "C" fn set_event_callback(callback_ptr: *mut c_void) {
-	EVENT_CALLBACK.store(callback_ptr, Ordering::Release);
-	log::info!("Event callback registered: {:p}", callback_ptr);
+pub extern "C" fn gpui_poll_events(window_id_ptr: *const u8) -> *mut c_char {
+	unsafe {
+		let window_id = ptr_to_u64(window_id_ptr);
+
+		let Some(window) = GLOBAL_STATE.get_window(window_id) else {
+			return std::ptr::null_mut();
+		};
+
+		let events = window.state().drain_events();
+
+		if events.is_empty() {
+			return std::ptr::null_mut();
+		}
+
+		// Convert events to JSON array
+		let payloads: Vec<serde_json::Value> = events
+			.iter()
+			.filter_map(|e| serde_json::from_str(&e.payload).ok())
+			.collect();
+
+		let json_str = serde_json::to_string(&payloads).unwrap_or_else(|_| "[]".to_string());
+
+		match CString::new(json_str) {
+			Ok(c_string) => c_string.into_raw(),
+			Err(_) => std::ptr::null_mut(),
+		}
+	}
 }

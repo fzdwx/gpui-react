@@ -1,10 +1,10 @@
-import { lib } from "./ffi";
-import { peek, sleep } from "bun";
-import { JSCallback, Pointer, ptr, read, toArrayBuffer, FFIType, CString } from "bun:ffi";
-import { info, trace } from "../utils/logging";
-import { decoder, FfiState } from "./ffi-state";
-import { EventEmitter } from "events";
-import { eventRouter, createEvent, RawEventData } from "../events";
+import {lib} from "./ffi";
+import {peek, sleep} from "bun";
+import {ptr, read, toArrayBuffer, CString} from "bun:ffi";
+import {info, trace} from "../utils/logging";
+import {decoder, FfiState} from "./ffi-state";
+import {EventEmitter} from "events";
+import {eventRouter, createEvent, RawEventData} from "../events";
 
 export interface ElementData {
     globalId: number;
@@ -29,8 +29,7 @@ export interface WindowOptions {
 
 export class RustLib {
     ffiStateMap: Map<number, FfiState>;
-    private _nativeEvents: EventEmitter = new EventEmitter();
-    private eventCallbackWrapper: any;
+    private pollIntervals: Map<number, ReturnType<typeof setInterval>> = new Map();
 
     public constructor() {
         this.ffiStateMap = new Map();
@@ -38,10 +37,9 @@ export class RustLib {
         lib.symbols.gpui_init(resultBuffer);
         this.checkResult(resultBuffer);
         this.waitReady();
-        this.setupEventBus();
     }
 
-    public createWindow(options: WindowOptions): number {
+    public createWindow(options: WindowOptions, pollEventInterval?: number): number {
         const resultBuffer = new Uint8Array(RESULT_SIZE);
         const ffiState = new FfiState();
         const [optionsBuffer, optionsPtr] = ffiState.encodeCString(JSON.stringify(options));
@@ -49,6 +47,10 @@ export class RustLib {
         const windowId = this.checkWindowCreateResult(resultBuffer);
         info(`Created window with id: ${windowId}`);
         this.ffiStateMap.set(windowId, ffiState);
+
+        // Start event polling for this window
+        this.startEventPolling(windowId, pollEventInterval);
+
         return windowId;
     }
 
@@ -114,57 +116,73 @@ export class RustLib {
         lib.symbols.gpui_trigger_render(windowIdPtr, new Uint8Array(8));
     }
 
-    private setupEventBus() {
-        if (this.eventCallbackWrapper) {
+    /**
+     * Poll events from a window's event queue
+     * This is called periodically instead of using callbacks
+     */
+    public pollEvents(windowId: number): void {
+        let ffiState = this.getFfiState(windowId);
+        if (!ffiState) {
             return;
         }
 
-        console.log("[JS] Setting up event bus, creating JSCallback...");
+        ffiState.clear();
+        const [windowIdBuffer, windowIdPtr] = ffiState.createInt64(BigInt(windowId));
+        const eventsPtr = lib.symbols.gpui_poll_events(windowIdPtr);
 
-        const eventCallback = new JSCallback(
-            (jsonPtr: any, jsonLen: number) => {
-                try {
-                    if (!jsonPtr) {
-                        return;
-                    }
-
-                    // Read the JSON data from the pointer
-                    const buffer = toArrayBuffer(jsonPtr, 0, jsonLen);
-                    const jsonStr = decoder.decode(buffer);
-
-                    // Free the memory in Rust immediately after reading
-                    lib.symbols.gpui_free_event_string(jsonPtr);
-
-                    if (!jsonStr) {
-                        return;
-                    }
-
-                    const rawEvent = JSON.parse(jsonStr) as RawEventData;
-                    const { elementId, eventType } = rawEvent;
-                    // Create the event and dispatch through the router
-                    const gpuiEvent = createEvent(rawEvent);
-                    eventRouter.dispatchToHandler(elementId, eventType, gpuiEvent);
-                } catch (err) {
-                    console.error("[JS] Event callback error:", err);
-                }
-            },
-            {
-                args: [FFIType.ptr, "u32"],
-                returns: "void",
-                threadsafe: true,
-            }
-        );
-
-        this.eventCallbackWrapper = eventCallback;
-
-        console.log(`[JS] eventCallback.ptr = ${eventCallback.ptr}`);
-
-        if (!eventCallback.ptr) {
-            throw new Error("Failed to create event callback");
+        if (!eventsPtr) {
+            return; // No events
         }
 
-        lib.symbols.set_event_callback(eventCallback.ptr);
-        console.log("[JS] Event callback registered");
+        try {
+            // Read the JSON string from the pointer
+            const cString = new CString(eventsPtr);
+            const jsonStr = cString.toString();
+
+            if (!jsonStr || jsonStr === "[]") {
+                return;
+            }
+
+            const events = JSON.parse(jsonStr) as RawEventData[];
+
+            // Process each event
+            for (const rawEvent of events) {
+                const {elementId, eventType} = rawEvent;
+                const gpuiEvent = createEvent(rawEvent);
+                eventRouter.dispatchToHandler(elementId, eventType, gpuiEvent);
+            }
+        } catch (err) {
+            console.error("[JS] Event polling error:", err);
+        } finally {
+            // Free the string allocated by Rust
+            lib.symbols.gpui_free_event_string(eventsPtr);
+        }
+    }
+
+    /**
+     * Start periodic event polling for a window
+     */
+    private startEventPolling(windowId: number, pollEventInterval?: number): void {
+        // Poll every 5ms  for responsive event handling
+        pollEventInterval = pollEventInterval ? pollEventInterval : 5
+        const interval = setInterval(() => {
+            this.pollEvents(windowId);
+        }, pollEventInterval);
+
+        this.pollIntervals.set(windowId, interval);
+        console.log(`[JS] Started event polling for window ${windowId}`);
+    }
+
+    /**
+     * Stop event polling for a window
+     */
+    public stopEventPolling(windowId: number): void {
+        const interval = this.pollIntervals.get(windowId);
+        if (interval) {
+            clearInterval(interval);
+            this.pollIntervals.delete(windowId);
+            console.log(`[JS] Stopped event polling for window ${windowId}`);
+        }
     }
 
     getFfiState(windowId: number) {

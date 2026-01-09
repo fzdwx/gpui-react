@@ -11,13 +11,13 @@ info(`Loading GPUI library from: ${libPath}`);
 
 export const lib = dlopen(libPath, {
     gpui_init: { args: [FFIType.ptr], returns: FFIType.void },
-    set_event_callback: {
-        args: [FFIType.ptr],
-        returns: FFIType.void,
-    },
     gpui_free_event_string: {
         args: [FFIType.ptr],
         returns: FFIType.void,
+    },
+    gpui_poll_events: {
+        args: [FFIType.ptr],
+        returns: FFIType.ptr,
     },
     gpui_create_window: {
         args: [FFIType.ptr, FFIType.ptr],

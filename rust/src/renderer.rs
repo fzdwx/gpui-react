@@ -1,37 +1,17 @@
-use std::ffi::{CString, c_char};
-
 use gpui::{Application as GpuiApp, Entity, FocusHandle, InteractiveElement, KeyDownEvent, KeyUpEvent, Render, Window, div, prelude::*, rgb};
 
 use crate::{element::create_element, focus, global_state::GLOBAL_STATE, host_command};
 use crate::event_types::{types, EventData, KeyboardEventData, FocusEventData};
-// Re-export event data types from generated code
-pub use crate::event_types::{MouseEventData, ScrollEventData};
+use crate::window::EventMessage;
 
-/// Dispatch an event directly to JavaScript via the registered callback
-/// Supports various event types with appropriate data
+/// Dispatch an event to the event queue for JS polling
+/// This is thread-safe and doesn't require calling JS directly from Rust
 pub(crate) fn dispatch_event_to_js(
 	window_id: u64,
 	element_id: u64,
 	event_type: &str,
 	event_data: EventData,
 ) {
-	use crate::get_event_callback;
-
-	let callback_ptr = match get_event_callback() {
-		Some(ptr) => ptr,
-		None => {
-			log::warn!("[Rust] dispatch_event_to_js: No event callback registered");
-			return;
-		}
-	};
-
-	log::debug!(
-		"[Rust] dispatch_event_to_js: window_id={}, element_id={}, event_type={}",
-		window_id,
-		element_id,
-		event_type
-	);
-
 	let timestamp = std::time::SystemTime::now()
 		.duration_since(std::time::UNIX_EPOCH)
 		.map(|d| d.as_millis() as u64)
@@ -96,20 +76,25 @@ pub(crate) fn dispatch_event_to_js(
 	};
 
 	let json_str = json_payload.to_string();
-	let c_string = CString::new(json_str).unwrap();
-	let len = c_string.count_bytes();
-	// Use into_raw() to transfer ownership to JavaScript.
-	// JS will call gpui_free_event_string() after reading the data.
-	let raw_ptr = c_string.into_raw();
 
-	log::info!("[Rust] dispatch_event_to_js: calling callback with JSON pointer");
-
-	unsafe {
-		let callback: extern "C" fn(*mut c_char, u32) = std::mem::transmute(callback_ptr);
-		callback(raw_ptr, len as u32);
+	// Push event to window's event queue instead of calling JS directly
+	if let Some(window) = GLOBAL_STATE.get_window(window_id) {
+		window.state().push_event(EventMessage {
+			window_id,
+			element_id,
+			event_type: event_type.to_string(),
+			payload: json_str,
+		});
+		log::trace!(
+			"[Rust] Event queued: window_id={}, element_id={}, event_type={}",
+			window_id, element_id, event_type
+		);
+	} else {
+		log::warn!(
+			"[Rust] dispatch_event_to_js: window {} not found",
+			window_id
+		);
 	}
-
-	log::info!("[Rust] dispatch_event_to_js: callback returned");
 }
 
 pub struct RootState {

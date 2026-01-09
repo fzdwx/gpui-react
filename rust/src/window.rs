@@ -1,8 +1,17 @@
-use std::{collections::HashMap, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}}};
+use std::{collections::{HashMap, VecDeque}, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}}};
 
 use gpui::{AnyWindowHandle, App, AppContext};
 
 use crate::element::{ElementKind, ElementStyle, ReactElement};
+
+/// Event message to be sent to JS
+#[derive(Clone, Debug)]
+pub struct EventMessage {
+	pub window_id: u64,
+	pub element_id: u64,
+	pub event_type: String,
+	pub payload: String, // JSON payload
+}
 
 pub struct Window {
 	/// The GPUI window handle
@@ -149,6 +158,8 @@ pub struct WindowState {
 	pub element_map:     Mutex<HashMap<u64, Arc<ReactElement>>>,
 	pub element_tree:    Arc<Mutex<Option<Arc<ReactElement>>>>,
 	pub render_count:    AtomicU64,
+	/// Event queue for JS polling (thread-safe)
+	pub event_queue:     Mutex<VecDeque<EventMessage>>,
 }
 
 impl WindowState {
@@ -158,6 +169,23 @@ impl WindowState {
 			element_map:     Mutex::new(HashMap::new()),
 			element_tree:    Arc::new(Mutex::new(None)),
 			render_count:    AtomicU64::new(0),
+			event_queue:     Mutex::new(VecDeque::new()),
+		}
+	}
+
+	/// Push an event to the queue
+	pub fn push_event(&self, event: EventMessage) {
+		if let Ok(mut queue) = self.event_queue.lock() {
+			queue.push_back(event);
+		}
+	}
+
+	/// Drain all events from the queue
+	pub fn drain_events(&self) -> Vec<EventMessage> {
+		if let Ok(mut queue) = self.event_queue.lock() {
+			queue.drain(..).collect()
+		} else {
+			Vec::new()
 		}
 	}
 

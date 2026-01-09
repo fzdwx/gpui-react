@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-01-10 **Branch:** main **Commit:** 00afaca
+**Generated:** 2026-01-10 **Branch:** main **Commit:** 705a3f5
 
 ## OVERVIEW
 
@@ -15,8 +15,10 @@ gpui-react/
 │   └── src/         # 12 files: FFI exports, GPUI rendering, command bus
 ├── src/              # TypeScript source
 │   ├── core/        # FFI abstraction (RustLib, FFI state, bindings)
-│   └── reconciler/ # React reconciler + FFI bindings + event router
-└── demo/            # Demo apps (7 entry points)
+│   ├── reconciler/ # React reconciler + FFI bindings + event router
+│   └── events/     # Event types, factory, router (10 files)
+├── demo/            # Demo apps (7 entry points)
+└── scripts/         # Build/release scripts
 ```
 
 ## WHERE TO LOOK
@@ -30,6 +32,7 @@ gpui-react/
 | FFI bindings       | src/core/ffi.ts                 | Bun FFI function signatures                               |
 | FFI state          | src/core/ffi-state.ts           | FfiState buffer management                                |
 | Event routing      | src/reconciler/event-router.ts  | registerEventHandler, bindEventToElement, getEventHandler |
+| Event system       | src/events/index.ts             | Event types, factory, router barrel                       |
 | Rust FFI exports   | rust/src/lib.rs                 | gpui_init, gpui_create_window, gpui_batch_update_elements |
 | GPUI rendering     | rust/src/renderer.rs            | RootView, render_element_to_gpui                          |
 | Element styles     | rust/src/element/mod.rs         | ElementStyle struct, CSS property mapping                 |
@@ -105,3 +108,4 @@ bun run format:rust                     # Format Rust only
 - Event router uses Map<number, Map<string, number>> for element → eventType → handlerId
 - Focus events: onFocus, onBlur - automatic tab navigation for focusable elements
 - Hover events: onMouseEnter, onMouseLeave - built-in GPUI hover support
+- Event system exports: 8 domain modules (base, mouse, keyboard, focus, scroll, types, factory, router)
