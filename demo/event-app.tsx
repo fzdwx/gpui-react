@@ -17,9 +17,6 @@ export function EventApp() {
                 padding: 40,
                 width: 600,
             }}
-            tabIndex={0}
-            onKeyDown={(e) => setLastKey("Down: " + e.key)}
-            onKeyUp={(e) => setLastKey("Up: " + e.key)}
         >
             {/* Title */}
             <div
@@ -74,6 +71,7 @@ export function EventApp() {
 
             {/* Keyboard Events */}
             <div
+                tabIndex={0}
                 style={{
                     backgroundColor: "#9b59b6",
                     color: "#ffffff",
@@ -83,9 +81,12 @@ export function EventApp() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    cursor: "pointer",
                 }}
+                onKeyDown={(e) => setLastKey("Down: " + e.key)}
+                onKeyUp={(e) => setLastKey("Up: " + e.key)}
             >
-                {"Key: " + (lastKey || "(press a key)")}
+                {"Key: " + (lastKey || "(click here, then press a key)")}
             </div>
 
             {/* Scroll/Wheel Events */}
