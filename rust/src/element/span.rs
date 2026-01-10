@@ -1,12 +1,8 @@
 use std::sync::Arc;
 
-use gpui::{
-	AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId,
-	IntoElement, LayoutId, Pixels, Window, div, prelude::*, px, rgb,
-};
+use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, Pixels, Window, div, prelude::*, px, rgb};
 
-use super::events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers};
-use super::{ElementStyle, ReactElement};
+use super::{ElementStyle, ReactElement, events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers}};
 
 /// A span element - similar to div but:
 /// - No default background (transparent by default)
@@ -24,7 +20,7 @@ pub struct SpanLayoutState {
 }
 
 pub struct SpanPrepaintState {
-	hitbox: Option<Hitbox>,
+	hitbox:      Option<Hitbox>,
 	event_flags: EventHandlerFlags,
 }
 

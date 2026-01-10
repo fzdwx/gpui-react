@@ -7,10 +7,10 @@ use crate::element::{ElementKind, ElementStyle, ReactElement};
 /// Event message to be sent to JS
 #[derive(Clone, Debug)]
 pub struct EventMessage {
-	pub window_id: u64,
+	pub window_id:  u64,
 	pub element_id: u64,
 	pub event_type: String,
-	pub payload: String, // JSON payload
+	pub payload:    String, // JSON payload
 }
 
 pub struct Window {
@@ -101,13 +101,21 @@ impl Window {
 				if let Some(elem_obj) = elem_value.as_object() {
 					let global_id = elem_obj.get("globalId").and_then(|v| v.as_u64()).unwrap_or(0);
 
-					let element_type = elem_obj.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+					let element_type =
+						elem_obj.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
 					let text = elem_obj.get("text").and_then(|v| v.as_str()).map(|s| s.to_string());
 
 					let style = elem_obj.get("style").map(ElementStyle::from_json).unwrap_or_default();
 					if element_type == "canvas" {
-						log::trace!("canvas element: drawCommands={}", style.draw_commands.as_ref().map(|v| v.to_string()).unwrap_or_else(|| "None".to_string()));
+						log::trace!(
+							"canvas element: drawCommands={}",
+							style
+								.draw_commands
+								.as_ref()
+								.map(|v| v.to_string())
+								.unwrap_or_else(|| "None".to_string())
+						);
 					}
 
 					let event_handlers = elem_obj.get("eventHandlers").cloned();
@@ -190,11 +198,7 @@ impl WindowState {
 
 	/// Drain all events from the queue
 	pub fn drain_events(&self) -> Vec<EventMessage> {
-		if let Ok(mut queue) = self.event_queue.lock() {
-			queue.drain(..).collect()
-		} else {
-			Vec::new()
-		}
+		if let Ok(mut queue) = self.event_queue.lock() { queue.drain(..).collect() } else { Vec::new() }
 	}
 
 	pub fn get_root_element_id(&self) -> u64 { self.root_element_id.load(Ordering::SeqCst) }

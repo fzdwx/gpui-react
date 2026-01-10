@@ -1,11 +1,11 @@
-import {useState} from "react";
+import { useState } from "react";
 
 export function EventApp() {
     const [clickCount, setClickCount] = useState(0);
     const [mouseState, setMouseState] = useState("idle");
-    const [mousePos, setMousePos] = useState({x: 0, y: 0});
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [lastKey, setLastKey] = useState("");
-    const [scrollDelta, setScrollDelta] = useState({x: 0, y: 0});
+    const [scrollDelta, setScrollDelta] = useState({ x: 0, y: 0 });
 
     return (
         <div
@@ -63,7 +63,9 @@ export function EventApp() {
                 }}
                 onMouseDown={() => setMouseState("down")}
                 onMouseUp={() => setMouseState("up")}
-                onMouseMove={(e) => setMousePos({x: Math.round(e.clientX), y: Math.round(e.clientY)})}
+                onMouseMove={(e) =>
+                    setMousePos({ x: Math.round(e.clientX), y: Math.round(e.clientY) })
+                }
             >
                 <div>{"Mouse: " + mouseState}</div>
                 <div>{"Position: " + mousePos.x + ", " + mousePos.y}</div>
@@ -101,7 +103,9 @@ export function EventApp() {
                     alignItems: "center",
                     justifyContent: "center",
                 }}
-                onWheel={(e) => setScrollDelta({x: Math.round(e.deltaX), y: Math.round(e.deltaY)})}
+                onWheel={(e) =>
+                    setScrollDelta({ x: Math.round(e.deltaX), y: Math.round(e.deltaY) })
+                }
             >
                 {"Wheel: " + scrollDelta.x + ", " + scrollDelta.y}
             </div>

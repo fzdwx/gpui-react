@@ -1,14 +1,9 @@
 use std::sync::Arc;
 
-use gpui::{
-	App, Background, BorderStyle, Bounds, Corners, Element, ElementId, Edges, GlobalElementId,
-	Hitbox, Hsla, InspectorElementId, IntoElement, LayoutId, PaintQuad, Path, Pixels, Rgba, Size,
-	Style, Window, point, px,
-};
+use gpui::{App, Background, BorderStyle, Bounds, Corners, Edges, Element, ElementId, GlobalElementId, Hitbox, Hsla, InspectorElementId, IntoElement, LayoutId, PaintQuad, Path, Pixels, Rgba, Size, Style, Window, point, px};
 use serde::Deserialize;
 
-use super::events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers};
-use super::{ElementStyle, ReactElement};
+use super::{ElementStyle, ReactElement, events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers}};
 
 /// Draw command types matching TypeScript definitions
 #[derive(Debug, Deserialize)]
@@ -51,8 +46,8 @@ fn parse_color(color: &str) -> Hsla {
 }
 
 pub struct ReactCanvasElement {
-	element: Arc<ReactElement>,
-	window_id: u64,
+	element:      Arc<ReactElement>,
+	window_id:    u64,
 	#[allow(dead_code)]
 	parent_style: Option<ElementStyle>,
 }
@@ -60,7 +55,7 @@ pub struct ReactCanvasElement {
 pub struct CanvasLayoutState {}
 
 pub struct CanvasPrepaintState {
-	hitbox: Option<Hitbox>,
+	hitbox:      Option<Hitbox>,
 	event_flags: EventHandlerFlags,
 }
 
@@ -128,11 +123,11 @@ impl ReactCanvasElement {
 				DrawCommand::Clear { color } => {
 					let quad = PaintQuad {
 						bounds,
-						corner_radii:  Corners::default(),
-						background:    parse_color(&color).into(),
+						corner_radii: Corners::default(),
+						background: parse_color(&color).into(),
 						border_widths: Edges::default(),
-						border_color:  Hsla::transparent_black(),
-						border_style:  BorderStyle::default(),
+						border_color: Hsla::transparent_black(),
+						border_style: BorderStyle::default(),
 					};
 					window.paint_quad(quad);
 				}
@@ -189,8 +184,7 @@ impl ReactCanvasElement {
 				}
 				DrawCommand::Path { points, width: _, color } => {
 					if points.len() >= 2 {
-						let start =
-							point(origin.x + px(points[0].0), origin.y + px(points[0].1));
+						let start = point(origin.x + px(points[0].0), origin.y + px(points[0].1));
 						let mut path = Path::new(start);
 						for (px_val, py_val) in points.iter().skip(1) {
 							path.line_to(point(origin.x + px(*px_val), origin.y + px(*py_val)));
@@ -207,12 +201,9 @@ impl Element for ReactCanvasElement {
 	type PrepaintState = CanvasPrepaintState;
 	type RequestLayoutState = CanvasLayoutState;
 
-	fn id(&self) -> Option<ElementId> {
-		Some(ElementId::Integer(self.element.global_id))
-	}
-	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-		None
-	}
+	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
+
+	fn source_location(&self) -> Option<&'static std::panic::Location<'static>> { None }
 
 	fn request_layout(
 		&mut self,
@@ -262,11 +253,11 @@ impl Element for ReactCanvasElement {
 			let bg_color = gpui::rgb(bg);
 			let quad = PaintQuad {
 				bounds,
-				corner_radii:  Corners::default(),
-				background:    Hsla::from(bg_color).into(),
+				corner_radii: Corners::default(),
+				background: Hsla::from(bg_color).into(),
 				border_widths: Edges::default(),
-				border_color:  Hsla::transparent_black(),
-				border_style:  BorderStyle::default(),
+				border_color: Hsla::transparent_black(),
+				border_style: BorderStyle::default(),
 			};
 			window.paint_quad(quad);
 		}
@@ -287,7 +278,6 @@ impl Element for ReactCanvasElement {
 
 impl IntoElement for ReactCanvasElement {
 	type Element = Self;
-	fn into_element(self) -> Self::Element {
-		self
-	}
+
+	fn into_element(self) -> Self::Element { self }
 }

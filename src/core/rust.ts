@@ -1,10 +1,10 @@
-import {lib} from "./ffi";
-import {peek, sleep} from "bun";
-import {ptr, read, toArrayBuffer, CString} from "bun:ffi";
-import {info, trace} from "../utils/logging";
-import {decoder, FfiState} from "./ffi-state";
-import {EventEmitter} from "events";
-import {eventRouter, createEvent, RawEventData} from "../events";
+import { lib } from "./ffi";
+import { peek, sleep } from "bun";
+import { ptr, read, toArrayBuffer, CString } from "bun:ffi";
+import { info, trace } from "../utils/logging";
+import { decoder, FfiState } from "./ffi-state";
+import { EventEmitter } from "events";
+import { eventRouter, createEvent, RawEventData } from "../events";
 
 export interface ElementData {
     globalId: number;
@@ -147,7 +147,7 @@ export class RustLib {
 
             // Process each event
             for (const rawEvent of events) {
-                const {elementId, eventType} = rawEvent;
+                const { elementId, eventType } = rawEvent;
                 const gpuiEvent = createEvent(rawEvent);
                 eventRouter.dispatchToHandler(elementId, eventType, gpuiEvent);
             }
@@ -164,7 +164,7 @@ export class RustLib {
      */
     private startEventPolling(windowId: number, pollEventInterval?: number): void {
         // Poll every 5ms  for responsive event handling
-        pollEventInterval = pollEventInterval ? pollEventInterval : 5
+        pollEventInterval = pollEventInterval ? pollEventInterval : 5;
         const interval = setInterval(() => {
             this.pollEvents(windowId);
         }, pollEventInterval);

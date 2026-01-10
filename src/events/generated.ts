@@ -98,25 +98,13 @@ export const MOUSE_EVENT_TYPES = [
 ] as const;
 
 /** Keyboard event types */
-export const KEYBOARD_EVENT_TYPES = [
-    "keydown",
-    "keyup",
-    "keypress",
-] as const;
+export const KEYBOARD_EVENT_TYPES = ["keydown", "keyup", "keypress"] as const;
 
 /** Focus event types */
-export const FOCUS_EVENT_TYPES = [
-    "focus",
-    "blur",
-    "focusin",
-    "focusout",
-] as const;
+export const FOCUS_EVENT_TYPES = ["focus", "blur", "focusin", "focusout"] as const;
 
 /** Scroll event types */
-export const SCROLL_EVENT_TYPES = [
-    "scroll",
-    "wheel",
-] as const;
+export const SCROLL_EVENT_TYPES = ["scroll", "wheel"] as const;
 
 // ============ Event Data Interfaces ============
 

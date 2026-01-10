@@ -64,7 +64,8 @@ impl ReactElement {
 	}
 
 	/// Build GPUI Style - uses cached style if available, otherwise computes it
-	/// `default_bg` - Optional default background color (e.g., div uses Some(0x2d2d2d), span uses None)
+	/// `default_bg` - Optional default background color (e.g., div uses
+	/// Some(0x2d2d2d), span uses None)
 	pub fn build_gpui_style(&self, default_bg: Option<u32>) -> Style {
 		// Use cached style if available (pre-computed in batch_update_elements)
 		if let Some(ref cached) = self.cached_gpui_style {
@@ -161,12 +162,12 @@ pub struct ElementStyle {
 	pub column_gap:      Option<f32>,
 
 	// Other
-	pub opacity: Option<f32>,
-	pub src:     Option<String>,
-	pub alt:     Option<String>,
+	pub opacity:       Option<f32>,
+	pub src:           Option<String>,
+	pub alt:           Option<String>,
 	pub draw_commands: Option<serde_json::Value>,
-	pub x: Option<f32>,
-	pub y: Option<f32>,
+	pub x:             Option<f32>,
+	pub y:             Option<f32>,
 
 	// Focus properties
 	pub tab_index: Option<i32>,
@@ -682,7 +683,9 @@ pub fn create_element(
 	parent_style: Option<ElementStyle>,
 ) -> AnyElement {
 	match element.element_kind {
-		ElementKind::Canvas => ReactCanvasElement::new(element, window_id, parent_style).into_any_element(),
+		ElementKind::Canvas => {
+			ReactCanvasElement::new(element, window_id, parent_style).into_any_element()
+		}
 		ElementKind::Div => ReactDivElement::new(element, window_id, parent_style).into_any_element(),
 		ElementKind::Span => ReactSpanElement::new(element, window_id, parent_style).into_any_element(),
 		ElementKind::Text => ReactTextElement::new(element, window_id, parent_style).into_any_element(),

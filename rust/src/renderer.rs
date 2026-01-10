@@ -1,8 +1,6 @@
 use gpui::{Application as GpuiApp, Entity, FocusHandle, InteractiveElement, KeyDownEvent, KeyUpEvent, Render, Window, div, prelude::*, rgb};
 
-use crate::{element::create_element, focus, global_state::GLOBAL_STATE, host_command};
-use crate::event_types::{types, EventData, KeyboardEventData, FocusEventData};
-use crate::window::EventMessage;
+use crate::{element::create_element, event_types::{EventData, FocusEventData, KeyboardEventData, types}, focus, global_state::GLOBAL_STATE, host_command, window::EventMessage};
 
 /// Dispatch an event to the event queue for JS polling
 /// This is thread-safe and doesn't require calling JS directly from Rust
@@ -89,13 +87,12 @@ pub(crate) fn dispatch_event_to_js(
 		});
 		log::trace!(
 			"[Rust] Event queued: window_id={}, element_id={}, event_type={}",
-			window_id, element_id, event_type
+			window_id,
+			element_id,
+			event_type
 		);
 	} else {
-		log::warn!(
-			"[Rust] dispatch_event_to_js: window {} not found",
-			window_id
-		);
+		log::warn!("[Rust] dispatch_event_to_js: window {} not found", window_id);
 	}
 }
 
@@ -104,10 +101,10 @@ pub struct RootState {
 }
 
 pub struct RootView {
-	state:            Entity<RootState>,
-	last_render:      u64,
-	window_id:        u64,
-	focus_handle:     Option<FocusHandle>,
+	state:             Entity<RootState>,
+	last_render:       u64,
+	window_id:         u64,
+	focus_handle:      Option<FocusHandle>,
 	focus_initialized: bool,
 }
 
@@ -204,7 +201,9 @@ impl Render for RootView {
 				let keystroke = &event.keystroke;
 				log::debug!(
 					"[Rust] Window {} KeyDown: key={}, shift={}",
-					window_id, keystroke.key, keystroke.modifiers.shift
+					window_id,
+					keystroke.key,
+					keystroke.modifiers.shift
 				);
 
 				// Get the currently focused element for this window
@@ -214,7 +213,8 @@ impl Render for RootView {
 				if keystroke.key == "tab" {
 					log::debug!(
 						"[Rust] Tab key pressed, current focused={:?}, shift={}",
-						focused_element, keystroke.modifiers.shift
+						focused_element,
+						keystroke.modifiers.shift
 					);
 
 					let (blur_id, focus_id) = if keystroke.modifiers.shift {
@@ -225,7 +225,8 @@ impl Render for RootView {
 
 					log::debug!(
 						"[Rust] Focus navigation result: blur_id={:?}, focus_id={:?}",
-						blur_id, focus_id
+						blur_id,
+						focus_id
 					);
 
 					// Dispatch blur event
@@ -234,9 +235,7 @@ impl Render for RootView {
 							window_id,
 							blur_element_id,
 							types::BLUR,
-							EventData::Focus(FocusEventData {
-								related_target: focus_id,
-							}),
+							EventData::Focus(FocusEventData { related_target: focus_id }),
 						);
 					}
 
@@ -246,9 +245,7 @@ impl Render for RootView {
 							window_id,
 							focus_element_id,
 							types::FOCUS,
-							EventData::Focus(FocusEventData {
-								related_target: blur_id,
-							}),
+							EventData::Focus(FocusEventData { related_target: blur_id }),
 						);
 					}
 
@@ -258,18 +255,19 @@ impl Render for RootView {
 				// Dispatch keydown event to the focused element
 				if let Some(element_id) = focused_element {
 					let event_data = EventData::Keyboard(KeyboardEventData {
-						key: keystroke.key.clone(),
-						code: keystroke.key.clone(),
+						key:    keystroke.key.clone(),
+						code:   keystroke.key.clone(),
 						repeat: event.is_held,
-						ctrl: keystroke.modifiers.control,
-						shift: keystroke.modifiers.shift,
-						alt: keystroke.modifiers.alt,
-						meta: keystroke.modifiers.platform,
+						ctrl:   keystroke.modifiers.control,
+						shift:  keystroke.modifiers.shift,
+						alt:    keystroke.modifiers.alt,
+						meta:   keystroke.modifiers.platform,
 					});
 
 					log::debug!(
 						"[Rust] Dispatching onKeyDown to element_id={}, key={}",
-						element_id, keystroke.key
+						element_id,
+						keystroke.key
 					);
 					dispatch_event_to_js(window_id, element_id, types::KEYDOWN, event_data);
 				}
@@ -282,18 +280,19 @@ impl Render for RootView {
 				if let Some(element_id) = focused_element {
 					let keystroke = &event.keystroke;
 					let event_data = EventData::Keyboard(KeyboardEventData {
-						key: keystroke.key.clone(),
-						code: keystroke.key.clone(),
+						key:    keystroke.key.clone(),
+						code:   keystroke.key.clone(),
 						repeat: false,
-						ctrl: keystroke.modifiers.control,
-						shift: keystroke.modifiers.shift,
-						alt: keystroke.modifiers.alt,
-						meta: keystroke.modifiers.platform,
+						ctrl:   keystroke.modifiers.control,
+						shift:  keystroke.modifiers.shift,
+						alt:    keystroke.modifiers.alt,
+						meta:   keystroke.modifiers.platform,
 					});
 
 					log::debug!(
 						"[Rust] Dispatching onKeyUp to element_id={}, key={}",
-						element_id, keystroke.key
+						element_id,
+						keystroke.key
 					);
 					dispatch_event_to_js(window_id, element_id, types::KEYUP, event_data);
 				}

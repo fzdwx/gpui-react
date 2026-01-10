@@ -217,8 +217,8 @@ pub extern "C" fn gpui_free_event_string(ptr: *mut c_char) {
 }
 
 /// Poll events from a window's event queue
-/// Returns a JSON array string of events, caller must free with gpui_free_event_string
-/// Returns null if no events or window not found
+/// Returns a JSON array string of events, caller must free with
+/// gpui_free_event_string Returns null if no events or window not found
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_poll_events(window_id_ptr: *const u8) -> *mut c_char {
 	unsafe {
@@ -235,10 +235,8 @@ pub extern "C" fn gpui_poll_events(window_id_ptr: *const u8) -> *mut c_char {
 		}
 
 		// Convert events to JSON array
-		let payloads: Vec<serde_json::Value> = events
-			.iter()
-			.filter_map(|e| serde_json::from_str(&e.payload).ok())
-			.collect();
+		let payloads: Vec<serde_json::Value> =
+			events.iter().filter_map(|e| serde_json::from_str(&e.payload).ok()).collect();
 
 		let json_str = serde_json::to_string(&payloads).unwrap_or_else(|_| "[]".to_string());
 

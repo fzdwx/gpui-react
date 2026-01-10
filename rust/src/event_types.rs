@@ -7,43 +7,43 @@
 /// Maps React-style prop names to standard event type names
 /// Used when checking if an element has a handler registered
 pub mod props {
-    pub const ON_CLICK: &str = "onClick";
-    pub const ON_DOUBLE_CLICK: &str = "onDoubleClick";
-    pub const ON_MOUSE_DOWN: &str = "onMouseDown";
-    pub const ON_MOUSE_UP: &str = "onMouseUp";
-    pub const ON_MOUSE_MOVE: &str = "onMouseMove";
-    pub const ON_MOUSE_ENTER: &str = "onMouseEnter";
-    pub const ON_MOUSE_LEAVE: &str = "onMouseLeave";
-    pub const ON_HOVER: &str = "onHover";
-    pub const ON_KEY_DOWN: &str = "onKeyDown";
-    pub const ON_KEY_UP: &str = "onKeyUp";
-    pub const ON_KEY_PRESS: &str = "onKeyPress";
-    pub const ON_FOCUS: &str = "onFocus";
-    pub const ON_BLUR: &str = "onBlur";
-    pub const ON_SCROLL: &str = "onScroll";
-    pub const ON_WHEEL: &str = "onWheel";
+	pub const ON_CLICK: &str = "onClick";
+	pub const ON_DOUBLE_CLICK: &str = "onDoubleClick";
+	pub const ON_MOUSE_DOWN: &str = "onMouseDown";
+	pub const ON_MOUSE_UP: &str = "onMouseUp";
+	pub const ON_MOUSE_MOVE: &str = "onMouseMove";
+	pub const ON_MOUSE_ENTER: &str = "onMouseEnter";
+	pub const ON_MOUSE_LEAVE: &str = "onMouseLeave";
+	pub const ON_HOVER: &str = "onHover";
+	pub const ON_KEY_DOWN: &str = "onKeyDown";
+	pub const ON_KEY_UP: &str = "onKeyUp";
+	pub const ON_KEY_PRESS: &str = "onKeyPress";
+	pub const ON_FOCUS: &str = "onFocus";
+	pub const ON_BLUR: &str = "onBlur";
+	pub const ON_SCROLL: &str = "onScroll";
+	pub const ON_WHEEL: &str = "onWheel";
 }
 
 /// Standard event type names dispatched to JavaScript
 /// These match the GPUIEventType in TypeScript
 pub mod types {
-    pub const CLICK: &str = "click";
-    pub const DBLCLICK: &str = "dblclick";
-    pub const MOUSEDOWN: &str = "mousedown";
-    pub const MOUSEUP: &str = "mouseup";
-    pub const MOUSEMOVE: &str = "mousemove";
-    pub const MOUSEENTER: &str = "mouseenter";
-    pub const MOUSELEAVE: &str = "mouseleave";
-    pub const HOVER: &str = "hover";
-    pub const KEYDOWN: &str = "keydown";
-    pub const KEYUP: &str = "keyup";
-    pub const KEYPRESS: &str = "keypress";
-    pub const FOCUS: &str = "focus";
-    pub const BLUR: &str = "blur";
-    pub const SCROLL: &str = "scroll";
-    pub const WHEEL: &str = "wheel";
-    pub const FOCUSIN: &str = "focusin";
-    pub const FOCUSOUT: &str = "focusout";
+	pub const CLICK: &str = "click";
+	pub const DBLCLICK: &str = "dblclick";
+	pub const MOUSEDOWN: &str = "mousedown";
+	pub const MOUSEUP: &str = "mouseup";
+	pub const MOUSEMOVE: &str = "mousemove";
+	pub const MOUSEENTER: &str = "mouseenter";
+	pub const MOUSELEAVE: &str = "mouseleave";
+	pub const HOVER: &str = "hover";
+	pub const KEYDOWN: &str = "keydown";
+	pub const KEYUP: &str = "keyup";
+	pub const KEYPRESS: &str = "keypress";
+	pub const FOCUS: &str = "focus";
+	pub const BLUR: &str = "blur";
+	pub const SCROLL: &str = "scroll";
+	pub const WHEEL: &str = "wheel";
+	pub const FOCUSIN: &str = "focusin";
+	pub const FOCUSOUT: &str = "focusout";
 }
 
 // ============ Event Data Structures ============
@@ -51,96 +51,98 @@ pub mod types {
 /// Mouse event data
 #[derive(Default, Clone)]
 pub struct MouseEventData {
-    pub client_x: f32,
-    pub client_y: f32,
-    pub offset_x: f32,
-    pub offset_y: f32,
-    pub button: u8,
+	pub client_x: f32,
+	pub client_y: f32,
+	pub offset_x: f32,
+	pub offset_y: f32,
+	pub button:   u8,
 }
 
 /// Keyboard event data
 #[derive(Default, Clone)]
 pub struct KeyboardEventData {
-    pub key: String,
-    pub code: String,
-    pub repeat: bool,
-    pub ctrl: bool,
-    pub shift: bool,
-    pub alt: bool,
-    pub meta: bool,
+	pub key:    String,
+	pub code:   String,
+	pub repeat: bool,
+	pub ctrl:   bool,
+	pub shift:  bool,
+	pub alt:    bool,
+	pub meta:   bool,
 }
 
 /// Scroll/wheel event data
 #[derive(Default, Clone)]
 pub struct ScrollEventData {
-    pub delta_x: f32,
-    pub delta_y: f32,
-    pub delta_mode: u8,
+	pub delta_x:    f32,
+	pub delta_y:    f32,
+	pub delta_mode: u8,
 }
 
 /// Focus event data
 #[derive(Default, Clone)]
 pub struct FocusEventData {
-    pub related_target: Option<u64>,
+	pub related_target: Option<u64>,
 }
 
 /// Unified event data enum
 #[derive(Clone)]
 pub enum EventData {
-    Mouse(MouseEventData),
-    Keyboard(KeyboardEventData),
-    Scroll(ScrollEventData),
-    Focus(FocusEventData),
-    None,
+	Mouse(MouseEventData),
+	Keyboard(KeyboardEventData),
+	Scroll(ScrollEventData),
+	Focus(FocusEventData),
+	None,
 }
 
 /// Convert prop name to event type
 /// Returns None if the prop is not a recognized event handler
 pub fn prop_to_event_type(prop: &str) -> Option<&'static str> {
-    match prop {
-        props::ON_CLICK => Some(types::CLICK),
-        props::ON_DOUBLE_CLICK => Some(types::DBLCLICK),
-        props::ON_MOUSE_DOWN => Some(types::MOUSEDOWN),
-        props::ON_MOUSE_UP => Some(types::MOUSEUP),
-        props::ON_MOUSE_MOVE => Some(types::MOUSEMOVE),
-        props::ON_MOUSE_ENTER => Some(types::MOUSEENTER),
-        props::ON_MOUSE_LEAVE => Some(types::MOUSELEAVE),
-        props::ON_HOVER => Some(types::HOVER),
-        props::ON_KEY_DOWN => Some(types::KEYDOWN),
-        props::ON_KEY_UP => Some(types::KEYUP),
-        props::ON_KEY_PRESS => Some(types::KEYPRESS),
-        props::ON_FOCUS => Some(types::FOCUS),
-        props::ON_BLUR => Some(types::BLUR),
-        props::ON_SCROLL => Some(types::SCROLL),
-        props::ON_WHEEL => Some(types::WHEEL),
-        _ => None,
-    }
+	match prop {
+		props::ON_CLICK => Some(types::CLICK),
+		props::ON_DOUBLE_CLICK => Some(types::DBLCLICK),
+		props::ON_MOUSE_DOWN => Some(types::MOUSEDOWN),
+		props::ON_MOUSE_UP => Some(types::MOUSEUP),
+		props::ON_MOUSE_MOVE => Some(types::MOUSEMOVE),
+		props::ON_MOUSE_ENTER => Some(types::MOUSEENTER),
+		props::ON_MOUSE_LEAVE => Some(types::MOUSELEAVE),
+		props::ON_HOVER => Some(types::HOVER),
+		props::ON_KEY_DOWN => Some(types::KEYDOWN),
+		props::ON_KEY_UP => Some(types::KEYUP),
+		props::ON_KEY_PRESS => Some(types::KEYPRESS),
+		props::ON_FOCUS => Some(types::FOCUS),
+		props::ON_BLUR => Some(types::BLUR),
+		props::ON_SCROLL => Some(types::SCROLL),
+		props::ON_WHEEL => Some(types::WHEEL),
+		_ => None,
+	}
 }
 
 /// Check if event type is a mouse event
 pub fn is_mouse_event(event_type: &str) -> bool {
-    matches!(event_type,
-        types::CLICK | types::DBLCLICK | types::MOUSEDOWN | types::MOUSEUP | types::MOUSEMOVE | types::MOUSEENTER | types::MOUSELEAVE | types::HOVER
-    )
+	matches!(
+		event_type,
+		types::CLICK
+			| types::DBLCLICK
+			| types::MOUSEDOWN
+			| types::MOUSEUP
+			| types::MOUSEMOVE
+			| types::MOUSEENTER
+			| types::MOUSELEAVE
+			| types::HOVER
+	)
 }
 
 /// Check if event type is a keyboard event
 pub fn is_keyboard_event(event_type: &str) -> bool {
-    matches!(event_type,
-        types::KEYDOWN | types::KEYUP | types::KEYPRESS
-    )
+	matches!(event_type, types::KEYDOWN | types::KEYUP | types::KEYPRESS)
 }
 
 /// Check if event type is a focus event
 pub fn is_focus_event(event_type: &str) -> bool {
-    matches!(event_type,
-        types::FOCUS | types::BLUR | types::FOCUSIN | types::FOCUSOUT
-    )
+	matches!(event_type, types::FOCUS | types::BLUR | types::FOCUSIN | types::FOCUSOUT)
 }
 
 /// Check if event type is a scroll event
 pub fn is_scroll_event(event_type: &str) -> bool {
-    matches!(event_type,
-        types::SCROLL | types::WHEEL
-    )
+	matches!(event_type, types::SCROLL | types::WHEEL)
 }

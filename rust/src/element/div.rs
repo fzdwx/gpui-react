@@ -1,12 +1,8 @@
 use std::sync::Arc;
 
-use gpui::{
-	AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId,
-	IntoElement, LayoutId, Pixels, Window, div, prelude::*, px, rgb,
-};
+use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, Pixels, Window, div, prelude::*, px, rgb};
 
-use super::events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers};
-use super::{ElementStyle, ReactElement};
+use super::{ElementStyle, ReactElement, events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers}};
 
 /// A React element that implements GPUI's Element trait directly
 pub struct ReactDivElement {
@@ -23,7 +19,7 @@ pub struct DivLayoutState {
 
 /// State returned from prepaint
 pub struct DivPrepaintState {
-	hitbox: Option<Hitbox>,
+	hitbox:      Option<Hitbox>,
 	event_flags: EventHandlerFlags,
 }
 
@@ -38,8 +34,8 @@ impl ReactDivElement {
 }
 
 impl Element for ReactDivElement {
-	type RequestLayoutState = DivLayoutState;
 	type PrepaintState = DivPrepaintState;
+	type RequestLayoutState = DivLayoutState;
 
 	fn id(&self) -> Option<ElementId> { Some(ElementId::Integer(self.element.global_id)) }
 

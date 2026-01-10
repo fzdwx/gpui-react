@@ -1,462 +1,589 @@
 //! Code generator for TypeScript event types and event data
-//! Generates TypeScript definitions and Rust structs from a single source of truth
+//! Generates TypeScript definitions and Rust structs from a single source of
+//! truth
 //!
 //! Run with: cargo run --bin codegen
 
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 
 /// Event type definition
 struct EventDef {
-    prop_name: &'static str,
-    event_type: &'static str,
-    category: EventCategory,
+	prop_name:  &'static str,
+	event_type: &'static str,
+	category:   EventCategory,
 }
 
 #[derive(Clone, Copy, PartialEq)]
 enum EventCategory {
-    Mouse,
-    Keyboard,
-    Focus,
-    Scroll,
+	Mouse,
+	Keyboard,
+	Focus,
+	Scroll,
 }
 
 /// All event definitions - single source of truth
 const EVENT_DEFINITIONS: &[EventDef] = &[
-    // Mouse events
-    EventDef { prop_name: "onClick", event_type: "click", category: EventCategory::Mouse },
-    EventDef { prop_name: "onDoubleClick", event_type: "dblclick", category: EventCategory::Mouse },
-    EventDef { prop_name: "onMouseDown", event_type: "mousedown", category: EventCategory::Mouse },
-    EventDef { prop_name: "onMouseUp", event_type: "mouseup", category: EventCategory::Mouse },
-    EventDef { prop_name: "onMouseMove", event_type: "mousemove", category: EventCategory::Mouse },
-    EventDef { prop_name: "onMouseEnter", event_type: "mouseenter", category: EventCategory::Mouse },
-    EventDef { prop_name: "onMouseLeave", event_type: "mouseleave", category: EventCategory::Mouse },
-    EventDef { prop_name: "onHover", event_type: "hover", category: EventCategory::Mouse },
-    // Keyboard events
-    EventDef { prop_name: "onKeyDown", event_type: "keydown", category: EventCategory::Keyboard },
-    EventDef { prop_name: "onKeyUp", event_type: "keyup", category: EventCategory::Keyboard },
-    EventDef { prop_name: "onKeyPress", event_type: "keypress", category: EventCategory::Keyboard },
-    // Focus events
-    EventDef { prop_name: "onFocus", event_type: "focus", category: EventCategory::Focus },
-    EventDef { prop_name: "onBlur", event_type: "blur", category: EventCategory::Focus },
-    // Scroll events
-    EventDef { prop_name: "onScroll", event_type: "scroll", category: EventCategory::Scroll },
-    EventDef { prop_name: "onWheel", event_type: "wheel", category: EventCategory::Scroll },
+	// Mouse events
+	EventDef { prop_name: "onClick", event_type: "click", category: EventCategory::Mouse },
+	EventDef {
+		prop_name:  "onDoubleClick",
+		event_type: "dblclick",
+		category:   EventCategory::Mouse,
+	},
+	EventDef { prop_name: "onMouseDown", event_type: "mousedown", category: EventCategory::Mouse },
+	EventDef { prop_name: "onMouseUp", event_type: "mouseup", category: EventCategory::Mouse },
+	EventDef { prop_name: "onMouseMove", event_type: "mousemove", category: EventCategory::Mouse },
+	EventDef {
+		prop_name:  "onMouseEnter",
+		event_type: "mouseenter",
+		category:   EventCategory::Mouse,
+	},
+	EventDef {
+		prop_name:  "onMouseLeave",
+		event_type: "mouseleave",
+		category:   EventCategory::Mouse,
+	},
+	EventDef { prop_name: "onHover", event_type: "hover", category: EventCategory::Mouse },
+	// Keyboard events
+	EventDef { prop_name: "onKeyDown", event_type: "keydown", category: EventCategory::Keyboard },
+	EventDef { prop_name: "onKeyUp", event_type: "keyup", category: EventCategory::Keyboard },
+	EventDef {
+		prop_name:  "onKeyPress",
+		event_type: "keypress",
+		category:   EventCategory::Keyboard,
+	},
+	// Focus events
+	EventDef { prop_name: "onFocus", event_type: "focus", category: EventCategory::Focus },
+	EventDef { prop_name: "onBlur", event_type: "blur", category: EventCategory::Focus },
+	// Scroll events
+	EventDef { prop_name: "onScroll", event_type: "scroll", category: EventCategory::Scroll },
+	EventDef { prop_name: "onWheel", event_type: "wheel", category: EventCategory::Scroll },
 ];
 
 /// Additional event types that don't have props (internal events)
-const INTERNAL_EVENT_TYPES: &[(&str, EventCategory)] = &[
-    ("focusin", EventCategory::Focus),
-    ("focusout", EventCategory::Focus),
-];
+const INTERNAL_EVENT_TYPES: &[(&str, EventCategory)] =
+	&[("focusin", EventCategory::Focus), ("focusout", EventCategory::Focus)];
 
 /// Event data field definition
 struct EventField {
-    name: &'static str,
-    rust_type: &'static str,
-    ts_type: &'static str,
-    json_key: &'static str,
-    optional: bool,
+	name:      &'static str,
+	rust_type: &'static str,
+	ts_type:   &'static str,
+	json_key:  &'static str,
+	optional:  bool,
 }
 
 /// Mouse event data fields
 const MOUSE_EVENT_FIELDS: &[EventField] = &[
-    EventField { name: "client_x", rust_type: "f32", ts_type: "number", json_key: "clientX", optional: false },
-    EventField { name: "client_y", rust_type: "f32", ts_type: "number", json_key: "clientY", optional: false },
-    EventField { name: "button", rust_type: "u8", ts_type: "number", json_key: "button", optional: false },
+	EventField {
+		name:      "client_x",
+		rust_type: "f32",
+		ts_type:   "number",
+		json_key:  "clientX",
+		optional:  false,
+	},
+	EventField {
+		name:      "client_y",
+		rust_type: "f32",
+		ts_type:   "number",
+		json_key:  "clientY",
+		optional:  false,
+	},
+	EventField {
+		name:      "button",
+		rust_type: "u8",
+		ts_type:   "number",
+		json_key:  "button",
+		optional:  false,
+	},
 ];
 
 /// Keyboard event data fields
 const KEYBOARD_EVENT_FIELDS: &[EventField] = &[
-    EventField { name: "key", rust_type: "String", ts_type: "string", json_key: "key", optional: false },
-    EventField { name: "code", rust_type: "String", ts_type: "string", json_key: "code", optional: false },
-    EventField { name: "repeat", rust_type: "bool", ts_type: "boolean", json_key: "repeat", optional: false },
-    EventField { name: "ctrl", rust_type: "bool", ts_type: "boolean", json_key: "ctrlKey", optional: false },
-    EventField { name: "shift", rust_type: "bool", ts_type: "boolean", json_key: "shiftKey", optional: false },
-    EventField { name: "alt", rust_type: "bool", ts_type: "boolean", json_key: "altKey", optional: false },
-    EventField { name: "meta", rust_type: "bool", ts_type: "boolean", json_key: "metaKey", optional: false },
+	EventField {
+		name:      "key",
+		rust_type: "String",
+		ts_type:   "string",
+		json_key:  "key",
+		optional:  false,
+	},
+	EventField {
+		name:      "code",
+		rust_type: "String",
+		ts_type:   "string",
+		json_key:  "code",
+		optional:  false,
+	},
+	EventField {
+		name:      "repeat",
+		rust_type: "bool",
+		ts_type:   "boolean",
+		json_key:  "repeat",
+		optional:  false,
+	},
+	EventField {
+		name:      "ctrl",
+		rust_type: "bool",
+		ts_type:   "boolean",
+		json_key:  "ctrlKey",
+		optional:  false,
+	},
+	EventField {
+		name:      "shift",
+		rust_type: "bool",
+		ts_type:   "boolean",
+		json_key:  "shiftKey",
+		optional:  false,
+	},
+	EventField {
+		name:      "alt",
+		rust_type: "bool",
+		ts_type:   "boolean",
+		json_key:  "altKey",
+		optional:  false,
+	},
+	EventField {
+		name:      "meta",
+		rust_type: "bool",
+		ts_type:   "boolean",
+		json_key:  "metaKey",
+		optional:  false,
+	},
 ];
 
 /// Scroll event data fields
 const SCROLL_EVENT_FIELDS: &[EventField] = &[
-    EventField { name: "delta_x", rust_type: "f32", ts_type: "number", json_key: "deltaX", optional: false },
-    EventField { name: "delta_y", rust_type: "f32", ts_type: "number", json_key: "deltaY", optional: false },
-    EventField { name: "delta_mode", rust_type: "u8", ts_type: "number", json_key: "deltaMode", optional: false },
+	EventField {
+		name:      "delta_x",
+		rust_type: "f32",
+		ts_type:   "number",
+		json_key:  "deltaX",
+		optional:  false,
+	},
+	EventField {
+		name:      "delta_y",
+		rust_type: "f32",
+		ts_type:   "number",
+		json_key:  "deltaY",
+		optional:  false,
+	},
+	EventField {
+		name:      "delta_mode",
+		rust_type: "u8",
+		ts_type:   "number",
+		json_key:  "deltaMode",
+		optional:  false,
+	},
 ];
 
 /// Focus event data fields
-const FOCUS_EVENT_FIELDS: &[EventField] = &[
-    EventField { name: "related_target", rust_type: "Option<u64>", ts_type: "number | null", json_key: "relatedTarget", optional: true },
-];
+const FOCUS_EVENT_FIELDS: &[EventField] = &[EventField {
+	name:      "related_target",
+	rust_type: "Option<u64>",
+	ts_type:   "number | null",
+	json_key:  "relatedTarget",
+	optional:  true,
+}];
 
 fn generate_typescript() -> String {
-    let mut output = String::new();
+	let mut output = String::new();
 
-    // Header
-    output.push_str("/**\n");
-    output.push_str(" * Auto-generated event types - DO NOT EDIT\n");
-    output.push_str(" * Generated by: cargo run --bin codegen\n");
-    output.push_str(" * Source: rust/src/bin/codegen.rs\n");
-    output.push_str(" */\n\n");
+	// Header
+	output.push_str("/**\n");
+	output.push_str(" * Auto-generated event types - DO NOT EDIT\n");
+	output.push_str(" * Generated by: cargo run --bin codegen\n");
+	output.push_str(" * Source: rust/src/bin/codegen.rs\n");
+	output.push_str(" */\n\n");
 
-    // Event type union
-    output.push_str("/** All GPUI event types */\n");
-    output.push_str("export type GPUIEventType =\n");
-    for (i, def) in EVENT_DEFINITIONS.iter().enumerate() {
-        output.push_str(&format!("    | \"{}\"", def.event_type));
-        if i < EVENT_DEFINITIONS.len() - 1 || !INTERNAL_EVENT_TYPES.is_empty() {
-            output.push('\n');
-        }
-    }
-    for (i, (event_type, _)) in INTERNAL_EVENT_TYPES.iter().enumerate() {
-        output.push_str(&format!("    | \"{}\"", event_type));
-        if i < INTERNAL_EVENT_TYPES.len() - 1 {
-            output.push('\n');
-        }
-    }
-    output.push_str(";\n\n");
+	// Event type union
+	output.push_str("/** All GPUI event types */\n");
+	output.push_str("export type GPUIEventType =\n");
+	for (i, def) in EVENT_DEFINITIONS.iter().enumerate() {
+		output.push_str(&format!("    | \"{}\"", def.event_type));
+		if i < EVENT_DEFINITIONS.len() - 1 || !INTERNAL_EVENT_TYPES.is_empty() {
+			output.push('\n');
+		}
+	}
+	for (i, (event_type, _)) in INTERNAL_EVENT_TYPES.iter().enumerate() {
+		output.push_str(&format!("    | \"{}\"", event_type));
+		if i < INTERNAL_EVENT_TYPES.len() - 1 {
+			output.push('\n');
+		}
+	}
+	output.push_str(";\n\n");
 
-    // Event prop names union
-    output.push_str("/** React-style event handler prop names */\n");
-    output.push_str("export type GPUIEventPropName =\n");
-    for (i, def) in EVENT_DEFINITIONS.iter().enumerate() {
-        output.push_str(&format!("    | \"{}\"", def.prop_name));
-        if i < EVENT_DEFINITIONS.len() - 1 {
-            output.push('\n');
-        }
-    }
-    output.push_str(";\n\n");
+	// Event prop names union
+	output.push_str("/** React-style event handler prop names */\n");
+	output.push_str("export type GPUIEventPropName =\n");
+	for (i, def) in EVENT_DEFINITIONS.iter().enumerate() {
+		output.push_str(&format!("    | \"{}\"", def.prop_name));
+		if i < EVENT_DEFINITIONS.len() - 1 {
+			output.push('\n');
+		}
+	}
+	output.push_str(";\n\n");
 
-    // Prop to event type mapping
-    output.push_str("/** Maps React prop names to event types */\n");
-    output.push_str("export const EVENT_PROP_TO_TYPE = {\n");
-    for def in EVENT_DEFINITIONS {
-        output.push_str(&format!("    {}: \"{}\",\n", def.prop_name, def.event_type));
-    }
-    output.push_str("} as const;\n\n");
+	// Prop to event type mapping
+	output.push_str("/** Maps React prop names to event types */\n");
+	output.push_str("export const EVENT_PROP_TO_TYPE = {\n");
+	for def in EVENT_DEFINITIONS {
+		output.push_str(&format!("    {}: \"{}\",\n", def.prop_name, def.event_type));
+	}
+	output.push_str("} as const;\n\n");
 
-    // Event type to prop mapping
-    output.push_str("/** Maps event types to React prop names */\n");
-    output.push_str("export const EVENT_TYPE_TO_PROP = {\n");
-    for def in EVENT_DEFINITIONS {
-        output.push_str(&format!("    {}: \"{}\",\n", def.event_type, def.prop_name));
-    }
-    output.push_str("} as const;\n\n");
+	// Event type to prop mapping
+	output.push_str("/** Maps event types to React prop names */\n");
+	output.push_str("export const EVENT_TYPE_TO_PROP = {\n");
+	for def in EVENT_DEFINITIONS {
+		output.push_str(&format!("    {}: \"{}\",\n", def.event_type, def.prop_name));
+	}
+	output.push_str("} as const;\n\n");
 
-    // Helper function
-    output.push_str("/** Check if a prop name is an event handler */\n");
-    output.push_str("export function isEventHandlerProp(prop: string): prop is GPUIEventPropName {\n");
-    output.push_str("    return prop in EVENT_PROP_TO_TYPE;\n");
-    output.push_str("}\n\n");
+	// Helper function
+	output.push_str("/** Check if a prop name is an event handler */\n");
+	output
+		.push_str("export function isEventHandlerProp(prop: string): prop is GPUIEventPropName {\n");
+	output.push_str("    return prop in EVENT_PROP_TO_TYPE;\n");
+	output.push_str("}\n\n");
 
-    // Event type categories
-    output.push_str("/** Mouse event types */\n");
-    output.push_str("export const MOUSE_EVENT_TYPES = [\n");
-    for def in EVENT_DEFINITIONS.iter().filter(|d| d.category == EventCategory::Mouse) {
-        output.push_str(&format!("    \"{}\",\n", def.event_type));
-    }
-    output.push_str("] as const;\n\n");
+	// Event type categories
+	output.push_str("/** Mouse event types */\n");
+	output.push_str("export const MOUSE_EVENT_TYPES = [\n");
+	for def in EVENT_DEFINITIONS.iter().filter(|d| d.category == EventCategory::Mouse) {
+		output.push_str(&format!("    \"{}\",\n", def.event_type));
+	}
+	output.push_str("] as const;\n\n");
 
-    output.push_str("/** Keyboard event types */\n");
-    output.push_str("export const KEYBOARD_EVENT_TYPES = [\n");
-    for def in EVENT_DEFINITIONS.iter().filter(|d| d.category == EventCategory::Keyboard) {
-        output.push_str(&format!("    \"{}\",\n", def.event_type));
-    }
-    output.push_str("] as const;\n\n");
+	output.push_str("/** Keyboard event types */\n");
+	output.push_str("export const KEYBOARD_EVENT_TYPES = [\n");
+	for def in EVENT_DEFINITIONS.iter().filter(|d| d.category == EventCategory::Keyboard) {
+		output.push_str(&format!("    \"{}\",\n", def.event_type));
+	}
+	output.push_str("] as const;\n\n");
 
-    output.push_str("/** Focus event types */\n");
-    output.push_str("export const FOCUS_EVENT_TYPES = [\n");
-    for def in EVENT_DEFINITIONS.iter().filter(|d| d.category == EventCategory::Focus) {
-        output.push_str(&format!("    \"{}\",\n", def.event_type));
-    }
-    for (event_type, cat) in INTERNAL_EVENT_TYPES.iter() {
-        if *cat == EventCategory::Focus {
-            output.push_str(&format!("    \"{}\",\n", event_type));
-        }
-    }
-    output.push_str("] as const;\n\n");
+	output.push_str("/** Focus event types */\n");
+	output.push_str("export const FOCUS_EVENT_TYPES = [\n");
+	for def in EVENT_DEFINITIONS.iter().filter(|d| d.category == EventCategory::Focus) {
+		output.push_str(&format!("    \"{}\",\n", def.event_type));
+	}
+	for (event_type, cat) in INTERNAL_EVENT_TYPES.iter() {
+		if *cat == EventCategory::Focus {
+			output.push_str(&format!("    \"{}\",\n", event_type));
+		}
+	}
+	output.push_str("] as const;\n\n");
 
-    output.push_str("/** Scroll event types */\n");
-    output.push_str("export const SCROLL_EVENT_TYPES = [\n");
-    for def in EVENT_DEFINITIONS.iter().filter(|d| d.category == EventCategory::Scroll) {
-        output.push_str(&format!("    \"{}\",\n", def.event_type));
-    }
-    output.push_str("] as const;\n\n");
+	output.push_str("/** Scroll event types */\n");
+	output.push_str("export const SCROLL_EVENT_TYPES = [\n");
+	for def in EVENT_DEFINITIONS.iter().filter(|d| d.category == EventCategory::Scroll) {
+		output.push_str(&format!("    \"{}\",\n", def.event_type));
+	}
+	output.push_str("] as const;\n\n");
 
-    // Event data interfaces
-    output.push_str("// ============ Event Data Interfaces ============\n\n");
+	// Event data interfaces
+	output.push_str("// ============ Event Data Interfaces ============\n\n");
 
-    // Base event data
-    output.push_str("/** Base event data from Rust */\n");
-    output.push_str("export interface RawEventDataBase {\n");
-    output.push_str("    windowId: number;\n");
-    output.push_str("    elementId: number;\n");
-    output.push_str("    eventType: GPUIEventType;\n");
-    output.push_str("    timestamp: number;\n");
-    output.push_str("}\n\n");
+	// Base event data
+	output.push_str("/** Base event data from Rust */\n");
+	output.push_str("export interface RawEventDataBase {\n");
+	output.push_str("    windowId: number;\n");
+	output.push_str("    elementId: number;\n");
+	output.push_str("    eventType: GPUIEventType;\n");
+	output.push_str("    timestamp: number;\n");
+	output.push_str("}\n\n");
 
-    // Mouse event data
-    output.push_str("/** Raw mouse event data from Rust */\n");
-    output.push_str("export interface RawMouseEventData extends RawEventDataBase {\n");
-    for field in MOUSE_EVENT_FIELDS {
-        let ts_type = if field.optional { format!("{} | undefined", field.ts_type) } else { field.ts_type.to_string() };
-        output.push_str(&format!("    {}: {};\n", field.json_key, ts_type));
-    }
-    output.push_str("}\n\n");
+	// Mouse event data
+	output.push_str("/** Raw mouse event data from Rust */\n");
+	output.push_str("export interface RawMouseEventData extends RawEventDataBase {\n");
+	for field in MOUSE_EVENT_FIELDS {
+		let ts_type = if field.optional {
+			format!("{} | undefined", field.ts_type)
+		} else {
+			field.ts_type.to_string()
+		};
+		output.push_str(&format!("    {}: {};\n", field.json_key, ts_type));
+	}
+	output.push_str("}\n\n");
 
-    // Keyboard event data
-    output.push_str("/** Raw keyboard event data from Rust */\n");
-    output.push_str("export interface RawKeyboardEventData extends RawEventDataBase {\n");
-    for field in KEYBOARD_EVENT_FIELDS {
-        let ts_type = if field.optional { format!("{} | undefined", field.ts_type) } else { field.ts_type.to_string() };
-        output.push_str(&format!("    {}: {};\n", field.json_key, ts_type));
-    }
-    output.push_str("}\n\n");
+	// Keyboard event data
+	output.push_str("/** Raw keyboard event data from Rust */\n");
+	output.push_str("export interface RawKeyboardEventData extends RawEventDataBase {\n");
+	for field in KEYBOARD_EVENT_FIELDS {
+		let ts_type = if field.optional {
+			format!("{} | undefined", field.ts_type)
+		} else {
+			field.ts_type.to_string()
+		};
+		output.push_str(&format!("    {}: {};\n", field.json_key, ts_type));
+	}
+	output.push_str("}\n\n");
 
-    // Scroll event data
-    output.push_str("/** Raw scroll event data from Rust */\n");
-    output.push_str("export interface RawScrollEventData extends RawEventDataBase {\n");
-    for field in SCROLL_EVENT_FIELDS {
-        let ts_type = if field.optional { format!("{} | undefined", field.ts_type) } else { field.ts_type.to_string() };
-        output.push_str(&format!("    {}: {};\n", field.json_key, ts_type));
-    }
-    output.push_str("}\n\n");
+	// Scroll event data
+	output.push_str("/** Raw scroll event data from Rust */\n");
+	output.push_str("export interface RawScrollEventData extends RawEventDataBase {\n");
+	for field in SCROLL_EVENT_FIELDS {
+		let ts_type = if field.optional {
+			format!("{} | undefined", field.ts_type)
+		} else {
+			field.ts_type.to_string()
+		};
+		output.push_str(&format!("    {}: {};\n", field.json_key, ts_type));
+	}
+	output.push_str("}\n\n");
 
-    // Focus event data
-    output.push_str("/** Raw focus event data from Rust */\n");
-    output.push_str("export interface RawFocusEventData extends RawEventDataBase {\n");
-    for field in FOCUS_EVENT_FIELDS {
-        let ts_type = if field.optional { format!("{} | undefined", field.ts_type) } else { field.ts_type.to_string() };
-        output.push_str(&format!("    {}: {};\n", field.json_key, ts_type));
-    }
-    output.push_str("}\n\n");
+	// Focus event data
+	output.push_str("/** Raw focus event data from Rust */\n");
+	output.push_str("export interface RawFocusEventData extends RawEventDataBase {\n");
+	for field in FOCUS_EVENT_FIELDS {
+		let ts_type = if field.optional {
+			format!("{} | undefined", field.ts_type)
+		} else {
+			field.ts_type.to_string()
+		};
+		output.push_str(&format!("    {}: {};\n", field.json_key, ts_type));
+	}
+	output.push_str("}\n\n");
 
-    // Union type
-    output.push_str("/** All raw event data types */\n");
-    output.push_str("export type RawEventData =\n");
-    output.push_str("    | RawMouseEventData\n");
-    output.push_str("    | RawKeyboardEventData\n");
-    output.push_str("    | RawScrollEventData\n");
-    output.push_str("    | RawFocusEventData\n");
-    output.push_str("    | RawEventDataBase;\n\n");
+	// Union type
+	output.push_str("/** All raw event data types */\n");
+	output.push_str("export type RawEventData =\n");
+	output.push_str("    | RawMouseEventData\n");
+	output.push_str("    | RawKeyboardEventData\n");
+	output.push_str("    | RawScrollEventData\n");
+	output.push_str("    | RawFocusEventData\n");
+	output.push_str("    | RawEventDataBase;\n\n");
 
-    // Type guard functions
-    output.push_str("/** Type guard: Check if event is a mouse event */\n");
-    output.push_str("export function isMouseEventData(data: RawEventData): data is RawMouseEventData {\n");
-    output.push_str("    return MOUSE_EVENT_TYPES.includes(data.eventType as any);\n");
-    output.push_str("}\n\n");
+	// Type guard functions
+	output.push_str("/** Type guard: Check if event is a mouse event */\n");
+	output.push_str(
+		"export function isMouseEventData(data: RawEventData): data is RawMouseEventData {\n",
+	);
+	output.push_str("    return MOUSE_EVENT_TYPES.includes(data.eventType as any);\n");
+	output.push_str("}\n\n");
 
-    output.push_str("/** Type guard: Check if event is a keyboard event */\n");
-    output.push_str("export function isKeyboardEventData(data: RawEventData): data is RawKeyboardEventData {\n");
-    output.push_str("    return KEYBOARD_EVENT_TYPES.includes(data.eventType as any);\n");
-    output.push_str("}\n\n");
+	output.push_str("/** Type guard: Check if event is a keyboard event */\n");
+	output.push_str(
+		"export function isKeyboardEventData(data: RawEventData): data is RawKeyboardEventData {\n",
+	);
+	output.push_str("    return KEYBOARD_EVENT_TYPES.includes(data.eventType as any);\n");
+	output.push_str("}\n\n");
 
-    output.push_str("/** Type guard: Check if event is a scroll event */\n");
-    output.push_str("export function isScrollEventData(data: RawEventData): data is RawScrollEventData {\n");
-    output.push_str("    return SCROLL_EVENT_TYPES.includes(data.eventType as any);\n");
-    output.push_str("}\n\n");
+	output.push_str("/** Type guard: Check if event is a scroll event */\n");
+	output.push_str(
+		"export function isScrollEventData(data: RawEventData): data is RawScrollEventData {\n",
+	);
+	output.push_str("    return SCROLL_EVENT_TYPES.includes(data.eventType as any);\n");
+	output.push_str("}\n\n");
 
-    output.push_str("/** Type guard: Check if event is a focus event */\n");
-    output.push_str("export function isFocusEventData(data: RawEventData): data is RawFocusEventData {\n");
-    output.push_str("    return FOCUS_EVENT_TYPES.includes(data.eventType as any);\n");
-    output.push_str("}\n");
+	output.push_str("/** Type guard: Check if event is a focus event */\n");
+	output.push_str(
+		"export function isFocusEventData(data: RawEventData): data is RawFocusEventData {\n",
+	);
+	output.push_str("    return FOCUS_EVENT_TYPES.includes(data.eventType as any);\n");
+	output.push_str("}\n");
 
-    output
+	output
 }
 
 fn generate_rust_event_types() -> String {
-    let mut output = String::new();
+	let mut output = String::new();
 
-    // Header
-    output.push_str("//! Auto-generated event type constants - DO NOT EDIT\n");
-    output.push_str("//! Generated by: cargo run --bin codegen\n");
-    output.push_str("//! Source: rust/src/bin/codegen.rs\n\n");
-    output.push_str("#![allow(dead_code)] // Many constants are defined for completeness and code generation\n\n");
+	// Header
+	output.push_str("//! Auto-generated event type constants - DO NOT EDIT\n");
+	output.push_str("//! Generated by: cargo run --bin codegen\n");
+	output.push_str("//! Source: rust/src/bin/codegen.rs\n\n");
+	output.push_str(
+		"#![allow(dead_code)] // Many constants are defined for completeness and code generation\n\n",
+	);
 
-    // Props module
-    output.push_str("/// Maps React-style prop names to standard event type names\n");
-    output.push_str("/// Used when checking if an element has a handler registered\n");
-    output.push_str("pub mod props {\n");
-    for def in EVENT_DEFINITIONS {
-        let const_name = prop_to_const_name(def.prop_name);
-        output.push_str(&format!("    pub const {}: &str = \"{}\";\n", const_name, def.prop_name));
-    }
-    output.push_str("}\n\n");
+	// Props module
+	output.push_str("/// Maps React-style prop names to standard event type names\n");
+	output.push_str("/// Used when checking if an element has a handler registered\n");
+	output.push_str("pub mod props {\n");
+	for def in EVENT_DEFINITIONS {
+		let const_name = prop_to_const_name(def.prop_name);
+		output.push_str(&format!("    pub const {}: &str = \"{}\";\n", const_name, def.prop_name));
+	}
+	output.push_str("}\n\n");
 
-    // Types module
-    output.push_str("/// Standard event type names dispatched to JavaScript\n");
-    output.push_str("/// These match the GPUIEventType in TypeScript\n");
-    output.push_str("pub mod types {\n");
-    for def in EVENT_DEFINITIONS {
-        let const_name = event_type_to_const_name(def.event_type);
-        output.push_str(&format!("    pub const {}: &str = \"{}\";\n", const_name, def.event_type));
-    }
-    for (event_type, _) in INTERNAL_EVENT_TYPES {
-        let const_name = event_type_to_const_name(event_type);
-        output.push_str(&format!("    pub const {}: &str = \"{}\";\n", const_name, event_type));
-    }
-    output.push_str("}\n\n");
+	// Types module
+	output.push_str("/// Standard event type names dispatched to JavaScript\n");
+	output.push_str("/// These match the GPUIEventType in TypeScript\n");
+	output.push_str("pub mod types {\n");
+	for def in EVENT_DEFINITIONS {
+		let const_name = event_type_to_const_name(def.event_type);
+		output.push_str(&format!("    pub const {}: &str = \"{}\";\n", const_name, def.event_type));
+	}
+	for (event_type, _) in INTERNAL_EVENT_TYPES {
+		let const_name = event_type_to_const_name(event_type);
+		output.push_str(&format!("    pub const {}: &str = \"{}\";\n", const_name, event_type));
+	}
+	output.push_str("}\n\n");
 
-    // Event data structures
-    output.push_str("// ============ Event Data Structures ============\n\n");
+	// Event data structures
+	output.push_str("// ============ Event Data Structures ============\n\n");
 
-    // Mouse event data
-    output.push_str("/// Mouse event data\n");
-    output.push_str("#[derive(Default, Clone)]\n");
-    output.push_str("pub struct MouseEventData {\n");
-    for field in MOUSE_EVENT_FIELDS {
-        output.push_str(&format!("    pub {}: {},\n", field.name, field.rust_type));
-    }
-    output.push_str("}\n\n");
+	// Mouse event data
+	output.push_str("/// Mouse event data\n");
+	output.push_str("#[derive(Default, Clone)]\n");
+	output.push_str("pub struct MouseEventData {\n");
+	for field in MOUSE_EVENT_FIELDS {
+		output.push_str(&format!("    pub {}: {},\n", field.name, field.rust_type));
+	}
+	output.push_str("}\n\n");
 
-    // Keyboard event data
-    output.push_str("/// Keyboard event data\n");
-    output.push_str("#[derive(Default, Clone)]\n");
-    output.push_str("pub struct KeyboardEventData {\n");
-    for field in KEYBOARD_EVENT_FIELDS {
-        output.push_str(&format!("    pub {}: {},\n", field.name, field.rust_type));
-    }
-    output.push_str("}\n\n");
+	// Keyboard event data
+	output.push_str("/// Keyboard event data\n");
+	output.push_str("#[derive(Default, Clone)]\n");
+	output.push_str("pub struct KeyboardEventData {\n");
+	for field in KEYBOARD_EVENT_FIELDS {
+		output.push_str(&format!("    pub {}: {},\n", field.name, field.rust_type));
+	}
+	output.push_str("}\n\n");
 
-    // Scroll event data
-    output.push_str("/// Scroll/wheel event data\n");
-    output.push_str("#[derive(Default, Clone)]\n");
-    output.push_str("pub struct ScrollEventData {\n");
-    for field in SCROLL_EVENT_FIELDS {
-        output.push_str(&format!("    pub {}: {},\n", field.name, field.rust_type));
-    }
-    output.push_str("}\n\n");
+	// Scroll event data
+	output.push_str("/// Scroll/wheel event data\n");
+	output.push_str("#[derive(Default, Clone)]\n");
+	output.push_str("pub struct ScrollEventData {\n");
+	for field in SCROLL_EVENT_FIELDS {
+		output.push_str(&format!("    pub {}: {},\n", field.name, field.rust_type));
+	}
+	output.push_str("}\n\n");
 
-    // Focus event data
-    output.push_str("/// Focus event data\n");
-    output.push_str("#[derive(Default, Clone)]\n");
-    output.push_str("pub struct FocusEventData {\n");
-    for field in FOCUS_EVENT_FIELDS {
-        output.push_str(&format!("    pub {}: {},\n", field.name, field.rust_type));
-    }
-    output.push_str("}\n\n");
+	// Focus event data
+	output.push_str("/// Focus event data\n");
+	output.push_str("#[derive(Default, Clone)]\n");
+	output.push_str("pub struct FocusEventData {\n");
+	for field in FOCUS_EVENT_FIELDS {
+		output.push_str(&format!("    pub {}: {},\n", field.name, field.rust_type));
+	}
+	output.push_str("}\n\n");
 
-    // Event data enum
-    output.push_str("/// Unified event data enum\n");
-    output.push_str("#[derive(Clone)]\n");
-    output.push_str("pub enum EventData {\n");
-    output.push_str("    Mouse(MouseEventData),\n");
-    output.push_str("    Keyboard(KeyboardEventData),\n");
-    output.push_str("    Scroll(ScrollEventData),\n");
-    output.push_str("    Focus(FocusEventData),\n");
-    output.push_str("    None,\n");
-    output.push_str("}\n\n");
+	// Event data enum
+	output.push_str("/// Unified event data enum\n");
+	output.push_str("#[derive(Clone)]\n");
+	output.push_str("pub enum EventData {\n");
+	output.push_str("    Mouse(MouseEventData),\n");
+	output.push_str("    Keyboard(KeyboardEventData),\n");
+	output.push_str("    Scroll(ScrollEventData),\n");
+	output.push_str("    Focus(FocusEventData),\n");
+	output.push_str("    None,\n");
+	output.push_str("}\n\n");
 
-    // Conversion function
-    output.push_str("/// Convert prop name to event type\n");
-    output.push_str("/// Returns None if the prop is not a recognized event handler\n");
-    output.push_str("pub fn prop_to_event_type(prop: &str) -> Option<&'static str> {\n");
-    output.push_str("    match prop {\n");
-    for def in EVENT_DEFINITIONS {
-        let prop_const = prop_to_const_name(def.prop_name);
-        let type_const = event_type_to_const_name(def.event_type);
-        output.push_str(&format!("        props::{} => Some(types::{}),\n", prop_const, type_const));
-    }
-    output.push_str("        _ => None,\n");
-    output.push_str("    }\n");
-    output.push_str("}\n\n");
+	// Conversion function
+	output.push_str("/// Convert prop name to event type\n");
+	output.push_str("/// Returns None if the prop is not a recognized event handler\n");
+	output.push_str("pub fn prop_to_event_type(prop: &str) -> Option<&'static str> {\n");
+	output.push_str("    match prop {\n");
+	for def in EVENT_DEFINITIONS {
+		let prop_const = prop_to_const_name(def.prop_name);
+		let type_const = event_type_to_const_name(def.event_type);
+		output.push_str(&format!("        props::{} => Some(types::{}),\n", prop_const, type_const));
+	}
+	output.push_str("        _ => None,\n");
+	output.push_str("    }\n");
+	output.push_str("}\n\n");
 
-    // Category check functions
-    output.push_str("/// Check if event type is a mouse event\n");
-    output.push_str("pub fn is_mouse_event(event_type: &str) -> bool {\n");
-    output.push_str("    matches!(event_type,\n");
-    let mouse_events: Vec<_> = EVENT_DEFINITIONS.iter()
-        .filter(|d| d.category == EventCategory::Mouse)
-        .map(|d| format!("types::{}", event_type_to_const_name(d.event_type)))
-        .collect();
-    output.push_str(&format!("        {}\n", mouse_events.join(" | ")));
-    output.push_str("    )\n");
-    output.push_str("}\n\n");
+	// Category check functions
+	output.push_str("/// Check if event type is a mouse event\n");
+	output.push_str("pub fn is_mouse_event(event_type: &str) -> bool {\n");
+	output.push_str("    matches!(event_type,\n");
+	let mouse_events: Vec<_> = EVENT_DEFINITIONS
+		.iter()
+		.filter(|d| d.category == EventCategory::Mouse)
+		.map(|d| format!("types::{}", event_type_to_const_name(d.event_type)))
+		.collect();
+	output.push_str(&format!("        {}\n", mouse_events.join(" | ")));
+	output.push_str("    )\n");
+	output.push_str("}\n\n");
 
-    output.push_str("/// Check if event type is a keyboard event\n");
-    output.push_str("pub fn is_keyboard_event(event_type: &str) -> bool {\n");
-    output.push_str("    matches!(event_type,\n");
-    let keyboard_events: Vec<_> = EVENT_DEFINITIONS.iter()
-        .filter(|d| d.category == EventCategory::Keyboard)
-        .map(|d| format!("types::{}", event_type_to_const_name(d.event_type)))
-        .collect();
-    output.push_str(&format!("        {}\n", keyboard_events.join(" | ")));
-    output.push_str("    )\n");
-    output.push_str("}\n\n");
+	output.push_str("/// Check if event type is a keyboard event\n");
+	output.push_str("pub fn is_keyboard_event(event_type: &str) -> bool {\n");
+	output.push_str("    matches!(event_type,\n");
+	let keyboard_events: Vec<_> = EVENT_DEFINITIONS
+		.iter()
+		.filter(|d| d.category == EventCategory::Keyboard)
+		.map(|d| format!("types::{}", event_type_to_const_name(d.event_type)))
+		.collect();
+	output.push_str(&format!("        {}\n", keyboard_events.join(" | ")));
+	output.push_str("    )\n");
+	output.push_str("}\n\n");
 
-    output.push_str("/// Check if event type is a focus event\n");
-    output.push_str("pub fn is_focus_event(event_type: &str) -> bool {\n");
-    output.push_str("    matches!(event_type,\n");
-    let focus_events: Vec<_> = EVENT_DEFINITIONS.iter()
-        .filter(|d| d.category == EventCategory::Focus)
-        .map(|d| format!("types::{}", event_type_to_const_name(d.event_type)))
-        .chain(INTERNAL_EVENT_TYPES.iter()
-            .filter(|(_, cat)| *cat == EventCategory::Focus)
-            .map(|(t, _)| format!("types::{}", event_type_to_const_name(t))))
-        .collect();
-    output.push_str(&format!("        {}\n", focus_events.join(" | ")));
-    output.push_str("    )\n");
-    output.push_str("}\n\n");
+	output.push_str("/// Check if event type is a focus event\n");
+	output.push_str("pub fn is_focus_event(event_type: &str) -> bool {\n");
+	output.push_str("    matches!(event_type,\n");
+	let focus_events: Vec<_> = EVENT_DEFINITIONS
+		.iter()
+		.filter(|d| d.category == EventCategory::Focus)
+		.map(|d| format!("types::{}", event_type_to_const_name(d.event_type)))
+		.chain(
+			INTERNAL_EVENT_TYPES
+				.iter()
+				.filter(|(_, cat)| *cat == EventCategory::Focus)
+				.map(|(t, _)| format!("types::{}", event_type_to_const_name(t))),
+		)
+		.collect();
+	output.push_str(&format!("        {}\n", focus_events.join(" | ")));
+	output.push_str("    )\n");
+	output.push_str("}\n\n");
 
-    output.push_str("/// Check if event type is a scroll event\n");
-    output.push_str("pub fn is_scroll_event(event_type: &str) -> bool {\n");
-    output.push_str("    matches!(event_type,\n");
-    let scroll_events: Vec<_> = EVENT_DEFINITIONS.iter()
-        .filter(|d| d.category == EventCategory::Scroll)
-        .map(|d| format!("types::{}", event_type_to_const_name(d.event_type)))
-        .collect();
-    output.push_str(&format!("        {}\n", scroll_events.join(" | ")));
-    output.push_str("    )\n");
-    output.push_str("}\n");
+	output.push_str("/// Check if event type is a scroll event\n");
+	output.push_str("pub fn is_scroll_event(event_type: &str) -> bool {\n");
+	output.push_str("    matches!(event_type,\n");
+	let scroll_events: Vec<_> = EVENT_DEFINITIONS
+		.iter()
+		.filter(|d| d.category == EventCategory::Scroll)
+		.map(|d| format!("types::{}", event_type_to_const_name(d.event_type)))
+		.collect();
+	output.push_str(&format!("        {}\n", scroll_events.join(" | ")));
+	output.push_str("    )\n");
+	output.push_str("}\n");
 
-    output
+	output
 }
 
 /// Convert prop name like "onClick" to const name like "ON_CLICK"
 fn prop_to_const_name(prop: &str) -> String {
-    let mut result = String::new();
-    for (i, c) in prop.chars().enumerate() {
-        if c.is_uppercase() {
-            if i > 0 {
-                result.push('_');
-            }
-            result.push(c.to_ascii_uppercase());
-        } else {
-            result.push(c.to_ascii_uppercase());
-        }
-    }
-    result
+	let mut result = String::new();
+	for (i, c) in prop.chars().enumerate() {
+		if c.is_uppercase() {
+			if i > 0 {
+				result.push('_');
+			}
+			result.push(c.to_ascii_uppercase());
+		} else {
+			result.push(c.to_ascii_uppercase());
+		}
+	}
+	result
 }
 
 /// Convert event type like "mousedown" to const name like "MOUSEDOWN"
-fn event_type_to_const_name(event_type: &str) -> String {
-    event_type.to_uppercase()
-}
+fn event_type_to_const_name(event_type: &str) -> String { event_type.to_uppercase() }
 
 fn main() {
-    // Get project root (assumes we're running from rust/ directory or project root)
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .unwrap_or_else(|_| ".".to_string());
-    let rust_dir = Path::new(&manifest_dir);
-    let project_root = rust_dir.parent().unwrap_or(rust_dir);
+	// Get project root (assumes we're running from rust/ directory or project root)
+	let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+	let rust_dir = Path::new(&manifest_dir);
+	let project_root = rust_dir.parent().unwrap_or(rust_dir);
 
-    // Generate TypeScript file
-    let ts_output = generate_typescript();
-    let ts_path = project_root.join("src/events/generated.ts");
+	// Generate TypeScript file
+	let ts_output = generate_typescript();
+	let ts_path = project_root.join("src/events/generated.ts");
 
-    if let Some(parent) = ts_path.parent() {
-        fs::create_dir_all(parent).expect("Failed to create events directory");
-    }
+	if let Some(parent) = ts_path.parent() {
+		fs::create_dir_all(parent).expect("Failed to create events directory");
+	}
 
-    fs::write(&ts_path, &ts_output).expect("Failed to write TypeScript file");
-    println!("Generated: {}", ts_path.display());
+	fs::write(&ts_path, &ts_output).expect("Failed to write TypeScript file");
+	println!("Generated: {}", ts_path.display());
 
-    // Generate Rust file
-    let rust_output = generate_rust_event_types();
-    let rust_path = rust_dir.join("src/event_types.rs");
+	// Generate Rust file
+	let rust_output = generate_rust_event_types();
+	let rust_path = rust_dir.join("src/event_types.rs");
 
-    fs::write(&rust_path, &rust_output).expect("Failed to write Rust file");
-    println!("Generated: {}", rust_path.display());
+	fs::write(&rust_path, &rust_output).expect("Failed to write Rust file");
+	println!("Generated: {}", rust_path.display());
 
-    println!("\nDone! Event type definitions and data structures are now synchronized.");
+	println!("\nDone! Event type definitions and data structures are now synchronized.");
 }

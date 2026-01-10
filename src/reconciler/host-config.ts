@@ -249,7 +249,10 @@ export const hostConfig: HostConfig<
         parentInstance.store.appendChild(parentInstance.id, childInstance.id);
         // Track parent-child relationship for event bubbling
         eventRouter.setParent(childInstance.id, parentInstance.id);
-        queueElementUpdate(parentInstance.store.getElement(parentInstance.id), parentInstance.store);
+        queueElementUpdate(
+            parentInstance.store.getElement(parentInstance.id),
+            parentInstance.store
+        );
     },
 
     appendChild(parentInstance: Instance, child: Instance | TextInstance): void {
@@ -259,7 +262,10 @@ export const hostConfig: HostConfig<
         parentInstance.store.appendChild(parentInstance.id, childInstance.id);
         // Track parent-child relationship for event bubbling
         eventRouter.setParent(childInstance.id, parentInstance.id);
-        queueElementUpdate(parentInstance.store.getElement(parentInstance.id), parentInstance.store);
+        queueElementUpdate(
+            parentInstance.store.getElement(parentInstance.id),
+            parentInstance.store
+        );
     },
 
     appendChildToContainer(container: Container, child: Instance | TextInstance): void {
@@ -283,7 +289,10 @@ export const hostConfig: HostConfig<
         } else {
             parentInstance.children.push(childInstance);
         }
-        queueElementUpdate(parentInstance.store.getElement(parentInstance.id), parentInstance.store);
+        queueElementUpdate(
+            parentInstance.store.getElement(parentInstance.id),
+            parentInstance.store
+        );
     },
 
     insertInContainerBefore(
@@ -303,7 +312,10 @@ export const hostConfig: HostConfig<
         parentInstance.store.removeChild(parentInstance.id, childInstance.id);
         // Clean up event handlers for the removed element
         eventRouter.cleanupElement(childInstance.id);
-        queueElementUpdate(parentInstance.store.getElement(parentInstance.id), parentInstance.store);
+        queueElementUpdate(
+            parentInstance.store.getElement(parentInstance.id),
+            parentInstance.store
+        );
     },
 
     removeChildFromContainer(_container: Container, child: Instance | TextInstance): void {

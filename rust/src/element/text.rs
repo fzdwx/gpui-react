@@ -1,12 +1,8 @@
 use std::sync::Arc;
 
-use gpui::{
-	AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId,
-	IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb,
-};
+use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window, div, prelude::*, px, rgb};
 
-use super::events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers};
-use super::{ElementStyle, ReactElement};
+use super::{ElementStyle, ReactElement, events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers}};
 
 /// A specialized text element that renders text content
 /// Uses GPUI's built-in text rendering for proper layout integration
@@ -22,7 +18,7 @@ pub struct TextLayoutState {
 }
 
 pub struct TextPrepaintState {
-	hitbox: Option<Hitbox>,
+	hitbox:      Option<Hitbox>,
 	event_flags: EventHandlerFlags,
 }
 

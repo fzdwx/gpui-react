@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-01-10 **Branch:** main **Commit:** 705a3f5
+**Generated:** 2026-01-10 12:08:15 **Branch:** main **Commit:** 0b279f8
 
 ## OVERVIEW
 
@@ -17,7 +17,7 @@ gpui-react/
 │   ├── core/        # FFI abstraction (RustLib, FFI state, bindings)
 │   ├── reconciler/ # React reconciler + FFI bindings + event router
 │   └── events/     # Event types, factory, router (10 files)
-├── demo/            # Demo apps (7 entry points)
+├── demo/            # Demo apps (3 subdirs: canvas, drawing-board, event)
 └── scripts/         # Build/release scripts
 ```
 
@@ -85,13 +85,10 @@ gpui-react/
 
 ```bash
 just native                              # Build Rust native library
-bun run demo                            # Basic demo
-bun run styled-demo                     # CSS styling demo
-bun run flex-demo                       # Flexbox layout demo
-bun run elements-demo                   # Element types demo
-bun run event-demo                      # Event handling demo
-bun run focus-demo                      # Focus/hover demo
-bun run src/reconciler/__tests__/element-store.test.ts  # Run tests
+bun run event-demo                       # Event handling demo
+bun run drawing-demo                    # Drawing board demo
+bun run canvas-demo                      # Canvas element demo
+bun run test                             # Run element-store tests
 bun run format                          # Format all code (staged files)
 bun run format:ts                       # Format TypeScript only
 bun run format:rust                     # Format Rust only

@@ -12,7 +12,16 @@ interface Stroke {
     width: number;
 }
 
-const COLORS = ["#000000", "#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7", "#dfe6e9", "#ffffff"];
+const COLORS = [
+    "#000000",
+    "#ff6b6b",
+    "#4ecdc4",
+    "#45b7d1",
+    "#96ceb4",
+    "#ffeaa7",
+    "#dfe6e9",
+    "#ffffff",
+];
 const BRUSH_SIZES = [2, 4, 8, 12, 20];
 
 export function DrawingBoardApp() {
@@ -160,7 +169,9 @@ export function DrawingBoardApp() {
                                 backgroundColor: color,
                                 borderRadius: 4,
                                 border:
-                                    selectedColor === color ? "3px solid #74b9ff" : "2px solid #636e72",
+                                    selectedColor === color
+                                        ? "3px solid #74b9ff"
+                                        : "2px solid #636e72",
                                 cursor: "pointer",
                             }}
                         />
@@ -168,7 +179,9 @@ export function DrawingBoardApp() {
                 </div>
 
                 {/* Brush Size */}
-                <div style={{ display: "flex", flexDirection: "row", gap: 8, alignItems: "center" }}>
+                <div
+                    style={{ display: "flex", flexDirection: "row", gap: 8, alignItems: "center" }}
+                >
                     <div style={{ color: "#b2bec3", fontSize: 12 }}>Brush:</div>
                     {BRUSH_SIZES.map((size) => (
                         <div

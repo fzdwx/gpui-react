@@ -3,41 +3,32 @@
 //! This module provides common event handling functionality that can be used
 //! by div, span, img, text and other element types.
 
-use gpui::{
-	Bounds, DispatchPhase, Hitbox, HitboxBehavior, KeyDownEvent, KeyUpEvent, MouseButton,
-	MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, ScrollWheelEvent, Window,
-};
+use gpui::{Bounds, DispatchPhase, Hitbox, HitboxBehavior, KeyDownEvent, KeyUpEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, ScrollWheelEvent, Window};
 
-use crate::event_types::{props, types};
-use crate::event_types::{EventData, FocusEventData, KeyboardEventData, MouseEventData, ScrollEventData};
-use crate::focus;
-use crate::hover::get_hover_state;
-use crate::renderer::dispatch_event_to_js;
+use crate::{event_types::{EventData, FocusEventData, KeyboardEventData, MouseEventData, ScrollEventData, props, types}, focus, hover::get_hover_state, renderer::dispatch_event_to_js};
 
 /// Flags indicating which event handlers are registered
 pub struct EventHandlerFlags {
-	pub has_click: bool,
-	pub has_mouse_down: bool,
-	pub has_mouse_up: bool,
-	pub has_mouse_move: bool,
+	pub has_click:       bool,
+	pub has_mouse_down:  bool,
+	pub has_mouse_up:    bool,
+	pub has_mouse_move:  bool,
 	pub has_mouse_enter: bool,
 	pub has_mouse_leave: bool,
-	pub has_key_down: bool,
-	pub has_key_up: bool,
-	pub has_scroll: bool,
-	pub has_wheel: bool,
-	pub has_focus: bool,
-	pub has_blur: bool,
+	pub has_key_down:    bool,
+	pub has_key_up:      bool,
+	pub has_scroll:      bool,
+	pub has_wheel:       bool,
+	pub has_focus:       bool,
+	pub has_blur:        bool,
 	/// Tab index for focus management (-1 = programmatic only, 0+ = tab order)
-	pub tab_index: Option<i32>,
+	pub tab_index:       Option<i32>,
 }
 
 impl EventHandlerFlags {
 	/// Create flags from event_handlers JSON value and tab_index
 	pub fn from_handlers(event_handlers: Option<&serde_json::Value>, tab_index: Option<i32>) -> Self {
-		let has = |prop: &str| -> bool {
-			event_handlers.and_then(|v| v.get(prop)).is_some()
-		};
+		let has = |prop: &str| -> bool { event_handlers.and_then(|v| v.get(prop)).is_some() };
 
 		Self {
 			has_click: has(props::ON_CLICK),
@@ -67,9 +58,7 @@ impl EventHandlerFlags {
 	}
 
 	/// Check if any scroll event handler is registered
-	pub fn has_any_scroll_handler(&self) -> bool {
-		self.has_scroll || self.has_wheel
-	}
+	pub fn has_any_scroll_handler(&self) -> bool { self.has_scroll || self.has_wheel }
 
 	/// Check if any handler requires a hitbox
 	pub fn needs_hitbox(&self) -> bool {
@@ -77,14 +66,10 @@ impl EventHandlerFlags {
 	}
 
 	/// Check if any keyboard handler is registered
-	pub fn has_any_keyboard_handler(&self) -> bool {
-		self.has_key_down || self.has_key_up
-	}
+	pub fn has_any_keyboard_handler(&self) -> bool { self.has_key_down || self.has_key_up }
 
 	/// Check if element is focusable (has tabIndex)
-	pub fn is_focusable(&self) -> bool {
-		self.tab_index.is_some()
-	}
+	pub fn is_focusable(&self) -> bool { self.tab_index.is_some() }
 
 	/// Check if focus-related event handlers or attributes are present
 	pub fn needs_focus_handling(&self) -> bool {
@@ -169,7 +154,12 @@ fn register_mouse_handlers(
 
 				log::debug!(
 					"[Rust] onMouseDown: window_id={}, element_id={}, position=({}, {}), offset=({}, {})",
-					window_id, element_id, client_x, client_y, offset_x, offset_y
+					window_id,
+					element_id,
+					client_x,
+					client_y,
+					offset_x,
+					offset_y
 				);
 				dispatch_event_to_js(window_id, element_id, types::MOUSEDOWN, event_data);
 			}
@@ -200,7 +190,12 @@ fn register_mouse_handlers(
 				if has_mouse_up {
 					log::debug!(
 						"[Rust] onMouseUp: window_id={}, element_id={}, position=({}, {}), offset=({}, {})",
-						window_id, element_id, client_x, client_y, offset_x, offset_y
+						window_id,
+						element_id,
+						client_x,
+						client_y,
+						offset_x,
+						offset_y
 					);
 					dispatch_event_to_js(window_id, element_id, types::MOUSEUP, event_data.clone());
 				}
@@ -209,7 +204,12 @@ fn register_mouse_handlers(
 				if has_click && event.button == MouseButton::Left {
 					log::info!(
 						"[Rust] onClick: window_id={}, element_id={}, position=({}, {}), offset=({}, {})",
-						window_id, element_id, client_x, client_y, offset_x, offset_y
+						window_id,
+						element_id,
+						client_x,
+						client_y,
+						offset_x,
+						offset_y
 					);
 					dispatch_event_to_js(window_id, element_id, types::CLICK, event_data);
 				}
@@ -239,7 +239,12 @@ fn register_mouse_handlers(
 
 				log::trace!(
 					"[Rust] onMouseMove: window_id={}, element_id={}, position=({}, {}), offset=({}, {})",
-					window_id, element_id, client_x, client_y, offset_x, offset_y
+					window_id,
+					element_id,
+					client_x,
+					client_y,
+					offset_x,
+					offset_y
 				);
 				dispatch_event_to_js(window_id, element_id, types::MOUSEMOVE, event_data);
 			}
@@ -288,12 +293,9 @@ fn register_hover_handlers(
 						client_y: position.y.into(),
 						offset_x: (position.x - bounds.origin.x).into(),
 						offset_y: (position.y - bounds.origin.y).into(),
-						button: 0,
+						button:   0,
 					});
-					log::debug!(
-						"[Rust] onMouseEnter: window_id={}, element_id={}",
-						window_id, element_id
-					);
+					log::debug!("[Rust] onMouseEnter: window_id={}, element_id={}", window_id, element_id);
 					dispatch_event_to_js(window_id, element_id, types::MOUSEENTER, event_data);
 				}
 			} else if !is_hovered && was_hovered {
@@ -307,12 +309,9 @@ fn register_hover_handlers(
 						client_y: position.y.into(),
 						offset_x: (position.x - bounds.origin.x).into(),
 						offset_y: (position.y - bounds.origin.y).into(),
-						button: 0,
+						button:   0,
 					});
-					log::debug!(
-						"[Rust] onMouseLeave: window_id={}, element_id={}",
-						window_id, element_id
-					);
+					log::debug!("[Rust] onMouseLeave: window_id={}, element_id={}", window_id, element_id);
 					dispatch_event_to_js(window_id, element_id, types::MOUSELEAVE, event_data);
 				}
 			}
@@ -340,17 +339,12 @@ fn register_focus_on_click(
 			// Dispatch blur event to previously focused element
 			if let Some(blur_element_id) = blur_id {
 				if blur_element_id != element_id {
-					log::debug!(
-						"[Rust] onBlur: window_id={}, element_id={}",
-						window_id, blur_element_id
-					);
+					log::debug!("[Rust] onBlur: window_id={}, element_id={}", window_id, blur_element_id);
 					dispatch_event_to_js(
 						window_id,
 						blur_element_id,
 						types::BLUR,
-						EventData::Focus(FocusEventData {
-							related_target: Some(element_id),
-						}),
+						EventData::Focus(FocusEventData { related_target: Some(element_id) }),
 					);
 				}
 			}
@@ -358,17 +352,12 @@ fn register_focus_on_click(
 			// Dispatch focus event to this element
 			if let Some(focus_element_id) = focus_id {
 				if has_focus && (blur_id.is_none() || blur_id != Some(element_id)) {
-					log::debug!(
-						"[Rust] onFocus: window_id={}, element_id={}",
-						window_id, focus_element_id
-					);
+					log::debug!("[Rust] onFocus: window_id={}, element_id={}", window_id, focus_element_id);
 					dispatch_event_to_js(
 						window_id,
 						focus_element_id,
 						types::FOCUS,
-						EventData::Focus(FocusEventData {
-							related_target: blur_id,
-						}),
+						EventData::Focus(FocusEventData { related_target: blur_id }),
 					);
 				}
 			}
@@ -402,16 +391,15 @@ fn register_scroll_handlers(
 				gpui::ScrollDelta::Lines(point) => (point.x, point.y, 1),
 			};
 
-			let event_data = EventData::Scroll(ScrollEventData {
-				delta_x,
-				delta_y,
-				delta_mode,
-			});
+			let event_data = EventData::Scroll(ScrollEventData { delta_x, delta_y, delta_mode });
 
 			if has_scroll {
 				log::debug!(
 					"[Rust] onScroll: window_id={}, element_id={}, delta=({}, {})",
-					window_id, element_id, delta_x, delta_y
+					window_id,
+					element_id,
+					delta_x,
+					delta_y
 				);
 				dispatch_event_to_js(window_id, element_id, types::SCROLL, event_data.clone());
 			}
@@ -419,7 +407,10 @@ fn register_scroll_handlers(
 			if has_wheel {
 				log::debug!(
 					"[Rust] onWheel: window_id={}, element_id={}, delta=({}, {})",
-					window_id, element_id, delta_x, delta_y
+					window_id,
+					element_id,
+					delta_x,
+					delta_y
 				);
 				dispatch_event_to_js(window_id, element_id, types::WHEEL, event_data);
 			}
@@ -444,7 +435,8 @@ fn mouse_button_to_u8(button: MouseButton) -> u8 {
 pub fn register_window_keyboard_handlers(window_id: u64, window: &mut Window) {
 	log::info!("[Rust] Registering window-level keyboard handlers for window {}", window_id);
 
-	// KeyDown handler - handles Tab navigation and dispatches keydown to focused element
+	// KeyDown handler - handles Tab navigation and dispatches keydown to focused
+	// element
 	window.on_key_event(move |event: &KeyDownEvent, phase, _window, _cx| {
 		if phase != DispatchPhase::Bubble {
 			return;
@@ -453,7 +445,9 @@ pub fn register_window_keyboard_handlers(window_id: u64, window: &mut Window) {
 		let keystroke = &event.keystroke;
 		log::debug!(
 			"[Rust] Window {} received KeyDown: key={}, shift={}",
-			window_id, keystroke.key, keystroke.modifiers.shift
+			window_id,
+			keystroke.key,
+			keystroke.modifiers.shift
 		);
 
 		// Get the currently focused element for this window
@@ -463,7 +457,8 @@ pub fn register_window_keyboard_handlers(window_id: u64, window: &mut Window) {
 		if keystroke.key == "tab" {
 			log::debug!(
 				"[Rust] Tab key pressed, current focused={:?}, shift={}",
-				focused_element, keystroke.modifiers.shift
+				focused_element,
+				keystroke.modifiers.shift
 			);
 
 			let (blur_id, focus_id) = if keystroke.modifiers.shift {
@@ -472,10 +467,7 @@ pub fn register_window_keyboard_handlers(window_id: u64, window: &mut Window) {
 				focus::focus_next(window_id)
 			};
 
-			log::debug!(
-				"[Rust] Focus navigation result: blur_id={:?}, focus_id={:?}",
-				blur_id, focus_id
-			);
+			log::debug!("[Rust] Focus navigation result: blur_id={:?}, focus_id={:?}", blur_id, focus_id);
 
 			// Dispatch blur event
 			if let Some(blur_element_id) = blur_id {
@@ -483,9 +475,7 @@ pub fn register_window_keyboard_handlers(window_id: u64, window: &mut Window) {
 					window_id,
 					blur_element_id,
 					types::BLUR,
-					EventData::Focus(FocusEventData {
-						related_target: focus_id,
-					}),
+					EventData::Focus(FocusEventData { related_target: focus_id }),
 				);
 			}
 
@@ -495,9 +485,7 @@ pub fn register_window_keyboard_handlers(window_id: u64, window: &mut Window) {
 					window_id,
 					focus_element_id,
 					types::FOCUS,
-					EventData::Focus(FocusEventData {
-						related_target: blur_id,
-					}),
+					EventData::Focus(FocusEventData { related_target: blur_id }),
 				);
 			}
 
@@ -507,18 +495,19 @@ pub fn register_window_keyboard_handlers(window_id: u64, window: &mut Window) {
 		// Dispatch keydown event to the focused element
 		if let Some(element_id) = focused_element {
 			let event_data = EventData::Keyboard(KeyboardEventData {
-				key: keystroke.key.clone(),
-				code: keystroke.key.clone(),
+				key:    keystroke.key.clone(),
+				code:   keystroke.key.clone(),
 				repeat: event.is_held,
-				ctrl: keystroke.modifiers.control,
-				shift: keystroke.modifiers.shift,
-				alt: keystroke.modifiers.alt,
-				meta: keystroke.modifiers.platform,
+				ctrl:   keystroke.modifiers.control,
+				shift:  keystroke.modifiers.shift,
+				alt:    keystroke.modifiers.alt,
+				meta:   keystroke.modifiers.platform,
 			});
 
 			log::debug!(
 				"[Rust] Dispatching onKeyDown to element_id={}, key={}",
-				element_id, keystroke.key
+				element_id,
+				keystroke.key
 			);
 			dispatch_event_to_js(window_id, element_id, types::KEYDOWN, event_data);
 		}
@@ -537,19 +526,16 @@ pub fn register_window_keyboard_handlers(window_id: u64, window: &mut Window) {
 		if let Some(element_id) = focused_element {
 			let keystroke = &event.keystroke;
 			let event_data = EventData::Keyboard(KeyboardEventData {
-				key: keystroke.key.clone(),
-				code: keystroke.key.clone(),
+				key:    keystroke.key.clone(),
+				code:   keystroke.key.clone(),
 				repeat: false,
-				ctrl: keystroke.modifiers.control,
-				shift: keystroke.modifiers.shift,
-				alt: keystroke.modifiers.alt,
-				meta: keystroke.modifiers.platform,
+				ctrl:   keystroke.modifiers.control,
+				shift:  keystroke.modifiers.shift,
+				alt:    keystroke.modifiers.alt,
+				meta:   keystroke.modifiers.platform,
 			});
 
-			log::debug!(
-				"[Rust] Dispatching onKeyUp to element_id={}, key={}",
-				element_id, keystroke.key
-			);
+			log::debug!("[Rust] Dispatching onKeyUp to element_id={}, key={}", element_id, keystroke.key);
 			dispatch_event_to_js(window_id, element_id, types::KEYUP, event_data);
 		}
 	});

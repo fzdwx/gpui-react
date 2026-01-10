@@ -11,12 +11,12 @@ export type Root = {
 
 export type RootProps = {
     windowOption: WindowOptions;
-    pollEventInterval?:number
+    pollEventInterval?: number;
 };
 
 export function createRoot(props: RootProps): Root {
     let container: null = null;
-    const windowId = rustLib.createWindow(props.windowOption,props.pollEventInterval);
+    const windowId = rustLib.createWindow(props.windowOption, props.pollEventInterval);
     console.log("Created window with id:", windowId);
 
     const elementStore = new ElementStore();

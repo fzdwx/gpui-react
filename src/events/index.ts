@@ -4,12 +4,7 @@
  */
 
 // Base types (GPUIEventType now comes from types.ts -> generated.ts)
-export type {
-    GPUIBaseEvent,
-    EventPhase,
-    ModifierKeys,
-    MutableGPUIEvent,
-} from "./base";
+export type { GPUIBaseEvent, EventPhase, ModifierKeys, MutableGPUIEvent } from "./base";
 
 export { DEFAULT_MODIFIERS, createEventMethods } from "./base";
 
