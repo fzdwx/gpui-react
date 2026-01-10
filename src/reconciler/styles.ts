@@ -677,5 +677,25 @@ export function mapStyleToProps(props: StyleProps): Record<string, any> {
         result.tabIndex = props.tabIndex;
     }
 
+    if (props.x !== undefined) {
+        result.x = props.x;
+    }
+    if (props.y !== undefined) {
+        result.y = props.y;
+    }
+    if (props.text !== undefined) {
+        result.text = props.text;
+    }
+    if (props.textSize !== undefined) {
+        result.textSize = parseSize(props.textSize);
+    }
+    if (props.textColor !== undefined) {
+        result.textColor = parseColor(props.textColor);
+    }
+
+    if (props.drawCommands !== undefined) {
+        result.drawCommands = props.drawCommands;
+    }
+
     return result;
 }

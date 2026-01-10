@@ -105,6 +105,9 @@ impl Window {
 				let text = elem_obj.get("text").and_then(|v| v.as_str()).map(|s| s.to_string());
 
 				let style = elem_obj.get("style").map(ElementStyle::from_json).unwrap_or_default();
+			if element_type == "canvas" {
+				log::info!("canvas element: drawCommands={}", style.draw_commands.as_ref().map(|v| v.to_string()).unwrap_or_else(|| "None".to_string()));
+			}
 
 				let event_handlers = elem_obj.get("eventHandlers").cloned();
 

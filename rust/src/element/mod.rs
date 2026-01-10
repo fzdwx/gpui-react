@@ -3,12 +3,14 @@ use std::sync::Arc;
 use gpui::{AlignContent, AlignItems, AlignSelf, AnyElement, BoxShadow, Fill, FlexDirection, FlexWrap, Hsla, InteractiveElement, IntoElement, JustifyContent, Overflow, ParentElement, Position, Rgba, Style, point, px, rgb};
 use serde_json::Value;
 
+pub mod canvas;
 pub mod div;
 pub mod events;
 pub mod img;
 pub mod span;
 pub mod text;
 
+pub use canvas::ReactCanvasElement;
 pub use div::ReactDivElement;
 pub use img::ReactImgElement;
 pub use span::ReactSpanElement;
@@ -17,6 +19,7 @@ pub use text::ReactTextElement;
 /// Pre-computed element kind to avoid string matching every frame
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ElementKind {
+	Canvas,
 	Div,
 	Span,
 	Text,
@@ -27,6 +30,7 @@ pub enum ElementKind {
 impl ElementKind {
 	pub fn from_str(s: &str) -> Self {
 		match s {
+			"canvas" => ElementKind::Canvas,
 			"div" => ElementKind::Div,
 			"span" => ElementKind::Span,
 			"text" => ElementKind::Text,
@@ -160,6 +164,9 @@ pub struct ElementStyle {
 	pub opacity: Option<f32>,
 	pub src:     Option<String>,
 	pub alt:     Option<String>,
+	pub draw_commands: Option<serde_json::Value>,
+	pub x: Option<f32>,
+	pub y: Option<f32>,
 
 	// Focus properties
 	pub tab_index: Option<i32>,
@@ -264,6 +271,9 @@ impl ElementStyle {
             opacity: style_obj.get("opacity").and_then(|v| v.as_f64()).map(|v| v as f32),
             src: style_obj.get("src").and_then(|v| v.as_str()).map(|s| s.to_string()),
             alt: style_obj.get("alt").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            draw_commands: style_obj.get("drawCommands").cloned(),
+            x: style_obj.get("x").and_then(|v| v.as_f64()).map(|v| v as f32),
+            y: style_obj.get("y").and_then(|v| v.as_f64()).map(|v| v as f32),
 
             // Focus properties
             tab_index: style_obj.get("tabIndex").and_then(|v| v.as_i64()).map(|v| v as i32),
@@ -672,6 +682,7 @@ pub fn create_element(
 	parent_style: Option<ElementStyle>,
 ) -> AnyElement {
 	match element.element_kind {
+		ElementKind::Canvas => ReactCanvasElement::new(element, window_id, parent_style).into_any_element(),
 		ElementKind::Div => ReactDivElement::new(element, window_id, parent_style).into_any_element(),
 		ElementKind::Span => ReactSpanElement::new(element, window_id, parent_style).into_any_element(),
 		ElementKind::Text => ReactTextElement::new(element, window_id, parent_style).into_any_element(),

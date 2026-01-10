@@ -54,14 +54,19 @@ function extractStyleProps(props: any): StyleProps {
         warn("className not yet supported, use style prop instead");
     }
 
-    // Copy event handlers to styleProps for Rust-side event registration
+    const canvasProps = ["x", "y", "color", "src", "text", "textSize", "textColor", "drawCommands"];
+    for (const prop of canvasProps) {
+        if (props[prop] !== undefined) {
+            (styleProps as any)[prop] = props[prop];
+        }
+    }
+
     for (const propName of Object.keys(props)) {
         if (isEventHandlerProp(propName) && typeof props[propName] === "function") {
             (styleProps as any)[propName] = props[propName];
         }
     }
 
-    // Copy tabIndex from top-level props (it's a focusability attribute, not a style)
     if (props.tabIndex !== undefined) {
         styleProps.tabIndex = props.tabIndex;
     }
@@ -199,6 +204,13 @@ export const hostConfig: HostConfig<
         _hostContext: HostContext,
         _internalHandle: OpaqueHandle
     ): Instance {
+        if (type === "canvas") {
+            console.log(
+                "createInstance canvas: drawCommands=" +
+                    (props.drawCommands ? props.drawCommands.substring(0, 100) : "UNDEFINED")
+            );
+        }
+
         const styleProps = extractStyleProps(props);
         const styles = mapStyleToProps(styleProps);
         const eventHandlers = extractEventHandlers(props);
