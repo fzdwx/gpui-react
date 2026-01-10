@@ -89,70 +89,75 @@ impl Window {
 	pub fn batch_update_elements(&self, elements: &serde_json::Value) {
 		let elements_array = elements.as_array().expect("Elements must be an array");
 
-		let mut element_map = self
-			.state
-			.element_map
-			.lock()
-			.expect("Failed to acquire element_map lock in batch_update_elements");
+		{
+			let mut element_map = self
+				.state
+				.element_map
+				.lock()
+				.expect("Failed to acquire element_map lock in batch_update_elements");
 
-		// First pass: create all elements
-		for elem_value in elements_array {
-			if let Some(elem_obj) = elem_value.as_object() {
-				let global_id = elem_obj.get("globalId").and_then(|v| v.as_u64()).unwrap_or(0);
+			// First pass: create all elements
+			for elem_value in elements_array {
+				if let Some(elem_obj) = elem_value.as_object() {
+					let global_id = elem_obj.get("globalId").and_then(|v| v.as_u64()).unwrap_or(0);
 
-				let element_type = elem_obj.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+					let element_type = elem_obj.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
-				let text = elem_obj.get("text").and_then(|v| v.as_str()).map(|s| s.to_string());
+					let text = elem_obj.get("text").and_then(|v| v.as_str()).map(|s| s.to_string());
 
-				let style = elem_obj.get("style").map(ElementStyle::from_json).unwrap_or_default();
-			if element_type == "canvas" {
-				log::info!("canvas element: drawCommands={}", style.draw_commands.as_ref().map(|v| v.to_string()).unwrap_or_else(|| "None".to_string()));
+					let style = elem_obj.get("style").map(ElementStyle::from_json).unwrap_or_default();
+					if element_type == "canvas" {
+						log::trace!("canvas element: drawCommands={}", style.draw_commands.as_ref().map(|v| v.to_string()).unwrap_or_else(|| "None".to_string()));
+					}
+
+					let event_handlers = elem_obj.get("eventHandlers").cloned();
+
+					// Pre-compute GPUI Style (div and span have no default background)
+					let cached_gpui_style = Some(style.build_gpui_style(None));
+
+					let element_kind = ElementKind::from_str(&element_type);
+					let element = Arc::new(ReactElement {
+						global_id,
+						element_type,
+						element_kind,
+						text,
+						children: Vec::new(),
+						style,
+						event_handlers,
+						cached_gpui_style,
+					});
+
+					element_map.insert(global_id, element);
+				}
 			}
 
-				let event_handlers = elem_obj.get("eventHandlers").cloned();
+			// Second pass: update children references
+			for elem_value in elements_array {
+				if let Some(elem_obj) = elem_value.as_object() {
+					if let Some(global_id) = elem_obj.get("globalId").and_then(|v| v.as_u64()) {
+						if let Some(children_arr) = elem_obj.get("children").and_then(|v| v.as_array()) {
+							let children_ids: Vec<u64> = children_arr.iter().filter_map(|c| c.as_u64()).collect();
 
-				// Pre-compute GPUI Style (div and span have no default background)
-				let cached_gpui_style = Some(style.build_gpui_style(None));
+							let mut child_refs: Vec<Arc<ReactElement>> = Vec::new();
 
-				let element_kind = ElementKind::from_str(&element_type);
-				let element = Arc::new(ReactElement {
-					global_id,
-					element_type,
-					element_kind,
-					text,
-					children: Vec::new(),
-					style,
-					event_handlers,
-					cached_gpui_style,
-				});
-
-				element_map.insert(global_id, element);
-			}
-		}
-
-		// Second pass: update children references
-		for elem_value in elements_array {
-			if let Some(elem_obj) = elem_value.as_object() {
-				if let Some(global_id) = elem_obj.get("globalId").and_then(|v| v.as_u64()) {
-					if let Some(children_arr) = elem_obj.get("children").and_then(|v| v.as_array()) {
-						let children_ids: Vec<u64> = children_arr.iter().filter_map(|c| c.as_u64()).collect();
-
-						let mut child_refs: Vec<Arc<ReactElement>> = Vec::new();
-
-						for &cid in &children_ids {
-							if let Some(child) = element_map.get(&cid) {
-								child_refs.push(child.clone());
+							for &cid in &children_ids {
+								if let Some(child) = element_map.get(&cid) {
+									child_refs.push(child.clone());
+								}
 							}
-						}
 
-						if let Some(element) = element_map.get_mut(&global_id) {
-							let element_mut = Arc::make_mut(element);
-							element_mut.children = child_refs;
+							if let Some(element) = element_map.get_mut(&global_id) {
+								let element_mut = Arc::make_mut(element);
+								element_mut.children = child_refs;
+							}
 						}
 					}
 				}
 			}
-		}
+		} // Drop element_map lock before calling update_element_tree
+
+		// Rebuild the element tree with updated elements
+		self.state.update_element_tree();
 	}
 }
 

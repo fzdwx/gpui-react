@@ -41,8 +41,6 @@ export interface TextInstance {
     store: ElementStore;
 }
 
-const pendingUpdates: any[] = [];
-
 function extractStyleProps(props: any): StyleProps {
     const styleProps: StyleProps = {};
 
@@ -87,15 +85,42 @@ function extractEventHandlers(props: any): Record<string, number> {
     return handlers;
 }
 
-function queueElementUpdate(element: any): void {
-    if (!element) return;
+// Per-window update queues for multi-window support
+const windowUpdates = new Map<number, { pending: any[]; scheduled: boolean }>();
 
-    const existingIndex = pendingUpdates.findIndex((e) => e.globalId === element.globalId);
+function getWindowUpdateState(windowId: number) {
+    if (!windowUpdates.has(windowId)) {
+        windowUpdates.set(windowId, { pending: [], scheduled: false });
+    }
+    return windowUpdates.get(windowId)!;
+}
+
+function queueElementUpdate(element: any, container: Container): void {
+    if (!element || !container) return;
+
+    const windowId = container.getWindowId();
+    const state = getWindowUpdateState(windowId);
+
+    const existingIndex = state.pending.findIndex((e) => e.globalId === element.globalId);
 
     if (existingIndex !== -1) {
-        pendingUpdates[existingIndex] = element;
+        state.pending[existingIndex] = element;
     } else {
-        pendingUpdates.push(element);
+        state.pending.push(element);
+    }
+
+    // Schedule a microtask to flush updates if not already scheduled
+    if (!state.scheduled) {
+        state.scheduled = true;
+        queueMicrotask(() => {
+            state.scheduled = false;
+            if (state.pending.length > 0) {
+                info(`Flushing ${state.pending.length} batched updates for window ${windowId}`);
+                rustLib.batchElementUpdates(windowId, state.pending);
+                rustLib.renderFrame(windowId, container.getRoot());
+                state.pending = [];
+            }
+        });
     }
 }
 
@@ -141,22 +166,9 @@ export const hostConfig: HostConfig<
         return {};
     },
 
-    resetAfterCommit(containerInfo: Container): void {
-        if (pendingUpdates.length > 0) {
-            info(`Processing ${pendingUpdates.length} batched updates`);
-            rustLib.batchElementUpdates(containerInfo.getWindowId(), pendingUpdates);
-            pendingUpdates.length = 0;
-        }
-
-        const root = containerInfo.getRoot();
-        trace("resetAfterCommit - root element", root);
-        rustLib.renderFrame(containerInfo.getWindowId(), root);
-
-        setImmediate(() => {
-            if (typeof window !== "undefined" && (window as any).__gpuiTrigger) {
-                (window as any).__gpuiTrigger();
-            }
-        });
+    resetAfterCommit(_containerInfo: Container): void {
+        // Updates are now flushed via microtask in queueElementUpdate
+        // This ensures all updates from the same render cycle are batched together
     },
 
     shouldSetTextContent(_type: Type, _props: Props): boolean {
@@ -183,7 +195,7 @@ export const hostConfig: HostConfig<
             children: [],
             store: rootContainer,
         };
-        queueElementUpdate(rootContainer.getElement(id));
+        queueElementUpdate(rootContainer.getElement(id), rootContainer);
         return instance;
     },
 
@@ -193,7 +205,7 @@ export const hostConfig: HostConfig<
         const element = textInstance.store.getElement(textInstance.id);
         if (element) {
             element.text = String(newText);
-            queueElementUpdate(element);
+            queueElementUpdate(element, textInstance.store);
         }
     },
 
@@ -226,7 +238,7 @@ export const hostConfig: HostConfig<
             eventHandlers,
             store: rootContainer,
         };
-        queueElementUpdate(rootContainer.getElement(id));
+        queueElementUpdate(rootContainer.getElement(id), rootContainer);
         return instance;
     },
 
@@ -237,7 +249,7 @@ export const hostConfig: HostConfig<
         parentInstance.store.appendChild(parentInstance.id, childInstance.id);
         // Track parent-child relationship for event bubbling
         eventRouter.setParent(childInstance.id, parentInstance.id);
-        queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
+        queueElementUpdate(parentInstance.store.getElement(parentInstance.id), parentInstance.store);
     },
 
     appendChild(parentInstance: Instance, child: Instance | TextInstance): void {
@@ -247,14 +259,14 @@ export const hostConfig: HostConfig<
         parentInstance.store.appendChild(parentInstance.id, childInstance.id);
         // Track parent-child relationship for event bubbling
         eventRouter.setParent(childInstance.id, parentInstance.id);
-        queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
+        queueElementUpdate(parentInstance.store.getElement(parentInstance.id), parentInstance.store);
     },
 
     appendChildToContainer(container: Container, child: Instance | TextInstance): void {
         trace("appendChildToContainer", { container, child });
         const childInstance = child as Instance;
         container.setContainerChild(childInstance.id);
-        queueElementUpdate(container.getElement(childInstance.id));
+        queueElementUpdate(container.getElement(childInstance.id), container);
     },
 
     insertBefore(
@@ -271,7 +283,7 @@ export const hostConfig: HostConfig<
         } else {
             parentInstance.children.push(childInstance);
         }
-        queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
+        queueElementUpdate(parentInstance.store.getElement(parentInstance.id), parentInstance.store);
     },
 
     insertInContainerBefore(
@@ -291,7 +303,7 @@ export const hostConfig: HostConfig<
         parentInstance.store.removeChild(parentInstance.id, childInstance.id);
         // Clean up event handlers for the removed element
         eventRouter.cleanupElement(childInstance.id);
-        queueElementUpdate(parentInstance.store.getElement(parentInstance.id));
+        queueElementUpdate(parentInstance.store.getElement(parentInstance.id), parentInstance.store);
     },
 
     removeChildFromContainer(_container: Container, child: Instance | TextInstance): void {
@@ -304,17 +316,18 @@ export const hostConfig: HostConfig<
 
     commitUpdate(
         instance: Instance,
-        _type: Type,
-        _prevProps: Props,
-        nextProps: Props,
+        type: Type,
+        oldProps: Props,
+        newProps: Props,
         _internalHandle: OpaqueHandle
     ): void {
         let needsUpdate = false;
 
         // Update style props (including drawCommands for canvas)
-        const styleProps = extractStyleProps(nextProps);
+        const styleProps = extractStyleProps(newProps);
         const newStyles = mapStyleToProps(styleProps);
         const element = instance.store.getElement(instance.id);
+
         if (element) {
             // Check if styles changed
             const oldStyleStr = JSON.stringify(instance.style);
@@ -328,7 +341,7 @@ export const hostConfig: HostConfig<
 
         // Clean up old handlers and register new ones
         const oldHandlers = instance.eventHandlers || {};
-        const newHandlers = extractEventHandlers(nextProps);
+        const newHandlers = extractEventHandlers(newProps);
 
         // Remove handlers that no longer exist
         for (const [propName, handlerId] of Object.entries(oldHandlers)) {
@@ -357,36 +370,8 @@ export const hostConfig: HostConfig<
         instance.eventHandlers = newHandlers;
 
         if (needsUpdate && element) {
-            // Directly send update to Rust instead of queueing
-            // This ensures updates are processed immediately
-            const windowId = instance.store.getWindowId();
-            rustLib.batchElementUpdates(windowId, [element]);
-            rustLib.renderFrame(windowId, instance.store.getRoot());
+            queueElementUpdate(element, instance.store);
         }
-    },
-
-    prepareUpdate(
-        _instance: Instance,
-        _type: Type,
-        oldProps: Props,
-        newProps: Props,
-        _rootContainer: Container,
-        _hostContext: HostContext
-    ): any {
-        // Compare relevant props for updates
-        const oldDrawCommands = oldProps.drawCommands;
-        const newDrawCommands = newProps.drawCommands;
-
-        if (oldDrawCommands !== newDrawCommands) {
-            return { drawCommands: newDrawCommands };
-        }
-
-        // Always update if any prop changed (simple approach)
-        if (JSON.stringify(oldProps) !== JSON.stringify(newProps)) {
-            return {};
-        }
-
-        return null;
     },
 
     finalizeInitialChildren(
