@@ -26,6 +26,8 @@ pub(crate) fn dispatch_event_to_js(
 				"eventType": event_type,
 				"clientX": data.client_x,
 				"clientY": data.client_y,
+				"offsetX": data.offset_x,
+				"offsetY": data.offset_y,
 				"button": data.button,
 				"timestamp": timestamp
 			})

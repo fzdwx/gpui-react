@@ -61,14 +61,14 @@ export class RustLib {
         }
 
         if (elements.length === 0) return;
-        info(`Batching ${elements.length} updates for window ${windowId}`);
+        trace(`Batching ${elements.length} updates for window ${windowId}`);
         ffiState.clear();
         const [windowIdBuffer, windowIdPtr] = ffiState.createInt64(BigInt(windowId));
         const [countBuffer, countPtr] = ffiState.createInt64(BigInt(elements.length));
         const [elementsBuffer, elementsPtr] = ffiState.encodeCString(JSON.stringify(elements));
         const resultBuffer = new Uint8Array(8);
         lib.symbols.gpui_batch_update_elements(windowIdPtr, countPtr, elementsPtr, resultBuffer);
-        info(`Batch update completed`);
+        trace(`Batch update completed`);
     }
 
     public renderFrame(windowId: number, element: ElementData): void {

@@ -53,6 +53,8 @@ pub mod types {
 pub struct MouseEventData {
     pub client_x: f32,
     pub client_y: f32,
+    pub offset_x: f32,
+    pub offset_y: f32,
     pub button: u8,
 }
 

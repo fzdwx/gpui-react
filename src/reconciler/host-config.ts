@@ -115,7 +115,7 @@ function queueElementUpdate(element: any, container: Container): void {
         queueMicrotask(() => {
             state.scheduled = false;
             if (state.pending.length > 0) {
-                info(`Flushing ${state.pending.length} batched updates for window ${windowId}`);
+                trace(`Flushing ${state.pending.length} batched updates for window ${windowId}`);
                 rustLib.batchElementUpdates(windowId, state.pending);
                 rustLib.renderFrame(windowId, container.getRoot());
                 state.pending = [];

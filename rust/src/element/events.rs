@@ -153,18 +153,23 @@ fn register_mouse_handlers(
 		window.on_mouse_event(move |event: &MouseDownEvent, phase, window, _cx| {
 			if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
 				let position = event.position;
+				let bounds = hitbox.bounds;
 				let client_x: f32 = position.x.into();
 				let client_y: f32 = position.y.into();
+				let offset_x: f32 = (position.x - bounds.origin.x).into();
+				let offset_y: f32 = (position.y - bounds.origin.y).into();
 
 				let event_data = EventData::Mouse(MouseEventData {
 					client_x,
 					client_y,
+					offset_x,
+					offset_y,
 					button: mouse_button_to_u8(event.button),
 				});
 
 				log::debug!(
-					"[Rust] onMouseDown: window_id={}, element_id={}, position=({}, {})",
-					window_id, element_id, client_x, client_y
+					"[Rust] onMouseDown: window_id={}, element_id={}, position=({}, {}), offset=({}, {})",
+					window_id, element_id, client_x, client_y, offset_x, offset_y
 				);
 				dispatch_event_to_js(window_id, element_id, types::MOUSEDOWN, event_data);
 			}
@@ -177,20 +182,25 @@ fn register_mouse_handlers(
 		window.on_mouse_event(move |event: &MouseUpEvent, phase, window, _cx| {
 			if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
 				let position = event.position;
+				let bounds = hitbox.bounds;
 				let client_x: f32 = position.x.into();
 				let client_y: f32 = position.y.into();
+				let offset_x: f32 = (position.x - bounds.origin.x).into();
+				let offset_y: f32 = (position.y - bounds.origin.y).into();
 
 				let event_data = EventData::Mouse(MouseEventData {
 					client_x,
 					client_y,
+					offset_x,
+					offset_y,
 					button: mouse_button_to_u8(event.button),
 				});
 
 				// Dispatch mouseup event
 				if has_mouse_up {
 					log::debug!(
-						"[Rust] onMouseUp: window_id={}, element_id={}, position=({}, {})",
-						window_id, element_id, client_x, client_y
+						"[Rust] onMouseUp: window_id={}, element_id={}, position=({}, {}), offset=({}, {})",
+						window_id, element_id, client_x, client_y, offset_x, offset_y
 					);
 					dispatch_event_to_js(window_id, element_id, types::MOUSEUP, event_data.clone());
 				}
@@ -198,8 +208,8 @@ fn register_mouse_handlers(
 				// Dispatch click event (only for left button)
 				if has_click && event.button == MouseButton::Left {
 					log::info!(
-						"[Rust] onClick: window_id={}, element_id={}, position=({}, {})",
-						window_id, element_id, client_x, client_y
+						"[Rust] onClick: window_id={}, element_id={}, position=({}, {}), offset=({}, {})",
+						window_id, element_id, client_x, client_y, offset_x, offset_y
 					);
 					dispatch_event_to_js(window_id, element_id, types::CLICK, event_data);
 				}
@@ -213,18 +223,23 @@ fn register_mouse_handlers(
 		window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, _cx| {
 			if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
 				let position = event.position;
+				let bounds = hitbox.bounds;
 				let client_x: f32 = position.x.into();
 				let client_y: f32 = position.y.into();
+				let offset_x: f32 = (position.x - bounds.origin.x).into();
+				let offset_y: f32 = (position.y - bounds.origin.y).into();
 
 				let event_data = EventData::Mouse(MouseEventData {
 					client_x,
 					client_y,
+					offset_x,
+					offset_y,
 					button: 0, // No button for move events
 				});
 
 				log::trace!(
-					"[Rust] onMouseMove: window_id={}, element_id={}, position=({}, {})",
-					window_id, element_id, client_x, client_y
+					"[Rust] onMouseMove: window_id={}, element_id={}, position=({}, {}), offset=({}, {})",
+					window_id, element_id, client_x, client_y, offset_x, offset_y
 				);
 				dispatch_event_to_js(window_id, element_id, types::MOUSEMOVE, event_data);
 			}
@@ -267,9 +282,12 @@ fn register_hover_handlers(
 				state.set_hovered(element_id);
 				if has_mouse_enter {
 					let position = event.position;
+					let bounds = hitbox.bounds;
 					let event_data = EventData::Mouse(MouseEventData {
 						client_x: position.x.into(),
 						client_y: position.y.into(),
+						offset_x: (position.x - bounds.origin.x).into(),
+						offset_y: (position.y - bounds.origin.y).into(),
 						button: 0,
 					});
 					log::debug!(
@@ -283,9 +301,12 @@ fn register_hover_handlers(
 				state.set_not_hovered(element_id);
 				if has_mouse_leave {
 					let position = event.position;
+					let bounds = hitbox.bounds;
 					let event_data = EventData::Mouse(MouseEventData {
 						client_x: position.x.into(),
 						client_y: position.y.into(),
+						offset_x: (position.x - bounds.origin.x).into(),
+						offset_y: (position.y - bounds.origin.y).into(),
 						button: 0,
 					});
 					log::debug!(
