@@ -21,6 +21,8 @@ createRoot({ width: 800, height: 600 }).render(
 );
 ```
 
+https://github.com/user-attachments/assets/30871650-e776-4c79-9184-529a55f0f74b
+
 ## Demos
 
 See [demo/](./demo/) for complete examples.
@@ -31,8 +33,6 @@ bun run event-demo                         # Event handling
 bun run drawing-demo                       # Drawing board
 bun run canvas-demo                        # Canvas drawing
 ```
-
-https://github.com/user-attachments/assets/30871650-e776-4c79-9184-529a55f0f74b
 
 ## Requirements
 
