@@ -9,6 +9,8 @@ React renderer for GPUI (Zed's GPU-accelerated UI) using Bun native FFI.
 bun add gpui-react react
 ```
 
+the code:
+
 ```tsx
 import { createRoot } from "gpui-react";
 
