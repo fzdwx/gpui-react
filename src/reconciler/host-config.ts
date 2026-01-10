@@ -204,13 +204,6 @@ export const hostConfig: HostConfig<
         _hostContext: HostContext,
         _internalHandle: OpaqueHandle
     ): Instance {
-        if (type === "canvas") {
-            console.log(
-                "createInstance canvas: drawCommands=" +
-                    (props.drawCommands ? props.drawCommands.substring(0, 100) : "UNDEFINED")
-            );
-        }
-
         const styleProps = extractStyleProps(props);
         const styles = mapStyleToProps(styleProps);
         const eventHandlers = extractEventHandlers(props);
@@ -318,10 +311,19 @@ export const hostConfig: HostConfig<
     ): void {
         let needsUpdate = false;
 
-        // Update text content
-        if (nextProps && typeof nextProps.children === "string") {
-            instance.text = String(nextProps.children);
-            needsUpdate = true;
+        // Update style props (including drawCommands for canvas)
+        const styleProps = extractStyleProps(nextProps);
+        const newStyles = mapStyleToProps(styleProps);
+        const element = instance.store.getElement(instance.id);
+        if (element) {
+            // Check if styles changed
+            const oldStyleStr = JSON.stringify(instance.style);
+            const newStyleStr = JSON.stringify(newStyles);
+            if (oldStyleStr !== newStyleStr) {
+                instance.style = newStyles;
+                element.style = newStyles;
+                needsUpdate = true;
+            }
         }
 
         // Clean up old handlers and register new ones
@@ -354,12 +356,37 @@ export const hostConfig: HostConfig<
         }
         instance.eventHandlers = newHandlers;
 
-        if (needsUpdate) {
-            const element = instance.store.getElement(instance.id);
-            if (element) {
-                queueElementUpdate(element);
-            }
+        if (needsUpdate && element) {
+            // Directly send update to Rust instead of queueing
+            // This ensures updates are processed immediately
+            const windowId = instance.store.getWindowId();
+            rustLib.batchElementUpdates(windowId, [element]);
+            rustLib.renderFrame(windowId, instance.store.getRoot());
         }
+    },
+
+    prepareUpdate(
+        _instance: Instance,
+        _type: Type,
+        oldProps: Props,
+        newProps: Props,
+        _rootContainer: Container,
+        _hostContext: HostContext
+    ): any {
+        // Compare relevant props for updates
+        const oldDrawCommands = oldProps.drawCommands;
+        const newDrawCommands = newProps.drawCommands;
+
+        if (oldDrawCommands !== newDrawCommands) {
+            return { drawCommands: newDrawCommands };
+        }
+
+        // Always update if any prop changed (simple approach)
+        if (JSON.stringify(oldProps) !== JSON.stringify(newProps)) {
+            return {};
+        }
+
+        return null;
     },
 
     finalizeInitialChildren(
