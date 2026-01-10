@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import type { CanvasDrawCommand } from "../src/canvas";
+import type { CanvasDrawCommand } from "../../src/canvas";
 
 const COLORS = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7"];
 

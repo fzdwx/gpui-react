@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
-import type { CanvasDrawCommand } from "../src/canvas";
+import type { CanvasDrawCommand } from "../../src/canvas";
 
 interface Point {
     x: number;

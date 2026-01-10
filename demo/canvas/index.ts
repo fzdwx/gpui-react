@@ -1,6 +1,6 @@
 import React from "react";
-import { createRoot } from "../src/index";
-import { CanvasSimpleDemo } from "./canvas-simple-app";
+import { createRoot } from "../../src/index";
+import { CanvasSimpleDemo } from "./app";
 
 const root = createRoot({
     windowOption: {

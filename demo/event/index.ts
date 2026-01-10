@@ -1,6 +1,6 @@
 import React from "react";
-import { createRoot } from "../src/index";
-import { EventApp } from "./event-app";
+import { createRoot } from "../../src/index";
+import { EventApp } from "./app";
 
 const root = createRoot({
     windowOption: {

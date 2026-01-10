@@ -1,6 +1,6 @@
 import React from "react";
-import { createRoot } from "../src/index";
-import { DrawingBoardApp } from "./drawing-board-app";
+import { createRoot } from "../../src/index";
+import { DrawingBoardApp } from "./app";
 
 const root = createRoot({
     windowOption: {
