@@ -7,21 +7,17 @@ use std::ops::Range;
 
 use gpui::{App, Bounds, InputHandler, Pixels, Point, UTF16Selection, Window, point, px};
 
-use super::selection::Selection;
-use super::text_content::TextContent;
-use super::{get_input_state, get_text_shaping_info, update_input_state};
+use super::{get_input_state, get_text_shaping_info, selection::Selection, sync_input_state_from_props, text_content::TextContent, update_input_state};
 use crate::{event_types::{EventData, InputEventData, types}, focus, renderer::dispatch_event_to_js};
 
-/// Root-level input handler that delegates to the currently focused input element
-/// This is used because we can't easily create per-element FocusHandles
+/// Root-level input handler that delegates to the currently focused input
+/// element This is used because we can't easily create per-element FocusHandles
 pub struct RootInputHandler {
 	pub window_id: u64,
 }
 
 impl RootInputHandler {
-	pub fn new(window_id: u64) -> Self {
-		Self { window_id }
-	}
+	pub fn new(window_id: u64) -> Self { Self { window_id } }
 
 	/// Get the currently focused input element ID
 	fn get_focused_input(&self) -> Option<u64> {
@@ -46,7 +42,9 @@ impl InputHandler for RootInputHandler {
 
 		log::debug!(
 			"[IME] selected_text_range: element_id={}, range={:?}, utf16_range={:?}",
-			element_id, range, utf16_range
+			element_id,
+			range,
+			utf16_range
 		);
 
 		Some(UTF16Selection { range: utf16_range, reversed: state.selection.is_reversed() })
@@ -64,7 +62,9 @@ impl InputHandler for RootInputHandler {
 
 		log::debug!(
 			"[IME] marked_text_range: element_id={}, marked_range={:?}, result={:?}",
-			element_id, state.marked_range, result
+			element_id,
+			state.marked_range,
+			result
 		);
 
 		result
@@ -96,18 +96,52 @@ impl InputHandler for RootInputHandler {
 		_cx: &mut App,
 	) {
 		log::debug!(
-			"[IME] replace_text_in_range: replacement_range={:?}, text={:?}",
-			replacement_range, text
+			"[IME] replace_text_in_range: START replacement_range={:?}, text={:?}",
+			replacement_range,
+			text
 		);
 
 		let Some(element_id) = self.get_focused_input() else {
 			log::warn!("[IME] replace_text_in_range: no focused input");
 			return;
 		};
+
+		// Get current state first to check if we're in IME composition
 		let Some(mut state) = get_input_state(element_id) else {
 			log::warn!("[IME] replace_text_in_range: no state for element {}", element_id);
 			return;
 		};
+
+		// Only sync from props if NOT in IME composition
+		// During IME composition, Rust state is authoritative (not React's value prop)
+		// because React may not have processed the compositionupdate event yet
+		// Preserve marked range before sync to ensure correct replacement range after
+		// sync
+		let marked_range_before_sync = state.marked_range;
+		if state.marked_range.is_none() && replacement_range.is_none() {
+			sync_input_state_from_props(self.window_id, element_id);
+			// Re-fetch state after sync
+			let Some(synced_state) = get_input_state(element_id) else {
+				log::warn!("[IME] replace_text_in_range: no state after sync for element {}", element_id);
+				return;
+			};
+			state = synced_state;
+		}
+		// Restore marked range if it was saved before sync
+		if marked_range_before_sync.is_some() && state.marked_range.is_none() {
+			state.marked_range = marked_range_before_sync;
+			log::debug!(
+				"[IME] replace_text_in_range: Restored marked_range={:?} after sync",
+				state.marked_range
+			);
+		}
+
+		log::debug!(
+			"[IME] replace_text_in_range: AFTER SYNC state.content={:?}, cursor_position={}, selection={:?}",
+			state.content.to_string(),
+			state.cursor_position(),
+			state.selection_tuple()
+		);
 
 		// Determine the range to replace
 		let range = if let Some(range_utf16) = replacement_range {
@@ -122,12 +156,20 @@ impl InputHandler for RootInputHandler {
 		};
 
 		log::debug!(
-			"[IME] replace_text_in_range: computed range={:?}, current content={:?}",
-			range, state.content.to_string()
+			"[IME] replace_text_in_range: computed range={:?}, content={:?}",
+			range,
+			state.content.to_string()
 		);
 
 		// Perform the replacement
 		if let Some(change) = state.replace_in_range(range, text) {
+			log::debug!(
+				"[IME] replace_text_in_range: AFTER REPLACE content={:?}, cursor={}, change.new_value={:?}",
+				state.content.to_string(),
+				state.cursor_position(),
+				change.new_value
+			);
+
 			// Clear marked range after committing text
 			state.marked_range = None;
 
@@ -139,9 +181,9 @@ impl InputHandler for RootInputHandler {
 				element_id,
 				types::INPUT,
 				EventData::Input(InputEventData {
-					value: change.new_value,
-					data: change.data,
-					input_type: change.input_type.to_string(),
+					value:        change.new_value,
+					data:         change.data,
+					input_type:   change.input_type.to_string(),
 					is_composing: false,
 				}),
 			);
@@ -159,18 +201,45 @@ impl InputHandler for RootInputHandler {
 		_cx: &mut App,
 	) {
 		log::debug!(
-			"[IME] replace_and_mark_text_in_range: range_utf16={:?}, new_text={:?}, new_selected_range={:?}",
-			range_utf16, new_text, new_selected_range_utf16
+			"[IME] replace_and_mark_text_in_range: START range_utf16={:?}, new_text={:?}, new_selected_range_utf16={:?}",
+			range_utf16,
+			new_text,
+			new_selected_range_utf16
 		);
 
 		let Some(element_id) = self.get_focused_input() else {
 			log::warn!("[IME] replace_and_mark_text_in_range: no focused input");
 			return;
 		};
+
+		// Get current state first to check if we're in IME composition
 		let Some(mut state) = get_input_state(element_id) else {
 			log::warn!("[IME] replace_and_mark_text_in_range: no state for element {}", element_id);
 			return;
 		};
+
+		// Only sync from props if NOT in IME composition (first composition event)
+		// During ongoing composition, Rust state is authoritative
+		if state.marked_range.is_none() && range_utf16.is_none() {
+			sync_input_state_from_props(self.window_id, element_id);
+			// Re-fetch state after sync
+			let Some(synced_state) = get_input_state(element_id) else {
+				log::warn!(
+					"[IME] replace_and_mark_text_in_range: no state after sync for element {}",
+					element_id
+				);
+				return;
+			};
+			state = synced_state;
+		}
+
+		log::debug!(
+			"[IME] replace_and_mark_text_in_range: AFTER SYNC content={:?}, cursor={}, selection={:?}, marked_range={:?}",
+			state.content.to_string(),
+			state.cursor_position(),
+			state.selection_tuple(),
+			state.marked_range
+		);
 
 		// Determine the range to replace
 		let range = if let Some(range_utf16) = range_utf16.clone() {
@@ -193,14 +262,18 @@ impl InputHandler for RootInputHandler {
 		let end = state.content.clip_offset(end);
 
 		log::debug!(
-			"[IME] replace_and_mark_text_in_range: range={:?}, snapped to {:?}..{:?}, content before={:?}, cursor_before={}",
-			range, start, end, state.content.to_string(), state.cursor_position()
+			"[IME] replace_and_mark_text_in_range: original_range={:?}, clamped={}..{}, content={:?}",
+			range,
+			start,
+			end,
+			state.content.to_string()
 		);
 
 		// Perform the replacement using TextContent
 		state.content.replace(start..end, new_text);
 
 		// Set marked range for the new text (showing composition underline)
+		// marked_range uses byte offsets, not character counts
 		if !new_text.is_empty() {
 			state.marked_range = Some((start, start + new_text.len()));
 		} else {
@@ -221,12 +294,16 @@ impl InputHandler for RootInputHandler {
 				state.selection = Selection::cursor(new_cursor);
 			}
 		} else {
-			state.selection = Selection::cursor(start + new_text.len());
+			// Use byte length for cursor positioning (consistent with rest of the system)
+			state.selection = Selection::cursor((start + new_text.len()).min(state.content.len()));
 		}
 
 		log::debug!(
-			"[IME] replace_and_mark_text_in_range: content after={:?}, marked_range={:?}, cursor={}",
-			state.content.to_string(), state.marked_range, state.cursor_position()
+			"[IME] replace_and_mark_text_in_range: AFTER content={:?}, cursor={}, marked_range={:?}, selection={:?}",
+			state.content.to_string(),
+			state.cursor_position(),
+			state.marked_range,
+			state.selection_tuple()
 		);
 
 		update_input_state(element_id, state.clone());
@@ -237,9 +314,9 @@ impl InputHandler for RootInputHandler {
 			element_id,
 			types::INPUT,
 			EventData::Input(InputEventData {
-				value: state.content.to_string(),
-				data: Some(new_text.to_string()),
-				input_type: "insertCompositionText".to_string(),
+				value:        state.content.to_string(),
+				data:         Some(new_text.to_string()),
+				input_type:   "insertCompositionText".to_string(),
 				is_composing: true,
 			}),
 		);
@@ -315,11 +392,8 @@ impl InputHandler for RootInputHandler {
 
 		// Convert character index to byte offset, then to UTF-16
 		let content_str = state.content.to_string();
-		let byte_offset: usize = content_str
-			.char_indices()
-			.nth(char_index)
-			.map(|(idx, _)| idx)
-			.unwrap_or(state.content.len());
+		let byte_offset: usize =
+			content_str.char_indices().nth(char_index).map(|(idx, _)| idx).unwrap_or(state.content.len());
 
 		Some(state.offset_to_utf16(byte_offset))
 	}

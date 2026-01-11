@@ -183,8 +183,8 @@ pub struct ElementStyle {
 	pub disabled:    Option<bool>,
 	pub read_only:   Option<bool>,
 	pub max_length:  Option<usize>,
-	pub multi_line:  Option<bool>,   // Enable multi-line mode
-	pub rows:        Option<usize>,  // Number of visible rows
+	pub multi_line:  Option<bool>,  // Enable multi-line mode
+	pub rows:        Option<usize>, // Number of visible rows
 
 	// Hover style
 	pub hover_style: Option<Box<ElementStyle>>,

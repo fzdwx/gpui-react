@@ -3,21 +3,20 @@
 //! This module provides a text storage implementation using the ropey crate
 //! for efficient text operations on large documents.
 
-use ropey::{Rope, RopeSlice};
 use std::ops::Range;
+
+use ropey::{LineType, Rope, RopeSlice};
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Point in text (row, column) - byte offsets within line
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Point {
-	pub row: usize,
+	pub row:    usize,
 	pub column: usize,
 }
 
 impl Point {
-	pub fn new(row: usize, column: usize) -> Self {
-		Self { row, column }
-	}
+	pub fn new(row: usize, column: usize) -> Self { Self { row, column } }
 }
 
 /// Rope-based text content with efficient operations
@@ -28,48 +27,34 @@ pub struct TextContent {
 }
 
 impl Default for TextContent {
-	fn default() -> Self {
-		Self::new()
-	}
+	fn default() -> Self { Self::new() }
 }
 
 impl TextContent {
 	/// Create empty text content
-	pub fn new() -> Self {
-		Self { rope: Rope::new() }
-	}
+	pub fn new() -> Self { Self { rope: Rope::new() } }
 
 	/// Create from string
-	pub fn from_str(s: &str) -> Self {
-		Self { rope: Rope::from_str(s) }
-	}
+	pub fn from_str(s: &str) -> Self { Self { rope: Rope::from_str(s) } }
 
 	/// Get the underlying rope (for advanced operations)
-	pub fn rope(&self) -> &Rope {
-		&self.rope
-	}
+	pub fn rope(&self) -> &Rope { &self.rope }
 
 	/// Get length in bytes
-	pub fn len(&self) -> usize {
-		self.rope.len_bytes()
-	}
+	pub fn len(&self) -> usize { self.rope.len() }
 
 	/// Check if empty
-	pub fn is_empty(&self) -> bool {
-		self.rope.len_bytes() == 0
-	}
+	pub fn is_empty(&self) -> bool { self.rope.len() == 0 }
 
 	/// Get number of lines (including empty trailing line after final newline)
-	pub fn line_count(&self) -> usize {
-		self.rope.len_lines()
-	}
+	pub fn line_count(&self) -> usize { self.rope.len_lines(LineType::LF_CR) }
 
 	/// Get a line by index (0-based)
 	pub fn line(&self, line_idx: usize) -> Option<RopeSlice> {
 		if line_idx >= self.line_count() {
 			None
 		} else {
-			Some(self.rope.line(line_idx))
+			Some(self.rope.line(line_idx, LineType::LF_CR))
 		}
 	}
 
@@ -77,38 +62,95 @@ impl TextContent {
 	pub fn slice(&self, range: Range<usize>) -> RopeSlice {
 		let start = range.start.min(self.len());
 		let end = range.end.min(self.len());
-		self.rope.byte_slice(start..end)
+		self.rope.slice(start..end)
 	}
 
 	/// Insert text at byte offset - O(log n)
 	pub fn insert(&mut self, byte_offset: usize, text: &str) {
 		let offset = byte_offset.min(self.len());
-		let char_idx = self.rope.byte_to_char(offset);
-		self.rope.insert(char_idx, text);
+
+		log::trace!(
+			"[TextContent] insert: byte_offset={}, text={:?}, rope_len={}, rope_content={:?}",
+			byte_offset,
+			text,
+			self.len(),
+			self.to_string()
+		);
+
+		// Ropey 2.0's insert() expects a byte offset that is on a valid character
+		// boundary
+		self.rope.insert(offset, text);
 	}
 
 	/// Remove text in byte range - O(log n)
+	/// The range must be on valid char boundaries (use clip_offset_left/right if
+	/// needed)
 	pub fn remove(&mut self, range: Range<usize>) {
 		let start = range.start.min(self.len());
 		let end = range.end.min(self.len());
+
 		if start < end {
-			let start_char = self.rope.byte_to_char(start);
-			let end_char = self.rope.byte_to_char(end);
-			self.rope.remove(start_char..end_char);
+			// Ropey 2.0's remove expects byte indices on char boundaries
+			// Clip to ensure we're on valid boundaries
+			let start = self.clip_offset_left(start);
+			let end = self.clip_offset_right(end);
+
+			if start < end {
+				self.rope.remove(start..end);
+			}
 		}
 	}
 
 	/// Replace text in byte range - O(log n)
+	/// Uses clip_offset to ensure range is on valid char boundaries (like
+	/// gpui-component)
 	pub fn replace(&mut self, range: Range<usize>, text: &str) {
-		self.remove(range.clone());
-		self.insert(range.start, text);
+		// Clip range to valid char boundaries
+		let start = self.clip_offset_left(range.start);
+		let end = self.clip_offset_right(range.end);
+
+		log::trace!(
+			"[TextContent] replace: original_range={:?}, clipped_range={}..{}, text={:?}, rope_len={}",
+			range,
+			start,
+			end,
+			text,
+			self.len()
+		);
+
+		self.remove(start..end);
+		self.insert(start, text);
+	}
+
+	/// Clip offset to nearest valid char boundary on the left (floor)
+	pub fn clip_offset_left(&self, offset: usize) -> usize {
+		let offset = offset.min(self.len());
+		if offset == 0 || offset == self.len() {
+			return offset;
+		}
+		if self.rope.is_char_boundary(offset) {
+			return offset;
+		}
+		self.rope.floor_char_boundary(offset)
+	}
+
+	/// Clip offset to nearest valid char boundary on the right (ceil)
+	pub fn clip_offset_right(&self, offset: usize) -> usize {
+		let offset = offset.min(self.len());
+		if offset == 0 || offset == self.len() {
+			return offset;
+		}
+		if self.rope.is_char_boundary(offset) {
+			return offset;
+		}
+		self.rope.ceil_char_boundary(offset)
 	}
 
 	/// Convert byte offset to Point (row, column)
 	pub fn offset_to_point(&self, offset: usize) -> Point {
 		let offset = offset.min(self.len());
-		let line = self.rope.byte_to_line(offset);
-		let line_start = self.rope.line_to_byte(line);
+		let line = self.rope.byte_to_line_idx(offset, LineType::LF_CR);
+		let line_start = self.rope.line_to_byte_idx(line, LineType::LF_CR);
 		Point { row: line, column: offset - line_start }
 	}
 
@@ -117,7 +159,7 @@ impl TextContent {
 		if point.row >= self.line_count() {
 			return self.len();
 		}
-		let line_start = self.rope.line_to_byte(point.row);
+		let line_start = self.rope.line_to_byte_idx(point.row, LineType::LF_CR);
 		let line_len = self.line_len(point.row);
 		line_start + point.column.min(line_len)
 	}
@@ -127,7 +169,7 @@ impl TextContent {
 		if line_idx >= self.line_count() {
 			self.len()
 		} else {
-			self.rope.line_to_byte(line_idx)
+			self.rope.line_to_byte_idx(line_idx, LineType::LF_CR)
 		}
 	}
 
@@ -139,14 +181,32 @@ impl TextContent {
 		let next_line_start = if line_idx + 1 >= self.line_count() {
 			self.len()
 		} else {
-			self.rope.line_to_byte(line_idx + 1)
+			self.rope.line_to_byte_idx(line_idx + 1, LineType::LF_CR)
 		};
 		// Subtract newline if present
-		if next_line_start > 0 {
-			let prev_char_idx = self.rope.byte_to_char(next_line_start) - 1;
-			let prev_char = self.rope.char(prev_char_idx);
-			if prev_char == '\n' {
-				return next_line_start - 1;
+		// Check by getting the character before next_line_start
+		if next_line_start > 0 && next_line_start <= self.len() {
+			// Find the byte offset of the previous character
+			// by finding the floor char boundary
+			let prev_offset = if next_line_start == self.len() {
+				// At end, get previous char boundary
+				self.rope.floor_char_boundary(next_line_start.saturating_sub(1))
+			} else {
+				// Get floor of (next_line_start - 1)
+				let candidate = next_line_start.saturating_sub(1);
+				if self.rope.is_char_boundary(candidate) {
+					candidate
+				} else {
+					self.rope.floor_char_boundary(candidate)
+				}
+			};
+
+			// Get the character at prev_offset
+			let char_idx = self.byte_to_char_idx(prev_offset);
+			if let Some(ch) = self.rope.chars().nth(char_idx) {
+				if ch == '\n' {
+					return prev_offset;
+				}
 			}
 		}
 		next_line_start
@@ -168,9 +228,12 @@ impl TextContent {
 		if offset == 0 || offset == self.len() {
 			return offset;
 		}
-		// Find the char index and convert back to get valid byte offset
-		let char_idx = self.rope.byte_to_char(offset);
-		self.rope.char_to_byte(char_idx)
+		// Check if already on a char boundary using rope's method
+		if self.rope.is_char_boundary(offset) {
+			return offset;
+		}
+		// If not on boundary, find the floor
+		self.rope.floor_char_boundary(offset)
 	}
 
 	/// Find previous grapheme boundary
@@ -182,8 +245,8 @@ impl TextContent {
 		let offset = offset.min(self.len());
 
 		// Get the line containing this offset
-		let line_idx = self.rope.byte_to_line(offset);
-		let line_start = self.rope.line_to_byte(line_idx);
+		let line_idx = self.rope.byte_to_line_idx(offset, LineType::LF_CR);
+		let line_start = self.rope.line_to_byte_idx(line_idx, LineType::LF_CR);
 
 		// If at line start and not first line, go to end of previous line
 		if offset == line_start && line_idx > 0 {
@@ -191,7 +254,7 @@ impl TextContent {
 		}
 
 		// Search within current line for grapheme boundary
-		let line = self.rope.line(line_idx);
+		let line = self.rope.line(line_idx, LineType::LF_CR);
 		let line_str = line.to_string();
 		let local_offset = offset - line_start;
 
@@ -212,8 +275,8 @@ impl TextContent {
 			return self.len();
 		}
 
-		let line_idx = self.rope.byte_to_line(offset);
-		let line_start = self.rope.line_to_byte(line_idx);
+		let line_idx = self.rope.byte_to_line_idx(offset, LineType::LF_CR);
+		let line_start = self.rope.line_to_byte_idx(line_idx, LineType::LF_CR);
 		let line_end = self.line_end_offset(line_idx);
 
 		// If at line end, move to start of next line
@@ -225,7 +288,7 @@ impl TextContent {
 		}
 
 		// Search within current line for next grapheme boundary
-		let line = self.rope.line(line_idx);
+		let line = self.rope.line(line_idx, LineType::LF_CR);
 		let line_str = line.to_string();
 		let local_offset = offset - line_start;
 
@@ -243,24 +306,40 @@ impl TextContent {
 		if offset >= self.len() {
 			return None;
 		}
-		let char_idx = self.rope.byte_to_char(offset);
-		Some(self.rope.char(char_idx))
+		// Ensure offset is on a char boundary
+		if !self.rope.is_char_boundary(offset) {
+			return None;
+		}
+		// Get the char at this byte offset by iterating
+		let char_idx = self.byte_to_char_idx(offset);
+		self.rope.chars().nth(char_idx)
+	}
+
+	/// Convert byte offset to character index (ropey 2.0 doesn't have this
+	/// method)
+	fn byte_to_char_idx(&self, byte_offset: usize) -> usize {
+		let mut char_idx = 0;
+		let mut byte_pos = 0;
+		for ch in self.rope.chars() {
+			if byte_pos >= byte_offset {
+				break;
+			}
+			byte_pos += ch.len_utf8();
+			char_idx += 1;
+		}
+		char_idx
 	}
 
 	/// Convert to String
-	pub fn to_string(&self) -> String {
-		self.rope.to_string()
-	}
+	pub fn to_string(&self) -> String { self.rope.to_string() }
 
 	/// Get number of grapheme clusters (visible characters)
-	pub fn grapheme_count(&self) -> usize {
-		self.rope.to_string().graphemes(true).count()
-	}
+	pub fn grapheme_count(&self) -> usize { self.rope.to_string().graphemes(true).count() }
 
 	/// Convert UTF-8 byte offset to UTF-16 offset
 	pub fn offset_to_utf16(&self, byte_offset: usize) -> usize {
 		let byte_offset = byte_offset.min(self.len());
-		let char_idx = self.rope.byte_to_char(byte_offset);
+		let char_idx = self.byte_to_char_idx(byte_offset);
 		// Count UTF-16 code units
 		let mut utf16_offset = 0;
 		for ch in self.rope.chars().take(char_idx) {
@@ -291,9 +370,8 @@ impl TextContent {
 		if offset == 0 || offset == self.len() {
 			return true;
 		}
-		// Try to convert - if it works, it's valid
-		let char_idx = self.rope.byte_to_char(offset);
-		self.rope.char_to_byte(char_idx) == offset
+		// Use rope's built-in method
+		self.rope.is_char_boundary(offset)
 	}
 
 	/// Iterator over (byte_index, char) pairs - for password input positioning
@@ -381,5 +459,34 @@ mod tests {
 		assert_eq!(content.next_grapheme_boundary(3), 6);
 		assert_eq!(content.prev_grapheme_boundary(3), 0);
 		assert_eq!(content.prev_grapheme_boundary(6), 3);
+	}
+
+	#[test]
+	fn test_chinese_insert_at_end() {
+		let mut content = TextContent::from_str("你好");
+		assert_eq!(content.len(), 6);
+		assert_eq!(content.to_string(), "你好");
+
+		content.insert(6, "1");
+
+		assert_eq!(content.to_string(), "你好1");
+		assert_eq!(content.len(), 7);
+	}
+
+	#[test]
+	fn test_chinese_insert_at_middle() {
+		let mut content = TextContent::from_str("你好世界");
+		content.insert(3, "A");
+
+		assert_eq!(content.to_string(), "你A好世界");
+	}
+
+	#[test]
+	fn test_chinese_replace_and_insert() {
+		let mut content = TextContent::from_str("你好");
+		content.replace(6..6, "1");
+
+		assert_eq!(content.to_string(), "你好1");
+		assert_eq!(content.len(), 7);
 	}
 }

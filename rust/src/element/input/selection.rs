@@ -15,54 +15,36 @@ pub struct Selection {
 	/// Fixed end of selection (where selection started)
 	pub anchor: usize,
 	/// Moving end of selection (cursor position)
-	pub head: usize,
+	pub head:   usize,
 }
 
 impl Selection {
 	/// Create a new selection
-	pub fn new(anchor: usize, head: usize) -> Self {
-		Self { anchor, head }
-	}
+	pub fn new(anchor: usize, head: usize) -> Self { Self { anchor, head } }
 
 	/// Create a cursor (selection with no range)
-	pub fn cursor(offset: usize) -> Self {
-		Self { anchor: offset, head: offset }
-	}
+	pub fn cursor(offset: usize) -> Self { Self { anchor: offset, head: offset } }
 
 	/// Check if this is an empty selection (just a cursor)
-	pub fn is_empty(&self) -> bool {
-		self.anchor == self.head
-	}
+	pub fn is_empty(&self) -> bool { self.anchor == self.head }
 
 	/// Get the start of the selection (smaller offset)
-	pub fn start(&self) -> usize {
-		self.anchor.min(self.head)
-	}
+	pub fn start(&self) -> usize { self.anchor.min(self.head) }
 
 	/// Get the end of the selection (larger offset)
-	pub fn end(&self) -> usize {
-		self.anchor.max(self.head)
-	}
+	pub fn end(&self) -> usize { self.anchor.max(self.head) }
 
 	/// Get the selection as a Range
-	pub fn range(&self) -> Range<usize> {
-		self.start()..self.end()
-	}
+	pub fn range(&self) -> Range<usize> { self.start()..self.end() }
 
 	/// Check if selection is reversed (head before anchor)
-	pub fn is_reversed(&self) -> bool {
-		self.head < self.anchor
-	}
+	pub fn is_reversed(&self) -> bool { self.head < self.anchor }
 
 	/// Extend selection to a new head position
-	pub fn extend_to(&mut self, head: usize) {
-		self.head = head;
-	}
+	pub fn extend_to(&mut self, head: usize) { self.head = head; }
 
 	/// Collapse selection to the head position
-	pub fn collapse_to_head(&mut self) {
-		self.anchor = self.head;
-	}
+	pub fn collapse_to_head(&mut self) { self.anchor = self.head; }
 
 	/// Collapse selection to the start
 	pub fn collapse_to_start(&mut self) {
@@ -80,11 +62,7 @@ impl Selection {
 
 	/// Convert to legacy tuple format (for compatibility)
 	pub fn as_tuple(&self) -> Option<(usize, usize)> {
-		if self.is_empty() {
-			None
-		} else {
-			Some((self.start(), self.end()))
-		}
+		if self.is_empty() { None } else { Some((self.start(), self.end())) }
 	}
 
 	/// Create from legacy tuple format
@@ -183,11 +161,7 @@ impl TextSelector {
 			}
 		}
 
-		if start < end {
-			Some(start..end)
-		} else {
-			None
-		}
+		if start < end { Some(start..end) } else { None }
 	}
 
 	/// Find line range for triple-click selection

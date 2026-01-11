@@ -3,6 +3,7 @@
 //! A text input element that supports text editing, cursor, and selection.
 
 pub mod cursor;
+pub mod cursor_tests;
 pub mod display_point;
 pub mod handler;
 pub mod selection;
@@ -40,9 +41,9 @@ lazy_static! {
 /// Text shaping info for click-to-cursor positioning
 #[derive(Clone)]
 pub struct TextShapingInfo {
-	pub display_text: String,
-	pub font_size: f32,
-	pub font_weight: u32,
+	pub display_text:  String,
+	pub font_size:     f32,
+	pub font_weight:   u32,
 	pub text_origin_x: f32,
 }
 
@@ -81,6 +82,76 @@ pub fn get_input_state(element_id: u64) -> Option<InputState> {
 		log::trace!("[Input] get_input_state: no state for element_id={}", element_id);
 	}
 	result
+}
+
+/// Sync input state from React props for a controlled input
+/// This should be called before processing keyboard/input events to ensure
+/// Rust state matches React state
+pub fn sync_input_state_from_props(window_id: u64, element_id: u64) -> bool {
+	use crate::global_state::GLOBAL_STATE;
+
+	let Some(window) = GLOBAL_STATE.get_window(window_id) else {
+		log::trace!("[Input] sync_input_state_from_props: window {} not found", window_id);
+		return false;
+	};
+
+	let element_map = window.state().element_map.lock().expect("Failed to acquire element_map lock");
+	if let Some(element) = element_map.get(&element_id) {
+		if let Some(value) = element.style.value.clone() {
+			log::trace!("[Input] sync_input_state_from_props: found value prop={:?}", value);
+
+			let mut states = INPUT_STATES.lock().unwrap();
+			if let Some(mut state) = states.get(&element_id).cloned() {
+				let old_content = state.content.to_string();
+				let old_cursor = state.cursor_position();
+
+				if old_content != value {
+					state.content = text_content::TextContent::from_str(&value);
+					// Set cursor to end (byte offset = text length in bytes)
+					let new_cursor = value.len();
+					state.set_cursor_position(new_cursor);
+					states.insert(element_id, state.clone());
+
+					log::debug!(
+						"[Input] sync_input_state_from_props: SYNCED content from {:?}->{:?}, cursor {}->{}",
+						old_content,
+						value,
+						old_cursor,
+						new_cursor
+					);
+					return true;
+				} else {
+					// Content matches, but check if cursor needs sync
+					let expected_cursor = value.len();
+					if old_cursor != expected_cursor {
+						log::debug!(
+							"[Input] sync_input_state_from_props: content matches, but cursor {} != {}, syncing...",
+							old_cursor,
+							expected_cursor
+						);
+						state.set_cursor_position(expected_cursor);
+						states.insert(element_id, state.clone());
+						return true;
+					}
+					log::trace!("[Input] sync_input_state_from_props: content and cursor already in sync");
+				}
+			} else {
+				log::trace!("[Input] sync_input_state_from_props: no state for element_id={}", element_id);
+			}
+		} else {
+			log::trace!(
+				"[Input] sync_input_state_from_props: no value prop for element_id={}",
+				element_id
+			);
+		}
+	} else {
+		log::trace!(
+			"[Input] sync_input_state_from_props: element {} not found in window {}",
+			element_id,
+			window_id
+		);
+	}
+	false
 }
 
 /// Remove input state when element is removed
@@ -138,16 +209,16 @@ pub struct ReactInputElement {
 
 /// State returned from request_layout
 pub struct InputLayoutState {
-	child_layout_id:  Option<LayoutId>,
-	input_type:       InputType,
-	display_text:     String,
+	child_layout_id: Option<LayoutId>,
+	input_type:      InputType,
+	display_text:    String,
 	/// The actual content (not display text) - used for cursor calculation
-	content:          String,
+	content:         String,
 	/// Cursor position at layout time - ensures consistency with display_text
-	cursor_position:  usize,
-	text_color:       u32,
-	text_size:        f32,
-	font_weight:      Option<u32>,
+	cursor_position: usize,
+	text_color:      u32,
+	text_size:       f32,
+	font_weight:     Option<u32>,
 }
 
 /// State returned from prepaint
@@ -181,14 +252,10 @@ impl ReactInputElement {
 	}
 
 	/// Get multi-line mode from element style props
-	fn is_multi_line(&self) -> bool {
-		self.element.style.multi_line.unwrap_or(false)
-	}
+	fn is_multi_line(&self) -> bool { self.element.style.multi_line.unwrap_or(false) }
 
 	/// Get number of rows from element style props
-	fn get_rows(&self) -> Option<usize> {
-		self.element.style.rows
-	}
+	fn get_rows(&self) -> Option<usize> { self.element.style.rows }
 }
 
 impl Element for ReactInputElement {
@@ -215,7 +282,9 @@ impl Element for ReactInputElement {
 
 		log::debug!(
 			"[Input] request_layout: element_id={}, initial cursor={}, content={:?}",
-			self.element.global_id, input_state.cursor_position(), input_state.content.to_string()
+			self.element.global_id,
+			input_state.cursor_position(),
+			input_state.content.to_string()
 		);
 
 		// Update input type in case it changed
@@ -223,14 +292,26 @@ impl Element for ReactInputElement {
 
 		// Update input state from props if this is a controlled input
 		if let Some(value) = self.get_value() {
-			// Only update if different (avoid cursor reset)
-			if input_state.content.to_string() != value {
+			let current_content = input_state.content.to_string();
+			let content_changed = current_content != value;
+
+			// Only sync from React props if NOT in IME composition
+			// During IME composition (marked_range is Some), Rust state is authoritative
+			// because React may not have processed the input event yet
+			let in_ime_composition = input_state.marked_range.is_some();
+
+			if content_changed && !in_ime_composition {
 				let old_cursor = input_state.cursor_position();
 				input_state.content = super::input::text_content::TextContent::from_str(value);
-				input_state.set_cursor_position(input_state.cursor_position().min(value.len()));
+
+				let new_cursor = old_cursor.min(value.len());
+				input_state.set_cursor_position(new_cursor);
+
 				log::debug!(
 					"[Input] request_layout: value prop changed content, old_cursor={}, new_cursor={}, value={:?}",
-					old_cursor, input_state.cursor_position(), value
+					old_cursor,
+					new_cursor,
+					value
 				);
 			}
 		}
@@ -360,17 +441,17 @@ impl Element for ReactInputElement {
 		// Create font for text shaping
 		let font_weight_val = request_layout.font_weight.unwrap_or(400);
 		let font = Font {
-			family: "Zed Plex Mono".into(),
-			features: Default::default(),
+			family:    "Zed Plex Mono".into(),
+			features:  Default::default(),
 			fallbacks: None,
-			weight: FontWeight(font_weight_val as f32),
-			style: FontStyle::Normal,
+			weight:    FontWeight(font_weight_val as f32),
+			style:     FontStyle::Normal,
 		};
 
 		let font_size = px(request_layout.text_size);
 		let text_color = Hsla::from(rgb(request_layout.text_color));
 
-		// Create text run for the display text - use current_display_text
+		// Create text run for the display text - use byte length for GPUI's TextRun
 		let text_run = TextRun {
 			len: current_display_text.len(),
 			font,
@@ -382,23 +463,21 @@ impl Element for ReactInputElement {
 
 		// Shape the line using GPUI's text system with current display text
 		let shaped_line = if !current_display_text.is_empty() {
-			Some(window
-				.text_system()
-				.shape_line(
-					current_display_text.into(),
-					font_size,
-					&[text_run],
-					None,
-				))
+			Some(window.text_system().shape_line(
+				current_display_text.into(),
+				font_size,
+				&[text_run],
+				None,
+			))
 		} else {
 			None
 		};
 
 		// Store text shaping info for mouse handlers
 		update_text_shaping_info(self.element.global_id, TextShapingInfo {
-			display_text: request_layout.display_text.clone(),
-			font_size: request_layout.text_size,
-			font_weight: font_weight_val,
+			display_text:  request_layout.display_text.clone(),
+			font_size:     request_layout.text_size,
+			font_weight:   font_weight_val,
 			text_origin_x: text_origin.x.into(),
 		});
 
@@ -433,7 +512,8 @@ impl Element for ReactInputElement {
 		let text_origin = prepaint.text_origin;
 		let line_height = window.line_height();
 
-		// Calculate text_y for vertical centering (single-line) or top alignment (multi-line)
+		// Calculate text_y for vertical centering (single-line) or top alignment
+		// (multi-line)
 		let is_multi_line = prepaint.input_state.multi_line;
 		let text_y = if is_multi_line {
 			bounds.origin.y + px(4.0) // Top padding for multi-line
@@ -523,7 +603,7 @@ impl Element for ReactInputElement {
 							while p > 0 && !content.is_char_boundary(p) { p -= 1; }
 							p
 						};
-						// Convert byte positions to character indices
+						// x_for_index expects character index, convert byte positions
 						let start_chars = content[..safe_start].chars().count();
 						let end_chars = content[..safe_end].chars().count();
 						let start_x = shaped_line.x_for_index(start_chars);
@@ -566,7 +646,7 @@ impl Element for ReactInputElement {
 							while p > 0 && !content.is_char_boundary(p) { p -= 1; }
 							p
 						};
-						// Convert byte positions to character indices
+						// x_for_index expects character index, convert byte positions
 						let start_chars = content[..safe_start].chars().count();
 						let end_chars = content[..safe_end].chars().count();
 						let start_x = shaped_line.x_for_index(start_chars);
@@ -612,15 +692,27 @@ impl Element for ReactInputElement {
 
 						// Convert byte position to character index for x_for_index
 						// This is necessary for multi-byte characters (Chinese, Japanese, etc.)
-						let display_index = content[..safe_cursor_pos].chars().count();
+						// Count characters whose byte position is less than cursor position
+						let display_index = content.char_indices()
+							.filter(|(byte_idx, _)| *byte_idx < safe_cursor_pos)
+							.count();
+
+						// Get total number of characters in content
+						let total_chars = content.chars().count();
 
 						log::debug!(
 							"[Input] paint cursor: cursor_pos={}, safe_cursor_pos={}, display_index={}, content_len={}, content={:?}",
 							cursor_pos, safe_cursor_pos, display_index, content.len(), content
 						);
 
-						// Use x_for_index with the appropriate index
-						text_origin.x + shaped_line.x_for_index(display_index)
+						// Use x_for_index with display_index + 1 to get position after the character
+						// x_for_index(n) gives position BEFORE character n, so x_for_index(n+1) is after character n
+						// For cursor at end of text, x_for_index(display_index) gives the position after last char
+						text_origin.x + if display_index < total_chars {
+							shaped_line.x_for_index(display_index + 1)
+						} else {
+							shaped_line.x_for_index(display_index)
+						}
 					} else {
 						text_origin.x
 					};
@@ -702,11 +794,11 @@ impl ReactInputElement {
 						} else {
 							// Reshape text to get accurate positions
 							let font = Font {
-								family: "Zed Plex Mono".into(),
-								features: Default::default(),
+								family:    "Zed Plex Mono".into(),
+								features:  Default::default(),
 								fallbacks: None,
-								weight: FontWeight(info.font_weight as f32),
-								style: FontStyle::Normal,
+								weight:    FontWeight(info.font_weight as f32),
+								style:     FontStyle::Normal,
 							};
 							let font_size = px(info.font_size);
 							let text_run = TextRun {
@@ -729,15 +821,27 @@ impl ReactInputElement {
 							let closest_idx = shaped_line.closest_index_for_x(px(local_x));
 
 							// For password input, map display position back to content position
+							// For normal text, also map character index back to byte offset
 							if state.input_type == InputType::Password {
 								// Each character is one bullet, so char index = byte position in content
-								let char_count = info.display_text[..closest_idx.min(info.display_text.len())].chars().count();
-								state.content.char_indices()
+								let char_count =
+									info.display_text[..closest_idx.min(info.display_text.len())].chars().count();
+								state
+									.content
+									.char_indices()
 									.nth(char_count)
 									.map(|(idx, _)| idx)
 									.unwrap_or(state.content.len())
 							} else {
-								closest_idx
+								// Normal text: map character index to byte offset
+								let char_count =
+									info.display_text[..closest_idx.min(info.display_text.len())].chars().count();
+								state
+									.content
+									.char_indices()
+									.nth(char_count)
+									.map(|(idx, _)| idx)
+									.unwrap_or(state.content.len())
 							}
 						}
 					} else {
@@ -757,7 +861,11 @@ impl ReactInputElement {
 				}
 
 				// Set focus
-				log::debug!("[Input] MouseDown: setting focus window_id={}, element_id={}", window_id, element_id);
+				log::debug!(
+					"[Input] MouseDown: setting focus window_id={}, element_id={}",
+					window_id,
+					element_id
+				);
 				focus::set_focus(window_id, element_id);
 
 				// Request refresh
@@ -781,11 +889,11 @@ impl ReactInputElement {
 						} else {
 							// Reshape text for accurate positioning
 							let font = Font {
-								family: "Zed Plex Mono".into(),
-								features: Default::default(),
+								family:    "Zed Plex Mono".into(),
+								features:  Default::default(),
 								fallbacks: None,
-								weight: FontWeight(info.font_weight as f32),
-								style: FontStyle::Normal,
+								weight:    FontWeight(info.font_weight as f32),
+								style:     FontStyle::Normal,
 							};
 							let font_size = px(info.font_size);
 							let text_run = TextRun {
@@ -807,14 +915,27 @@ impl ReactInputElement {
 							// Use GPUI's built-in closest_index_for_x for accurate positioning
 							let closest_idx = shaped_line.closest_index_for_x(px(local_x));
 
+							// For password input, map display position back to content position
+							// For normal text, also map character index back to byte offset
 							if state.input_type == InputType::Password {
-								let char_count = info.display_text[..closest_idx.min(info.display_text.len())].chars().count();
-								state.content.char_indices()
+								let char_count =
+									info.display_text[..closest_idx.min(info.display_text.len())].chars().count();
+								state
+									.content
+									.char_indices()
 									.nth(char_count)
 									.map(|(idx, _)| idx)
 									.unwrap_or(state.content.len())
 							} else {
-								closest_idx
+								// Normal text: map character index to byte offset
+								let char_count =
+									info.display_text[..closest_idx.min(info.display_text.len())].chars().count();
+								state
+									.content
+									.char_indices()
+									.nth(char_count)
+									.map(|(idx, _)| idx)
+									.unwrap_or(state.content.len())
 							}
 						}
 					} else {
@@ -861,7 +982,15 @@ pub fn handle_input_key_event(
 	let change: Option<TextChange> = match key {
 		// Navigation
 		"left" => {
+			log::debug!(
+				"[Input] handle_input_key_event: 'left' key pressed, current cursor={}",
+				state.cursor_position()
+			);
 			state.move_left(modifiers.shift);
+			log::debug!(
+				"[Input] handle_input_key_event: after move_left, cursor={}",
+				state.cursor_position()
+			);
 			None
 		}
 		"right" => {
@@ -907,7 +1036,6 @@ pub fn handle_input_key_event(
 		// NOTE: Regular character input is NOT handled here!
 		// It goes through the InputHandler (replace_text_in_range) for proper IME support.
 		// This includes single characters and space.
-
 		_ => {
 			// Key not handled by input element, return false to let it bubble up
 			return false;

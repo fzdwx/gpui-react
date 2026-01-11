@@ -1,6 +1,6 @@
 use gpui::{Application as GpuiApp, Entity, FocusHandle, InteractiveElement, KeyDownEvent, KeyUpEvent, Render, Task, Timer, Window, div, prelude::*, rgb};
 
-use crate::{element::{create_element, input::{handle_input_key_event, RootInputHandler}}, event_types::{EventData, FocusEventData, KeyboardEventData, types}, focus, global_state::GLOBAL_STATE, host_command, window::EventMessage};
+use crate::{element::{create_element, input::{RootInputHandler, handle_input_key_event}}, event_types::{EventData, FocusEventData, KeyboardEventData, types}, focus, global_state::GLOBAL_STATE, host_command, window::EventMessage};
 
 /// Dispatch an event to the event queue for JS polling
 /// This is thread-safe and doesn't require calling JS directly from Rust
@@ -274,12 +274,9 @@ impl Render for RootView {
 		log::debug!("RootView.render completed in {:?}", render_duration);
 
 		// Register the input handler for IME support
-		// This uses the root focus handle, and RootInputHandler delegates to the focused input
-		gpui_window.handle_input(
-			&focus_handle,
-			RootInputHandler::new(self.window_id),
-			cx,
-		);
+		// This uses the root focus handle, and RootInputHandler delegates to the
+		// focused input
+		gpui_window.handle_input(&focus_handle, RootInputHandler::new(self.window_id), cx);
 
 		// Wrap in a focusable div that handles keyboard events at the window level
 		div()
@@ -297,6 +294,13 @@ impl Render for RootView {
 
 				// Get the currently focused element for this window
 				let focused_element = focus::get_focused(window_id);
+
+				log::debug!(
+					"[Rust] KeyDown: window_id={}, focused_element={:?}, key={}",
+					window_id,
+					focused_element,
+					keystroke.key
+				);
 
 				// Handle Tab key for focus navigation
 				if keystroke.key == "tab" {
@@ -346,6 +350,12 @@ impl Render for RootView {
 
 				// Dispatch keydown event to the focused element
 				if let Some(element_id) = focused_element {
+					log::debug!(
+						"[Rust] KeyDown: element_id={}, key={}, shift={}",
+						element_id,
+						keystroke.key,
+						keystroke.modifiers.shift
+					);
 					// Try to handle as input element first
 					if handle_input_key_event(
 						window_id,
@@ -355,6 +365,7 @@ impl Render for RootView {
 						window,
 					) {
 						// Input element handled the key
+						log::debug!("[Rust] KeyDown: element_id={} handled key={}", element_id, keystroke.key);
 						return;
 					}
 

@@ -4,26 +4,23 @@
 
 use gpui::{Pixels, px};
 
-use super::display_point::{DisplayPoint, WrappedLine};
-use super::text_content::TextContent;
+use super::{display_point::{DisplayPoint, WrappedLine}, text_content::TextContent};
 
 /// Handles soft wrapping of text for display
 #[derive(Clone, Debug)]
 pub struct TextWrapper {
 	/// Maximum width for wrapping (in pixels), None = no wrapping
-	wrap_width: Option<Pixels>,
+	wrap_width:   Option<Pixels>,
 	/// Cached wrapped lines
-	lines: Vec<WrappedLine>,
+	lines:        Vec<WrappedLine>,
 	/// Total display row count
 	display_rows: usize,
 	/// Version counter for cache invalidation
-	version: usize,
+	version:      usize,
 }
 
 impl Default for TextWrapper {
-	fn default() -> Self {
-		Self::new(None)
-	}
+	fn default() -> Self { Self::new(None) }
 }
 
 impl TextWrapper {
@@ -42,42 +39,42 @@ impl TextWrapper {
 	}
 
 	/// Get the wrap width
-	pub fn wrap_width(&self) -> Option<Pixels> {
-		self.wrap_width
-	}
+	pub fn wrap_width(&self) -> Option<Pixels> { self.wrap_width }
 
 	/// Update wrapped lines from text content
 	///
-	/// For now, this is a simple implementation without actual pixel-based wrapping.
-	/// Wrapping is done at newlines only.
+	/// For now, this is a simple implementation without actual pixel-based
+	/// wrapping. Wrapping is done at newlines only.
 	pub fn update(&mut self, content: &TextContent) {
 		self.lines.clear();
 		self.display_rows = 0;
 
 		if content.is_empty() {
 			// Even empty content has one line
-			self.lines.push(WrappedLine::new(0, 0, 0));
+			self.lines.push(WrappedLine::new(0, 0, 0, 0));
 			self.display_rows = 1;
 			return;
 		}
 
 		let mut offset = 0;
 		let total_len = content.len();
+		let mut visual_row = 0;
 
 		for physical_line in 0..content.line_count() {
 			let line_start = content.line_start_offset(physical_line);
 			let line_end = content.line_end_offset(physical_line);
 
 			// For now, no soft wrapping - just use physical lines
-			// TODO: Implement pixel-based soft wrapping when wrap_width is set
+			// Each physical line gets its own visual_row
 			self.lines.push(WrappedLine {
 				start_offset: line_start,
 				end_offset: line_end,
 				physical_line,
-				visual_row: 0,
+				visual_row,
 				width: None,
 			});
 			self.display_rows += 1;
+			visual_row += 1;
 
 			// Include newline in offset tracking
 			offset = line_end;
@@ -95,33 +92,27 @@ impl TextWrapper {
 	}
 
 	/// Get total display row count
-	pub fn display_row_count(&self) -> usize {
-		self.display_rows.max(1)
-	}
+	pub fn display_row_count(&self) -> usize { self.display_rows.max(1) }
 
 	/// Get the wrapped lines
-	pub fn lines(&self) -> &[WrappedLine] {
-		&self.lines
-	}
+	pub fn lines(&self) -> &[WrappedLine] { &self.lines }
 
 	/// Get a specific wrapped line by display row
-	pub fn line(&self, display_row: usize) -> Option<&WrappedLine> {
-		self.lines.get(display_row)
-	}
+	pub fn line(&self, display_row: usize) -> Option<&WrappedLine> { self.lines.get(display_row) }
 
 	/// Convert byte offset to display point
 	pub fn offset_to_display_point(&self, content: &TextContent, offset: usize) -> DisplayPoint {
 		let offset = offset.min(content.len());
 
-		for (row, line) in self.lines.iter().enumerate() {
+		for line in self.lines.iter() {
 			if offset >= line.start_offset && offset <= line.end_offset {
-				return DisplayPoint::new(row, offset - line.start_offset);
+				return DisplayPoint::new(line.visual_row, offset - line.start_offset);
 			}
 		}
 
 		// If not found, return end of last line
 		if let Some(last) = self.lines.last() {
-			DisplayPoint::new(self.lines.len() - 1, last.len())
+			DisplayPoint::new(last.visual_row, last.len())
 		} else {
 			DisplayPoint::origin()
 		}
@@ -129,6 +120,13 @@ impl TextWrapper {
 
 	/// Convert display point to byte offset
 	pub fn display_point_to_offset(&self, point: DisplayPoint) -> usize {
+		for line in self.lines.iter() {
+			if line.visual_row == point.row {
+				return line.start_offset + point.column.min(line.len());
+			}
+		}
+
+		// If not found by visual_row, try by index as fallback
 		if let Some(line) = self.lines.get(point.row) {
 			line.start_offset + point.column.min(line.len())
 		} else if let Some(last) = self.lines.last() {
@@ -140,7 +138,12 @@ impl TextWrapper {
 	}
 
 	/// Move cursor up by one display row
-	pub fn move_up(&self, content: &TextContent, offset: usize, preferred_column: Option<usize>) -> usize {
+	pub fn move_up(
+		&self,
+		content: &TextContent,
+		offset: usize,
+		preferred_column: Option<usize>,
+	) -> usize {
 		let point = self.offset_to_display_point(content, offset);
 		if point.row == 0 {
 			// Already at top, stay at same position
@@ -158,7 +161,12 @@ impl TextWrapper {
 	}
 
 	/// Move cursor down by one display row
-	pub fn move_down(&self, content: &TextContent, offset: usize, preferred_column: Option<usize>) -> usize {
+	pub fn move_down(
+		&self,
+		content: &TextContent,
+		offset: usize,
+		preferred_column: Option<usize>,
+	) -> usize {
 		let point = self.offset_to_display_point(content, offset);
 		if point.row + 1 >= self.display_row_count() {
 			// Already at bottom, stay at same position

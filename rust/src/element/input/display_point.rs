@@ -6,56 +6,54 @@ use gpui::Pixels;
 
 /// Position in wrapped/displayed text
 ///
-/// This represents a position in the visual display, accounting for soft wrapping.
-/// Unlike `Point` which uses physical line numbers, `DisplayPoint` uses visual rows.
+/// This represents a position in the visual display, accounting for soft
+/// wrapping. Unlike `Point` which uses physical line numbers, `DisplayPoint`
+/// uses visual rows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DisplayPoint {
 	/// Display row (includes soft wraps, 0-based)
-	pub row: usize,
+	pub row:    usize,
 	/// Column byte offset within the display row
 	pub column: usize,
 }
 
 impl DisplayPoint {
-	pub fn new(row: usize, column: usize) -> Self {
-		Self { row, column }
-	}
+	pub fn new(row: usize, column: usize) -> Self { Self { row, column } }
 
 	/// Create a display point at the origin
-	pub fn origin() -> Self {
-		Self { row: 0, column: 0 }
-	}
+	pub fn origin() -> Self { Self { row: 0, column: 0 } }
 }
 
 /// A wrapped line segment for display
 #[derive(Clone, Debug)]
 pub struct WrappedLine {
 	/// Starting byte offset in source text
-	pub start_offset: usize,
+	pub start_offset:  usize,
 	/// Ending byte offset in source text (exclusive)
-	pub end_offset: usize,
+	pub end_offset:    usize,
 	/// Physical line index (0-based, counts only newlines)
 	pub physical_line: usize,
-	/// Visual row within the physical line (0 for unwrapped or first wrap)
-	pub visual_row: usize,
+	/// Visual row within the display (0-based, increments per line)
+	pub visual_row:    usize,
 	/// Width of this line segment in pixels (cached)
-	pub width: Option<Pixels>,
+	pub width:         Option<Pixels>,
 }
 
 impl WrappedLine {
-	pub fn new(start_offset: usize, end_offset: usize, physical_line: usize) -> Self {
-		Self { start_offset, end_offset, physical_line, visual_row: 0, width: None }
+	pub fn new(
+		start_offset: usize,
+		end_offset: usize,
+		physical_line: usize,
+		visual_row: usize,
+	) -> Self {
+		Self { start_offset, end_offset, physical_line, visual_row, width: None }
 	}
 
 	/// Get the byte length of this line segment
-	pub fn len(&self) -> usize {
-		self.end_offset - self.start_offset
-	}
+	pub fn len(&self) -> usize { self.end_offset - self.start_offset }
 
 	/// Check if this line segment is empty
-	pub fn is_empty(&self) -> bool {
-		self.start_offset == self.end_offset
-	}
+	pub fn is_empty(&self) -> bool { self.start_offset == self.end_offset }
 
 	/// Check if a byte offset is within this line segment
 	pub fn contains_offset(&self, offset: usize) -> bool {
@@ -63,9 +61,7 @@ impl WrappedLine {
 	}
 
 	/// Convert a global byte offset to a local offset within this line
-	pub fn to_local_offset(&self, offset: usize) -> usize {
-		offset.saturating_sub(self.start_offset)
-	}
+	pub fn to_local_offset(&self, offset: usize) -> usize { offset.saturating_sub(self.start_offset) }
 
 	/// Convert a local offset to a global byte offset
 	pub fn to_global_offset(&self, local_offset: usize) -> usize {
@@ -79,19 +75,18 @@ pub struct ScrollPosition {
 	/// Vertical scroll offset in display rows
 	pub row: usize,
 	/// Horizontal scroll offset in pixels
-	pub x: Pixels,
+	pub x:   Pixels,
 }
 
 impl ScrollPosition {
-	pub fn new(row: usize, x: Pixels) -> Self {
-		Self { row, x }
-	}
+	pub fn new(row: usize, x: Pixels) -> Self { Self { row, x } }
 }
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use gpui::px;
+
+	use super::*;
 
 	#[test]
 	fn test_display_point() {
@@ -106,7 +101,7 @@ mod tests {
 
 	#[test]
 	fn test_wrapped_line() {
-		let line = WrappedLine::new(10, 20, 1);
+		let line = WrappedLine::new(10, 20, 1, 0);
 		assert_eq!(line.len(), 10);
 		assert!(!line.is_empty());
 		assert!(line.contains_offset(10));

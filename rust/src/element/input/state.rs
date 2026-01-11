@@ -4,9 +4,7 @@
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::selection::{Selection, TextSelector};
-use super::text_content::{Point, TextContent};
-use super::text_wrapper::TextWrapper;
+use super::{selection::{Selection, TextSelector}, text_content::{Point, TextContent}, text_wrapper::TextWrapper};
 
 /// Input type for specialized behavior
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -80,9 +78,7 @@ pub struct InputState {
 }
 
 impl Default for InputState {
-	fn default() -> Self {
-		Self::new()
-	}
+	fn default() -> Self { Self::new() }
 }
 
 impl InputState {
@@ -133,9 +129,7 @@ impl InputState {
 	// ===========================================
 
 	/// Get cursor position as byte offset (legacy compatibility)
-	pub fn cursor_position(&self) -> usize {
-		self.selection.head
-	}
+	pub fn cursor_position(&self) -> usize { self.selection.head }
 
 	/// Set cursor position (legacy compatibility)
 	pub fn set_cursor_position(&mut self, pos: usize) {
@@ -146,25 +140,20 @@ impl InputState {
 
 	/// Get content as String (legacy compatibility)
 	#[inline]
-	pub fn content_string(&self) -> String {
-		self.content.to_string()
-	}
+	pub fn content_string(&self) -> String { self.content.to_string() }
 
 	/// Get the number of grapheme clusters (visible characters)
-	pub fn grapheme_count(&self) -> usize {
-		self.content.grapheme_count()
-	}
+	pub fn grapheme_count(&self) -> usize { self.content.grapheme_count() }
 
 	/// Check if max_length would be exceeded by inserting text
 	fn would_exceed_max_length(&self, text: &str) -> bool {
 		if let Some(max) = self.max_length {
 			let current_count = self.grapheme_count();
-			let selection_count =
-				if !self.selection.is_empty() {
-					self.content.slice(self.selection.range()).to_string().graphemes(true).count()
-				} else {
-					0
-				};
+			let selection_count = if !self.selection.is_empty() {
+				self.content.slice(self.selection.range()).to_string().graphemes(true).count()
+			} else {
+				0
+			};
 			let insert_count = text.graphemes(true).count();
 			current_count - selection_count + insert_count > max
 		} else {
@@ -179,11 +168,8 @@ impl InputState {
 		}
 
 		// Filter newlines in single-line mode
-		let text = if self.multi_line {
-			text.to_string()
-		} else {
-			text.replace('\n', "").replace('\r', "")
-		};
+		let text =
+			if self.multi_line { text.to_string() } else { text.replace('\n', "").replace('\r', "") };
 
 		if self.would_exceed_max_length(&text) {
 			return None;
@@ -231,6 +217,7 @@ impl InputState {
 			self.content.remove(range.clone());
 			self.selection = Selection::cursor(range.start);
 			self.preferred_column = None;
+			self.marked_range = None;
 			self.update_wrapper();
 			return Some(TextChange {
 				old_value,
@@ -247,6 +234,7 @@ impl InputState {
 			self.content.remove(prev_boundary..self.selection.head);
 			self.selection = Selection::cursor(prev_boundary);
 			self.preferred_column = None;
+			self.marked_range = None;
 			self.update_wrapper();
 			return Some(TextChange {
 				old_value,
@@ -530,7 +518,11 @@ impl InputState {
 	}
 
 	/// Replace text in a range (for IME support)
-	pub fn replace_in_range(&mut self, range: std::ops::Range<usize>, new_text: &str) -> Option<TextChange> {
+	pub fn replace_in_range(
+		&mut self,
+		range: std::ops::Range<usize>,
+		new_text: &str,
+	) -> Option<TextChange> {
 		if self.disabled || self.read_only {
 			return None;
 		}
@@ -543,7 +535,12 @@ impl InputState {
 
 		log::debug!(
 			"[InputState] replace_in_range: range={:?}, snapped to {}..{}, new_text={:?} (len={}), content_before={:?}",
-			range, start, end, new_text, new_text.len(), self.content.to_string()
+			range,
+			start,
+			end,
+			new_text,
+			new_text.len(),
+			self.content.to_string()
 		);
 
 		self.content.replace(start..end, new_text);
@@ -554,7 +551,8 @@ impl InputState {
 
 		log::debug!(
 			"[InputState] replace_in_range: after replacement, content={:?}, cursor_position={}",
-			self.content.to_string(), self.selection.head
+			self.content.to_string(),
+			self.selection.head
 		);
 
 		Some(TextChange {
@@ -567,28 +565,20 @@ impl InputState {
 	}
 
 	/// Set marked range for IME composition
-	pub fn set_marked_range(&mut self, range: Option<(usize, usize)>) {
-		self.marked_range = range;
-	}
+	pub fn set_marked_range(&mut self, range: Option<(usize, usize)>) { self.marked_range = range; }
 
 	/// Get the selection range as a Range (legacy compatibility)
-	pub fn selection_range(&self) -> std::ops::Range<usize> {
-		self.selection.range()
-	}
+	pub fn selection_range(&self) -> std::ops::Range<usize> { self.selection.range() }
 
 	/// Get selection as legacy tuple format
-	pub fn selection_tuple(&self) -> Option<(usize, usize)> {
-		self.selection.as_tuple()
-	}
+	pub fn selection_tuple(&self) -> Option<(usize, usize)> { self.selection.as_tuple() }
 
 	// ===========================================
 	// Multi-line helpers
 	// ===========================================
 
 	/// Get the text wrapper (for rendering)
-	pub fn wrapper(&self) -> Option<&TextWrapper> {
-		self.wrapper.as_ref()
-	}
+	pub fn wrapper(&self) -> Option<&TextWrapper> { self.wrapper.as_ref() }
 
 	/// Get number of display rows
 	pub fn display_row_count(&self) -> usize {
@@ -596,14 +586,10 @@ impl InputState {
 	}
 
 	/// Get the point (row, column) for the cursor
-	pub fn cursor_point(&self) -> Point {
-		self.content.offset_to_point(self.selection.head)
-	}
+	pub fn cursor_point(&self) -> Point { self.content.offset_to_point(self.selection.head) }
 
 	/// Get total line count
-	pub fn line_count(&self) -> usize {
-		self.content.line_count()
-	}
+	pub fn line_count(&self) -> usize { self.content.line_count() }
 }
 
 #[cfg(test)]
@@ -658,10 +644,12 @@ mod tests {
 
 	#[test]
 	fn test_select_all() {
-		let mut state = InputState::with_content("hello".to_string());
+		let mut state = InputState::with_content("hello world".to_string());
 		state.select_all();
 		assert_eq!(state.selection, Selection::new(0, 5));
 	}
+
+	#[test]
 
 	#[test]
 	fn test_max_length() {
