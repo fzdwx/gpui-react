@@ -132,6 +132,8 @@ export interface StyleProps extends GPUIEventHandlerProps {
     readOnly?: boolean; // Whether input is read-only
     maxLength?: number; // Maximum character length
     type?: "text" | "password" | "number" | "email"; // Input type
+    multiLine?: boolean; // Enable multi-line mode (textarea)
+    rows?: number; // Number of visible rows for multi-line input
 
     // Hover styles (pseudo-class) - excludes event handlers
     _hover?: Omit<StyleProps, "_hover" | keyof GPUIEventHandlerProps>;
@@ -735,6 +737,12 @@ export function mapStyleToProps(props: StyleProps): Record<string, any> {
     }
     if (props.type !== undefined) {
         result.inputType = props.type;
+    }
+    if (props.multiLine !== undefined) {
+        result.multiLine = props.multiLine;
+    }
+    if (props.rows !== undefined) {
+        result.rows = props.rows;
     }
 
     return result;

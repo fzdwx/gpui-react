@@ -183,6 +183,8 @@ pub struct ElementStyle {
 	pub disabled:    Option<bool>,
 	pub read_only:   Option<bool>,
 	pub max_length:  Option<usize>,
+	pub multi_line:  Option<bool>,   // Enable multi-line mode
+	pub rows:        Option<usize>,  // Number of visible rows
 
 	// Hover style
 	pub hover_style: Option<Box<ElementStyle>>,
@@ -298,6 +300,8 @@ impl ElementStyle {
             disabled: style_obj.get("disabled").and_then(|v| v.as_bool()),
             read_only: style_obj.get("readOnly").and_then(|v| v.as_bool()),
             max_length: style_obj.get("maxLength").and_then(|v| v.as_u64()).map(|v| v as usize),
+            multi_line: style_obj.get("multiLine").and_then(|v| v.as_bool()),
+            rows: style_obj.get("rows").and_then(|v| v.as_u64()).map(|v| v as usize),
 
             // Hover style
             hover_style,

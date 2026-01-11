@@ -107,6 +107,30 @@ export function InputApp() {
                 />
             </div>
 
+            {/* Multi-line Input */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ color: "#888", fontSize: 14 }}>Multi-line Input (textarea)</div>
+                <input
+                    multiLine={true}
+                    rows={4}
+                    placeholder="Enter multiple lines of text..."
+                    style={{
+                        backgroundColor: "#333",
+                        color: "#fff",
+                        padding: 12,
+                        borderRadius: 4,
+                        fontSize: 16,
+                        width: 400,
+                        height: 100,
+                    }}
+                    onInput={(e) => {
+                        setLastInputEvent(`value: "${e.value}", type: ${e.inputType}`);
+                    }}
+                    onFocus={() => setFocusedInput("multiline")}
+                    onBlur={() => setFocusedInput(null)}
+                />
+            </div>
+
             {/* Event Display */}
             <div
                 style={{

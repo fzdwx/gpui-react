@@ -7,25 +7,10 @@ use std::ops::Range;
 
 use gpui::{App, Bounds, InputHandler, Pixels, Point, UTF16Selection, Window, point, px};
 
+use super::selection::Selection;
+use super::text_content::TextContent;
 use super::{get_input_state, get_text_shaping_info, update_input_state};
 use crate::{event_types::{EventData, InputEventData, types}, focus, renderer::dispatch_event_to_js};
-
-/// Snap a byte position to the nearest valid UTF-8 char boundary
-fn snap_to_char_boundary(s: &str, pos: usize) -> usize {
-	if pos >= s.len() {
-		return s.len();
-	}
-	if s.is_char_boundary(pos) {
-		return pos;
-	}
-	// Find the nearest char boundary by moving forward
-	for i in pos..=s.len() {
-		if s.is_char_boundary(i) {
-			return i;
-		}
-	}
-	s.len()
-}
 
 /// Root-level input handler that delegates to the currently focused input element
 /// This is used because we can't easily create per-element FocusHandles
@@ -64,7 +49,7 @@ impl InputHandler for RootInputHandler {
 			element_id, range, utf16_range
 		);
 
-		Some(UTF16Selection { range: utf16_range, reversed: state.selection_reversed })
+		Some(UTF16Selection { range: utf16_range, reversed: state.selection.is_reversed() })
 	}
 
 	fn marked_text_range(&mut self, _window: &mut Window, _cx: &mut App) -> Option<Range<usize>> {
@@ -100,7 +85,7 @@ impl InputHandler for RootInputHandler {
 
 		*adjusted_range = Some(state.range_to_utf16(&clamped_range));
 
-		Some(state.content[clamped_range].to_string())
+		Some(state.content.slice(clamped_range).to_string())
 	}
 
 	fn replace_text_in_range(
@@ -129,15 +114,16 @@ impl InputHandler for RootInputHandler {
 			state.range_from_utf16(&range_utf16)
 		} else if let Some((start, end)) = state.marked_range {
 			start..end
-		} else if let Some((start, end)) = state.selection {
-			start..end
+		} else if !state.selection.is_empty() {
+			state.selection.range()
 		} else {
-			state.cursor_position..state.cursor_position
+			let cursor = state.cursor_position();
+			cursor..cursor
 		};
 
 		log::debug!(
 			"[IME] replace_text_in_range: computed range={:?}, current content={:?}",
-			range, state.content
+			range, state.content.to_string()
 		);
 
 		// Perform the replacement
@@ -191,27 +177,28 @@ impl InputHandler for RootInputHandler {
 			state.range_from_utf16(&range_utf16)
 		} else if let Some((start, end)) = state.marked_range {
 			start..end
-		} else if let Some((start, end)) = state.selection {
-			start..end
+		} else if !state.selection.is_empty() {
+			state.selection.range()
 		} else {
-			state.cursor_position..state.cursor_position
+			let cursor = state.cursor_position();
+			cursor..cursor
 		};
 
-		// Clamp range to valid UTF-8 boundaries
+		// Clamp range to valid boundaries
 		let start = range.start.min(state.content.len());
 		let end = range.end.min(state.content.len());
 
-		// Ensure we're at valid UTF-8 char boundaries
-		let start = snap_to_char_boundary(&state.content, start);
-		let end = snap_to_char_boundary(&state.content, end);
+		// Clip to valid char boundaries
+		let start = state.content.clip_offset(start);
+		let end = state.content.clip_offset(end);
 
 		log::debug!(
 			"[IME] replace_and_mark_text_in_range: range={:?}, snapped to {:?}..{:?}, content before={:?}, cursor_before={}",
-			range, start, end, state.content, state.cursor_position
+			range, start, end, state.content.to_string(), state.cursor_position()
 		);
 
-		// Perform the replacement
-		state.content.replace_range(start..end, new_text);
+		// Perform the replacement using TextContent
+		state.content.replace(start..end, new_text);
 
 		// Set marked range for the new text (showing composition underline)
 		if !new_text.is_empty() {
@@ -224,23 +211,22 @@ impl InputHandler for RootInputHandler {
 		if let Some(selected_range_utf16) = new_selected_range_utf16 {
 			let selected_range = state.range_from_utf16(&selected_range_utf16);
 			// The selected range is relative to the new text, so add start offset
-			state.cursor_position = (start + selected_range.end).min(state.content.len());
+			let new_cursor = (start + selected_range.end).min(state.content.len());
 			if selected_range.start != selected_range.end {
-				state.selection = Some((
+				state.selection = Selection::new(
 					start + selected_range.start,
 					(start + selected_range.end).min(state.content.len()),
-				));
+				);
 			} else {
-				state.selection = None;
+				state.selection = Selection::cursor(new_cursor);
 			}
 		} else {
-			state.cursor_position = start + new_text.len();
-			state.selection = None;
+			state.selection = Selection::cursor(start + new_text.len());
 		}
 
 		log::debug!(
 			"[IME] replace_and_mark_text_in_range: content after={:?}, marked_range={:?}, cursor={}",
-			state.content, state.marked_range, state.cursor_position
+			state.content.to_string(), state.marked_range, state.cursor_position()
 		);
 
 		update_input_state(element_id, state.clone());
@@ -251,7 +237,7 @@ impl InputHandler for RootInputHandler {
 			element_id,
 			types::INPUT,
 			EventData::Input(InputEventData {
-				value: state.content.clone(),
+				value: state.content.to_string(),
 				data: Some(new_text.to_string()),
 				input_type: "insertCompositionText".to_string(),
 				is_composing: true,
@@ -288,8 +274,10 @@ impl InputHandler for RootInputHandler {
 		// A more accurate implementation would reshape the text here
 		let char_width = shaping_info.font_size * 0.6; // Approximate character width
 
-		let start_char_count = state.content[..range.start.min(state.content.len())].chars().count();
-		let end_char_count = state.content[..range.end.min(state.content.len())].chars().count();
+		let start_slice = state.content.slice(0..range.start.min(state.content.len()));
+		let end_slice = state.content.slice(0..range.end.min(state.content.len()));
+		let start_char_count = start_slice.to_string().chars().count();
+		let end_char_count = end_slice.to_string().chars().count();
 
 		let start_x = px(shaping_info.text_origin_x + start_char_count as f32 * char_width);
 		let end_x = px(shaping_info.text_origin_x + end_char_count as f32 * char_width);
@@ -326,7 +314,8 @@ impl InputHandler for RootInputHandler {
 		let char_index = offset as usize;
 
 		// Convert character index to byte offset, then to UTF-16
-		let byte_offset: usize = state.content
+		let content_str = state.content.to_string();
+		let byte_offset: usize = content_str
 			.char_indices()
 			.nth(char_index)
 			.map(|(idx, _)| idx)

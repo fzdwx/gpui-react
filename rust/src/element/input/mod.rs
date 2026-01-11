@@ -3,8 +3,12 @@
 //! A text input element that supports text editing, cursor, and selection.
 
 pub mod cursor;
+pub mod display_point;
 pub mod handler;
+pub mod selection;
 pub mod state;
+pub mod text_content;
+pub mod text_wrapper;
 
 use std::{collections::HashMap, sync::{Arc, Mutex}};
 
@@ -175,6 +179,16 @@ impl ReactInputElement {
 	fn get_input_type(&self) -> InputType {
 		self.element.style.input_type.as_deref().map(InputType::from_str).unwrap_or(InputType::Text)
 	}
+
+	/// Get multi-line mode from element style props
+	fn is_multi_line(&self) -> bool {
+		self.element.style.multi_line.unwrap_or(false)
+	}
+
+	/// Get number of rows from element style props
+	fn get_rows(&self) -> Option<usize> {
+		self.element.style.rows
+	}
 }
 
 impl Element for ReactInputElement {
@@ -201,7 +215,7 @@ impl Element for ReactInputElement {
 
 		log::debug!(
 			"[Input] request_layout: element_id={}, initial cursor={}, content={:?}",
-			self.element.global_id, input_state.cursor_position, input_state.content
+			self.element.global_id, input_state.cursor_position(), input_state.content.to_string()
 		);
 
 		// Update input type in case it changed
@@ -210,13 +224,13 @@ impl Element for ReactInputElement {
 		// Update input state from props if this is a controlled input
 		if let Some(value) = self.get_value() {
 			// Only update if different (avoid cursor reset)
-			if input_state.content != value {
-				let old_cursor = input_state.cursor_position;
-				input_state.content = value.to_string();
-				input_state.cursor_position = input_state.cursor_position.min(value.len());
+			if input_state.content.to_string() != value {
+				let old_cursor = input_state.cursor_position();
+				input_state.content = super::input::text_content::TextContent::from_str(value);
+				input_state.set_cursor_position(input_state.cursor_position().min(value.len()));
 				log::debug!(
 					"[Input] request_layout: value prop changed content, old_cursor={}, new_cursor={}, value={:?}",
-					old_cursor, input_state.cursor_position, value
+					old_cursor, input_state.cursor_position(), value
 				);
 			}
 		}
@@ -233,6 +247,11 @@ impl Element for ReactInputElement {
 		}
 		if let Some(max_length) = self.element.style.max_length {
 			input_state.max_length = Some(max_length);
+		}
+
+		// Enable multi-line mode if prop is set
+		if self.is_multi_line() && !input_state.multi_line {
+			input_state.set_multi_line(true);
 		}
 
 		// Store updated state
@@ -284,8 +303,8 @@ impl Element for ReactInputElement {
 			child_layout_id: None,
 			input_type,
 			display_text,
-			content: input_state.content.clone(),
-			cursor_position: input_state.cursor_position,
+			content: input_state.content.to_string(),
+			cursor_position: input_state.cursor_position(),
 			text_color,
 			text_size,
 			font_weight,
@@ -308,8 +327,8 @@ impl Element for ReactInputElement {
 
 		// Update request_layout with current state to ensure consistency
 		// between shaped_line and cursor calculation in paint
-		request_layout.content = input_state.content.clone();
-		request_layout.cursor_position = input_state.cursor_position;
+		request_layout.content = input_state.content.to_string();
+		request_layout.cursor_position = input_state.cursor_position();
 
 		// Recalculate display_text with current content
 		let is_placeholder = input_state.content.is_empty();
@@ -412,23 +431,81 @@ impl Element for ReactInputElement {
 		let style = self.element.build_gpui_style(Some(0x333333));
 		let is_focused = focus::is_focused(self.window_id, self.element.global_id);
 		let text_origin = prepaint.text_origin;
+		let line_height = window.line_height();
+
+		// Calculate text_y for vertical centering (single-line) or top alignment (multi-line)
+		let is_multi_line = prepaint.input_state.multi_line;
+		let text_y = if is_multi_line {
+			bounds.origin.y + px(4.0) // Top padding for multi-line
+		} else {
+			bounds.origin.y + (bounds.size.height - line_height) / 2.0 // Centered for single-line
+		};
 
 		// Paint background
 		style.paint(bounds, window, cx, |window, cx| {
-			// Paint text using shaped line
-			if let Some(ref shaped_line) = prepaint.shaped_line {
-				// Calculate vertical center for text using window's line height
-				let line_height = window.line_height();
-				let text_y = bounds.origin.y + (bounds.size.height - line_height) / 2.0;
-				let paint_origin = point(text_origin.x, text_y);
+			// Paint text
+			if is_multi_line {
+				// Multi-line: paint each line separately
+				if let Some(wrapper) = prepaint.input_state.wrapper() {
+					let content = &prepaint.input_state.content;
+					let display_text = &request_layout.display_text;
 
-				let _ = shaped_line.paint(paint_origin, line_height, window, cx);
+					for (row, wrapped_line) in wrapper.lines().iter().enumerate() {
+						let line_y = text_y + line_height * row as f32;
+
+						// Get the text for this line
+						let line_start = wrapped_line.start_offset;
+						let line_end = wrapped_line.end_offset;
+						let line_text = content.slice(line_start..line_end).to_string();
+
+						if line_text.is_empty() {
+							continue;
+						}
+
+						// Create font for text shaping
+						let font_weight_val = request_layout.font_weight.unwrap_or(400);
+						let font = Font {
+							family: "Zed Plex Mono".into(),
+							features: Default::default(),
+							fallbacks: None,
+							weight: FontWeight(font_weight_val as f32),
+							style: FontStyle::Normal,
+						};
+						let font_size = px(request_layout.text_size);
+						let text_color = Hsla::from(rgb(request_layout.text_color));
+
+						let text_run = TextRun {
+							len: line_text.len(),
+							font,
+							color: text_color,
+							background_color: None,
+							underline: None,
+							strikethrough: None,
+						};
+
+						// Shape and paint this line
+						let shaped_line = window.text_system().shape_line(
+							line_text.into(),
+							font_size,
+							&[text_run],
+							None,
+						);
+						let paint_origin = point(text_origin.x, line_y);
+						let _ = shaped_line.paint(paint_origin, line_height, window, cx);
+					}
+				}
+			} else {
+				// Single-line: paint shaped_line as before
+				if let Some(ref shaped_line) = prepaint.shaped_line {
+					let paint_origin = point(text_origin.x, text_y);
+					let _ = shaped_line.paint(paint_origin, line_height, window, cx);
+				}
 			}
 
 			// Only paint cursor and selection when focused
 			if is_focused {
 				// Paint selection highlight if any
-				if let Some((start, end)) = prepaint.input_state.selection {
+				if let Some((start, end)) = prepaint.input_state.selection_tuple() {
 					// Get x positions from shaped line
 					// Use request_layout.content for consistency with shaped_line
 					let (x_start, x_end) = if let Some(ref shaped_line) = prepaint.shaped_line {
@@ -457,8 +534,8 @@ impl Element for ReactInputElement {
 					};
 
 					let selection_bounds = Bounds {
-						origin: point(x_start, bounds.origin.y + px(4.0)),
-						size:   size(x_end - x_start, bounds.size.height - px(8.0)),
+						origin: point(x_start, text_y),
+						size:   size(x_end - x_start, line_height),
 					};
 
 					window.paint_quad(PaintQuad {
@@ -495,7 +572,7 @@ impl Element for ReactInputElement {
 						let start_x = shaped_line.x_for_index(start_chars);
 						let end_x = shaped_line.x_for_index(end_chars);
 
-						let underline_y = bounds.origin.y + bounds.size.height - px(6.0);
+						let underline_y = text_y + line_height - px(4.0);
 						let underline_bounds = Bounds {
 							origin: point(text_origin.x + start_x, underline_y),
 							size:   size(end_x - start_x, px(2.0)),
@@ -522,9 +599,7 @@ impl Element for ReactInputElement {
 						let cursor_pos = request_layout.cursor_position;
 						let content = &request_layout.content;
 
-						// Convert byte position to character count for x_for_index
-						// x_for_index expects a character/glyph index, not a byte index
-						// First, ensure cursor_pos is on a valid char boundary
+						// Ensure cursor_pos is on a valid char boundary
 						let safe_cursor_pos = {
 							let pos = cursor_pos.min(content.len());
 							// Find a valid char boundary at or before pos
@@ -535,32 +610,24 @@ impl Element for ReactInputElement {
 							safe_pos
 						};
 
-						let char_index = if request_layout.input_type == InputType::Password {
-							// For password, each character becomes one bullet
-							content[..safe_cursor_pos]
-								.chars()
-								.count()
-						} else {
-							// Count characters up to cursor byte position
-							content[..safe_cursor_pos]
-								.chars()
-								.count()
-						};
+						// Convert byte position to character index for x_for_index
+						// This is necessary for multi-byte characters (Chinese, Japanese, etc.)
+						let display_index = content[..safe_cursor_pos].chars().count();
 
 						log::debug!(
-							"[Input] paint cursor: cursor_pos={}, safe_cursor_pos={}, content_len={}, char_index={}, content={:?}",
-							cursor_pos, safe_cursor_pos, content.len(), char_index, content
+							"[Input] paint cursor: cursor_pos={}, safe_cursor_pos={}, display_index={}, content_len={}, content={:?}",
+							cursor_pos, safe_cursor_pos, display_index, content.len(), content
 						);
 
-						// Use x_for_index with character index
-						text_origin.x + shaped_line.x_for_index(char_index)
+						// Use x_for_index with the appropriate index
+						text_origin.x + shaped_line.x_for_index(display_index)
 					} else {
 						text_origin.x
 					};
 
 					let cursor_bounds = Bounds {
-						origin: point(cursor_x, bounds.origin.y + px(4.0)),
-						size:   size(px(cursor::CURSOR_WIDTH), bounds.size.height - px(8.0)),
+						origin: point(cursor_x, text_y),
+						size:   size(px(cursor::CURSOR_WIDTH), line_height),
 					};
 
 					window.paint_quad(PaintQuad {
@@ -826,9 +893,9 @@ pub fn handle_input_key_event(
 			if let Some(_text) = state.cut_selection() {
 				// TODO: Write to clipboard
 				Some(TextChange {
-					old_value:       state.content.clone(),
-					new_value:       state.content.clone(),
-					cursor_position: state.cursor_position,
+					old_value:       state.content.to_string(),
+					new_value:       state.content.to_string(),
+					cursor_position: state.cursor_position(),
 					data:            None,
 					input_type:      "deleteByCut",
 				})
