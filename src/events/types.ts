@@ -7,6 +7,7 @@ import { GPUIMouseEvent } from "./mouse";
 import { GPUIKeyboardEvent } from "./keyboard";
 import { GPUIFocusEvent } from "./focus";
 import { GPUIScrollEvent, GPUIWheelEvent } from "./scroll";
+import { GPUIInputEvent } from "./input";
 
 // Import generated constants for local use and re-export
 import {
@@ -17,6 +18,7 @@ import {
     KEYBOARD_EVENT_TYPES as _KEYBOARD_EVENT_TYPES,
     FOCUS_EVENT_TYPES as _FOCUS_EVENT_TYPES,
     SCROLL_EVENT_TYPES as _SCROLL_EVENT_TYPES,
+    INPUT_EVENT_TYPES as _INPUT_EVENT_TYPES,
 } from "./generated";
 
 import type {
@@ -32,6 +34,7 @@ export const MOUSE_EVENT_TYPES = _MOUSE_EVENT_TYPES;
 export const KEYBOARD_EVENT_TYPES = _KEYBOARD_EVENT_TYPES;
 export const FOCUS_EVENT_TYPES = _FOCUS_EVENT_TYPES;
 export const SCROLL_EVENT_TYPES = _SCROLL_EVENT_TYPES;
+export const INPUT_EVENT_TYPES = _INPUT_EVENT_TYPES;
 export type GPUIEventType = _GPUIEventType;
 export type GPUIEventPropName = _GPUIEventPropName;
 
@@ -43,7 +46,8 @@ export type GPUIEvent =
     | GPUIKeyboardEvent
     | GPUIFocusEvent
     | GPUIScrollEvent
-    | GPUIWheelEvent;
+    | GPUIWheelEvent
+    | GPUIInputEvent;
 
 /**
  * Maps event type string to its corresponding event interface
@@ -73,6 +77,11 @@ export interface GPUIEventMap {
     // Scroll events
     scroll: GPUIScrollEvent;
     wheel: GPUIWheelEvent;
+
+    // Input events
+    input: GPUIInputEvent;
+    change: GPUIInputEvent;
+    beforeinput: GPUIInputEvent;
 }
 
 /**
@@ -113,6 +122,11 @@ export interface GPUIEventHandlerProps {
     // Scroll event handlers
     onScroll?: GPUIEventHandler<"scroll">;
     onWheel?: GPUIEventHandler<"wheel">;
+
+    // Input event handlers
+    onInput?: GPUIEventHandler<"input">;
+    onChange?: GPUIEventHandler<"change">;
+    onBeforeInput?: GPUIEventHandler<"beforeinput">;
 }
 
 /**

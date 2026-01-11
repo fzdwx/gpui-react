@@ -7,12 +7,14 @@ pub mod canvas;
 pub mod div;
 pub mod events;
 pub mod img;
+pub mod input;
 pub mod span;
 pub mod text;
 
 pub use canvas::ReactCanvasElement;
 pub use div::ReactDivElement;
 pub use img::ReactImgElement;
+pub use input::ReactInputElement;
 pub use span::ReactSpanElement;
 pub use text::ReactTextElement;
 
@@ -21,6 +23,7 @@ pub use text::ReactTextElement;
 pub enum ElementKind {
 	Canvas,
 	Div,
+	Input,
 	Span,
 	Text,
 	Img,
@@ -32,6 +35,7 @@ impl ElementKind {
 		match s {
 			"canvas" => ElementKind::Canvas,
 			"div" => ElementKind::Div,
+			"input" => ElementKind::Input,
 			"span" => ElementKind::Span,
 			"text" => ElementKind::Text,
 			"img" => ElementKind::Img,
@@ -172,6 +176,14 @@ pub struct ElementStyle {
 	// Focus properties
 	pub tab_index: Option<i32>,
 
+	// Input element properties
+	pub value:       Option<String>,
+	pub placeholder: Option<String>,
+	pub input_type:  Option<String>, // "text", "password", "number", "email"
+	pub disabled:    Option<bool>,
+	pub read_only:   Option<bool>,
+	pub max_length:  Option<usize>,
+
 	// Hover style
 	pub hover_style: Option<Box<ElementStyle>>,
 }
@@ -278,6 +290,14 @@ impl ElementStyle {
 
             // Focus properties
             tab_index: style_obj.get("tabIndex").and_then(|v| v.as_i64()).map(|v| v as i32),
+
+            // Input element properties
+            value: style_obj.get("value").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            placeholder: style_obj.get("placeholder").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            input_type: style_obj.get("inputType").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            disabled: style_obj.get("disabled").and_then(|v| v.as_bool()),
+            read_only: style_obj.get("readOnly").and_then(|v| v.as_bool()),
+            max_length: style_obj.get("maxLength").and_then(|v| v.as_u64()).map(|v| v as usize),
 
             // Hover style
             hover_style,
@@ -687,6 +707,9 @@ pub fn create_element(
 			ReactCanvasElement::new(element, window_id, parent_style).into_any_element()
 		}
 		ElementKind::Div => ReactDivElement::new(element, window_id, parent_style).into_any_element(),
+		ElementKind::Input => {
+			ReactInputElement::new(element, window_id, parent_style).into_any_element()
+		}
 		ElementKind::Span => ReactSpanElement::new(element, window_id, parent_style).into_any_element(),
 		ElementKind::Text => ReactTextElement::new(element, window_id, parent_style).into_any_element(),
 		ElementKind::Img => ReactImgElement::new(element, window_id, parent_style).into_any_element(),

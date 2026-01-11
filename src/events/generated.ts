@@ -21,6 +21,9 @@ export type GPUIEventType =
     | "blur"
     | "scroll"
     | "wheel"
+    | "input"
+    | "change"
+    | "beforeinput"
     | "focusin"
     | "focusout";
 
@@ -40,7 +43,10 @@ export type GPUIEventPropName =
     | "onFocus"
     | "onBlur"
     | "onScroll"
-    | "onWheel";
+    | "onWheel"
+    | "onInput"
+    | "onChange"
+    | "onBeforeInput";
 
 /** Maps React prop names to event types */
 export const EVENT_PROP_TO_TYPE = {
@@ -59,6 +65,9 @@ export const EVENT_PROP_TO_TYPE = {
     onBlur: "blur",
     onScroll: "scroll",
     onWheel: "wheel",
+    onInput: "input",
+    onChange: "change",
+    onBeforeInput: "beforeinput",
 } as const;
 
 /** Maps event types to React prop names */
@@ -78,6 +87,9 @@ export const EVENT_TYPE_TO_PROP = {
     blur: "onBlur",
     scroll: "onScroll",
     wheel: "onWheel",
+    input: "onInput",
+    change: "onChange",
+    beforeinput: "onBeforeInput",
 } as const;
 
 /** Check if a prop name is an event handler */
@@ -106,6 +118,9 @@ export const FOCUS_EVENT_TYPES = ["focus", "blur", "focusin", "focusout"] as con
 /** Scroll event types */
 export const SCROLL_EVENT_TYPES = ["scroll", "wheel"] as const;
 
+/** Input event types */
+export const INPUT_EVENT_TYPES = ["input", "change", "beforeinput"] as const;
+
 // ============ Event Data Interfaces ============
 
 /** Base event data from Rust */
@@ -120,6 +135,8 @@ export interface RawEventDataBase {
 export interface RawMouseEventData extends RawEventDataBase {
     clientX: number;
     clientY: number;
+    offsetX: number;
+    offsetY: number;
     button: number;
 }
 
@@ -146,12 +163,21 @@ export interface RawFocusEventData extends RawEventDataBase {
     relatedTarget: number | null | undefined;
 }
 
+/** Raw input event data from Rust */
+export interface RawInputEventData extends RawEventDataBase {
+    value: string;
+    data: string | null | undefined;
+    inputType: string;
+    isComposing: boolean;
+}
+
 /** All raw event data types */
 export type RawEventData =
     | RawMouseEventData
     | RawKeyboardEventData
     | RawScrollEventData
     | RawFocusEventData
+    | RawInputEventData
     | RawEventDataBase;
 
 /** Type guard: Check if event is a mouse event */
@@ -172,4 +198,9 @@ export function isScrollEventData(data: RawEventData): data is RawScrollEventDat
 /** Type guard: Check if event is a focus event */
 export function isFocusEventData(data: RawEventData): data is RawFocusEventData {
     return FOCUS_EVENT_TYPES.includes(data.eventType as any);
+}
+
+/** Type guard: Check if event is an input event */
+export function isInputEventData(data: RawEventData): data is RawInputEventData {
+    return INPUT_EVENT_TYPES.includes(data.eventType as any);
 }

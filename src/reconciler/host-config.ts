@@ -69,6 +69,29 @@ function extractStyleProps(props: any): StyleProps {
         styleProps.tabIndex = props.tabIndex;
     }
 
+    // Input element props (direct props, not in style)
+    if (props.type !== undefined) {
+        styleProps.type = props.type;
+    }
+    if (props.value !== undefined) {
+        styleProps.value = props.value;
+    }
+    if (props.defaultValue !== undefined) {
+        styleProps.defaultValue = props.defaultValue;
+    }
+    if (props.placeholder !== undefined) {
+        styleProps.placeholder = props.placeholder;
+    }
+    if (props.disabled !== undefined) {
+        styleProps.disabled = props.disabled;
+    }
+    if (props.readOnly !== undefined) {
+        styleProps.readOnly = props.readOnly;
+    }
+    if (props.maxLength !== undefined) {
+        styleProps.maxLength = props.maxLength;
+    }
+
     return styleProps;
 }
 

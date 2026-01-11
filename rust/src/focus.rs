@@ -58,13 +58,14 @@ impl WindowFocusState {
 			return None;
 		}
 
-		// Get all elements sorted by tab index
+		// Get all elements sorted by tab index, then by element_id for stable ordering
 		let mut sorted: Vec<_> = self
             .tab_order
             .iter()
             .filter(|(_, idx)| **idx >= 0) // Only positive tab indices participate in tab navigation
             .collect();
-		sorted.sort_by_key(|(_, idx)| *idx);
+		// Sort by (tab_index, element_id) for stable ordering
+		sorted.sort_by(|(id_a, idx_a), (id_b, idx_b)| idx_a.cmp(idx_b).then_with(|| id_a.cmp(id_b)));
 
 		if sorted.is_empty() {
 			return None;
@@ -100,7 +101,8 @@ impl WindowFocusState {
 		}
 
 		let mut sorted: Vec<_> = self.tab_order.iter().filter(|(_, idx)| **idx >= 0).collect();
-		sorted.sort_by_key(|(_, idx)| *idx);
+		// Sort by (tab_index, element_id) for stable ordering
+		sorted.sort_by(|(id_a, idx_a), (id_b, idx_b)| idx_a.cmp(idx_b).then_with(|| id_a.cmp(id_b)));
 
 		if sorted.is_empty() {
 			return None;

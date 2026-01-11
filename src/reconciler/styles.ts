@@ -113,8 +113,25 @@ export interface StyleProps extends GPUIEventHandlerProps {
     src?: string;
     alt?: string;
 
+    // Canvas/Text element properties
+    x?: number;
+    y?: number;
+    text?: string;
+    textSize?: number | string;
+    textColor?: string;
+    drawCommands?: unknown[];
+
     // Focus properties
     tabIndex?: number; // -1 = programmatic focus only, 0+ = Tab navigation order
+
+    // Input element properties
+    value?: string; // Controlled input value
+    defaultValue?: string; // Initial value for uncontrolled input
+    placeholder?: string; // Placeholder text
+    disabled?: boolean; // Whether input is disabled
+    readOnly?: boolean; // Whether input is read-only
+    maxLength?: number; // Maximum character length
+    type?: "text" | "password" | "number" | "email"; // Input type
 
     // Hover styles (pseudo-class) - excludes event handlers
     _hover?: Omit<StyleProps, "_hover" | keyof GPUIEventHandlerProps>;
@@ -695,6 +712,29 @@ export function mapStyleToProps(props: StyleProps): Record<string, any> {
 
     if (props.drawCommands !== undefined) {
         result.drawCommands = props.drawCommands;
+    }
+
+    // Input element properties
+    if (props.value !== undefined) {
+        result.value = props.value;
+    }
+    if (props.defaultValue !== undefined) {
+        result.defaultValue = props.defaultValue;
+    }
+    if (props.placeholder !== undefined) {
+        result.placeholder = props.placeholder;
+    }
+    if (props.disabled !== undefined) {
+        result.disabled = props.disabled;
+    }
+    if (props.readOnly !== undefined) {
+        result.readOnly = props.readOnly;
+    }
+    if (props.maxLength !== undefined) {
+        result.maxLength = props.maxLength;
+    }
+    if (props.type !== undefined) {
+        result.inputType = props.type;
     }
 
     return result;

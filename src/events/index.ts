@@ -33,6 +33,11 @@ export type { GPUIScrollEvent, GPUIWheelEvent, ScrollEventType, WheelDeltaMode }
 
 export { isScrollEvent, isWheelEvent } from "./scroll";
 
+// Input events
+export type { GPUIInputEvent, InputEventType, InputTypeValue } from "./input";
+
+export { isInputEvent } from "./input";
+
 // Type mappings and handlers (includes generated types)
 export type {
     GPUIEvent,
@@ -53,6 +58,7 @@ export {
     KEYBOARD_EVENT_TYPES,
     FOCUS_EVENT_TYPES,
     SCROLL_EVENT_TYPES,
+    INPUT_EVENT_TYPES,
 } from "./types";
 
 // Event factory

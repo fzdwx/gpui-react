@@ -22,6 +22,9 @@ pub mod props {
 	pub const ON_BLUR: &str = "onBlur";
 	pub const ON_SCROLL: &str = "onScroll";
 	pub const ON_WHEEL: &str = "onWheel";
+	pub const ON_INPUT: &str = "onInput";
+	pub const ON_CHANGE: &str = "onChange";
+	pub const ON_BEFORE_INPUT: &str = "onBeforeInput";
 }
 
 /// Standard event type names dispatched to JavaScript
@@ -42,6 +45,9 @@ pub mod types {
 	pub const BLUR: &str = "blur";
 	pub const SCROLL: &str = "scroll";
 	pub const WHEEL: &str = "wheel";
+	pub const INPUT: &str = "input";
+	pub const CHANGE: &str = "change";
+	pub const BEFOREINPUT: &str = "beforeinput";
 	pub const FOCUSIN: &str = "focusin";
 	pub const FOCUSOUT: &str = "focusout";
 }
@@ -84,6 +90,15 @@ pub struct FocusEventData {
 	pub related_target: Option<u64>,
 }
 
+/// Input event data
+#[derive(Default, Clone)]
+pub struct InputEventData {
+	pub value:        String,
+	pub data:         Option<String>,
+	pub input_type:   String,
+	pub is_composing: bool,
+}
+
 /// Unified event data enum
 #[derive(Clone)]
 pub enum EventData {
@@ -91,6 +106,7 @@ pub enum EventData {
 	Keyboard(KeyboardEventData),
 	Scroll(ScrollEventData),
 	Focus(FocusEventData),
+	Input(InputEventData),
 	None,
 }
 
@@ -113,6 +129,9 @@ pub fn prop_to_event_type(prop: &str) -> Option<&'static str> {
 		props::ON_BLUR => Some(types::BLUR),
 		props::ON_SCROLL => Some(types::SCROLL),
 		props::ON_WHEEL => Some(types::WHEEL),
+		props::ON_INPUT => Some(types::INPUT),
+		props::ON_CHANGE => Some(types::CHANGE),
+		props::ON_BEFORE_INPUT => Some(types::BEFOREINPUT),
 		_ => None,
 	}
 }
@@ -145,4 +164,9 @@ pub fn is_focus_event(event_type: &str) -> bool {
 /// Check if event type is a scroll event
 pub fn is_scroll_event(event_type: &str) -> bool {
 	matches!(event_type, types::SCROLL | types::WHEEL)
+}
+
+/// Check if event type is an input event
+pub fn is_input_event(event_type: &str) -> bool {
+	matches!(event_type, types::INPUT | types::CHANGE | types::BEFOREINPUT)
 }

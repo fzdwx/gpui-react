@@ -8,6 +8,7 @@ import { GPUIMouseEvent, MouseEventType, MouseButton } from "./mouse";
 import { GPUIKeyboardEvent, KeyboardEventType } from "./keyboard";
 import { GPUIFocusEvent, FocusEventType } from "./focus";
 import { GPUIScrollEvent, GPUIWheelEvent, WheelDeltaMode } from "./scroll";
+import { GPUIInputEvent, InputEventType } from "./input";
 import { GPUIEvent } from "./types";
 
 /** Raw event data from Rust FFI */
@@ -39,6 +40,11 @@ export interface RawEventData {
     shiftKey?: boolean;
     altKey?: boolean;
     metaKey?: boolean;
+    // Input event data
+    value?: string;
+    data?: string | null;
+    inputType?: string;
+    isComposing?: boolean;
 }
 
 /**
@@ -134,6 +140,19 @@ export function createEvent(raw: RawEventData): GPUIEvent {
         return wheelEvent;
     }
 
+    // Input events
+    if (isInputEventType(eventType)) {
+        const inputEvent: GPUIInputEvent = {
+            ...baseProps,
+            type: eventType as InputEventType,
+            value: raw.value ?? "",
+            data: raw.data ?? null,
+            inputType: raw.inputType ?? "insertText",
+            isComposing: raw.isComposing ?? false,
+        };
+        return inputEvent;
+    }
+
     // Fallback: create a mouse click event for unknown types
     const fallbackEvent: GPUIMouseEvent = {
         ...baseProps,
@@ -168,4 +187,8 @@ function isKeyboardEventType(type: string): type is KeyboardEventType {
 
 function isFocusEventType(type: string): type is FocusEventType {
     return ["focus", "blur", "focusin", "focusout"].includes(type);
+}
+
+function isInputEventType(type: string): type is InputEventType {
+    return ["input", "change", "beforeinput"].includes(type);
 }

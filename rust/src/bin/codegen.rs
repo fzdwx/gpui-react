@@ -19,6 +19,7 @@ enum EventCategory {
 	Keyboard,
 	Focus,
 	Scroll,
+	Input,
 }
 
 /// All event definitions - single source of truth
@@ -58,6 +59,14 @@ const EVENT_DEFINITIONS: &[EventDef] = &[
 	// Scroll events
 	EventDef { prop_name: "onScroll", event_type: "scroll", category: EventCategory::Scroll },
 	EventDef { prop_name: "onWheel", event_type: "wheel", category: EventCategory::Scroll },
+	// Input events
+	EventDef { prop_name: "onInput", event_type: "input", category: EventCategory::Input },
+	EventDef { prop_name: "onChange", event_type: "change", category: EventCategory::Input },
+	EventDef {
+		prop_name:  "onBeforeInput",
+		event_type: "beforeinput",
+		category:   EventCategory::Input,
+	},
 ];
 
 /// Additional event types that don't have props (internal events)
@@ -87,6 +96,20 @@ const MOUSE_EVENT_FIELDS: &[EventField] = &[
 		rust_type: "f32",
 		ts_type:   "number",
 		json_key:  "clientY",
+		optional:  false,
+	},
+	EventField {
+		name:      "offset_x",
+		rust_type: "f32",
+		ts_type:   "number",
+		json_key:  "offsetX",
+		optional:  false,
+	},
+	EventField {
+		name:      "offset_y",
+		rust_type: "f32",
+		ts_type:   "number",
+		json_key:  "offsetY",
 		optional:  false,
 	},
 	EventField {
@@ -185,6 +208,38 @@ const FOCUS_EVENT_FIELDS: &[EventField] = &[EventField {
 	optional:  true,
 }];
 
+/// Input event data fields
+const INPUT_EVENT_FIELDS: &[EventField] = &[
+	EventField {
+		name:      "value",
+		rust_type: "String",
+		ts_type:   "string",
+		json_key:  "value",
+		optional:  false,
+	},
+	EventField {
+		name:      "data",
+		rust_type: "Option<String>",
+		ts_type:   "string | null",
+		json_key:  "data",
+		optional:  true,
+	},
+	EventField {
+		name:      "input_type",
+		rust_type: "String",
+		ts_type:   "string",
+		json_key:  "inputType",
+		optional:  false,
+	},
+	EventField {
+		name:      "is_composing",
+		rust_type: "bool",
+		ts_type:   "boolean",
+		json_key:  "isComposing",
+		optional:  false,
+	},
+];
+
 fn generate_typescript() -> String {
 	let mut output = String::new();
 
@@ -280,6 +335,13 @@ fn generate_typescript() -> String {
 	}
 	output.push_str("] as const;\n\n");
 
+	output.push_str("/** Input event types */\n");
+	output.push_str("export const INPUT_EVENT_TYPES = [\n");
+	for def in EVENT_DEFINITIONS.iter().filter(|d| d.category == EventCategory::Input) {
+		output.push_str(&format!("    \"{}\",\n", def.event_type));
+	}
+	output.push_str("] as const;\n\n");
+
 	// Event data interfaces
 	output.push_str("// ============ Event Data Interfaces ============\n\n");
 
@@ -344,6 +406,19 @@ fn generate_typescript() -> String {
 	}
 	output.push_str("}\n\n");
 
+	// Input event data
+	output.push_str("/** Raw input event data from Rust */\n");
+	output.push_str("export interface RawInputEventData extends RawEventDataBase {\n");
+	for field in INPUT_EVENT_FIELDS {
+		let ts_type = if field.optional {
+			format!("{} | undefined", field.ts_type)
+		} else {
+			field.ts_type.to_string()
+		};
+		output.push_str(&format!("    {}: {};\n", field.json_key, ts_type));
+	}
+	output.push_str("}\n\n");
+
 	// Union type
 	output.push_str("/** All raw event data types */\n");
 	output.push_str("export type RawEventData =\n");
@@ -351,6 +426,7 @@ fn generate_typescript() -> String {
 	output.push_str("    | RawKeyboardEventData\n");
 	output.push_str("    | RawScrollEventData\n");
 	output.push_str("    | RawFocusEventData\n");
+	output.push_str("    | RawInputEventData\n");
 	output.push_str("    | RawEventDataBase;\n\n");
 
 	// Type guard functions
@@ -380,6 +456,13 @@ fn generate_typescript() -> String {
 		"export function isFocusEventData(data: RawEventData): data is RawFocusEventData {\n",
 	);
 	output.push_str("    return FOCUS_EVENT_TYPES.includes(data.eventType as any);\n");
+	output.push_str("}\n\n");
+
+	output.push_str("/** Type guard: Check if event is an input event */\n");
+	output.push_str(
+		"export function isInputEventData(data: RawEventData): data is RawInputEventData {\n",
+	);
+	output.push_str("    return INPUT_EVENT_TYPES.includes(data.eventType as any);\n");
 	output.push_str("}\n");
 
 	output
@@ -459,6 +542,15 @@ fn generate_rust_event_types() -> String {
 	}
 	output.push_str("}\n\n");
 
+	// Input event data
+	output.push_str("/// Input event data\n");
+	output.push_str("#[derive(Default, Clone)]\n");
+	output.push_str("pub struct InputEventData {\n");
+	for field in INPUT_EVENT_FIELDS {
+		output.push_str(&format!("    pub {}: {},\n", field.name, field.rust_type));
+	}
+	output.push_str("}\n\n");
+
 	// Event data enum
 	output.push_str("/// Unified event data enum\n");
 	output.push_str("#[derive(Clone)]\n");
@@ -467,6 +559,7 @@ fn generate_rust_event_types() -> String {
 	output.push_str("    Keyboard(KeyboardEventData),\n");
 	output.push_str("    Scroll(ScrollEventData),\n");
 	output.push_str("    Focus(FocusEventData),\n");
+	output.push_str("    Input(InputEventData),\n");
 	output.push_str("    None,\n");
 	output.push_str("}\n\n");
 
@@ -536,6 +629,18 @@ fn generate_rust_event_types() -> String {
 		.map(|d| format!("types::{}", event_type_to_const_name(d.event_type)))
 		.collect();
 	output.push_str(&format!("        {}\n", scroll_events.join(" | ")));
+	output.push_str("    )\n");
+	output.push_str("}\n\n");
+
+	output.push_str("/// Check if event type is an input event\n");
+	output.push_str("pub fn is_input_event(event_type: &str) -> bool {\n");
+	output.push_str("    matches!(event_type,\n");
+	let input_events: Vec<_> = EVENT_DEFINITIONS
+		.iter()
+		.filter(|d| d.category == EventCategory::Input)
+		.map(|d| format!("types::{}", event_type_to_const_name(d.event_type)))
+		.collect();
+	output.push_str(&format!("        {}\n", input_events.join(" | ")));
 	output.push_str("    )\n");
 	output.push_str("}\n");
 

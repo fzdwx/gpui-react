@@ -2151,6 +2151,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.17",
  "tokio",
+ "unicode-segmentation",
 ]
 
 [[package]]

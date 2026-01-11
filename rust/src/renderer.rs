@@ -1,6 +1,6 @@
 use gpui::{Application as GpuiApp, Entity, FocusHandle, InteractiveElement, KeyDownEvent, KeyUpEvent, Render, Window, div, prelude::*, rgb};
 
-use crate::{element::create_element, event_types::{EventData, FocusEventData, KeyboardEventData, types}, focus, global_state::GLOBAL_STATE, host_command, window::EventMessage};
+use crate::{element::{create_element, input::handle_input_key_event}, event_types::{EventData, FocusEventData, InputEventData, KeyboardEventData, types}, focus, global_state::GLOBAL_STATE, host_command, window::EventMessage};
 
 /// Dispatch an event to the event queue for JS polling
 /// This is thread-safe and doesn't require calling JS directly from Rust
@@ -62,6 +62,18 @@ pub(crate) fn dispatch_event_to_js(
 				"elementId": element_id,
 				"eventType": event_type,
 				"relatedTarget": data.related_target,
+				"timestamp": timestamp
+			})
+		}
+		EventData::Input(data) => {
+			serde_json::json!({
+				"windowId": window_id,
+				"elementId": element_id,
+				"eventType": event_type,
+				"value": data.value,
+				"data": data.data,
+				"inputType": data.input_type,
+				"isComposing": data.is_composing,
 				"timestamp": timestamp
 			})
 		}
@@ -197,7 +209,7 @@ impl Render for RootView {
 			.id("gpui-root")
 			.size_full()
 			.track_focus(&focus_handle)
-			.on_key_down(move |event: &KeyDownEvent, _window, _cx| {
+			.on_key_down(move |event: &KeyDownEvent, window, _cx| {
 				let keystroke = &event.keystroke;
 				log::debug!(
 					"[Rust] Window {} KeyDown: key={}, shift={}",
@@ -249,11 +261,26 @@ impl Render for RootView {
 						);
 					}
 
+					// Refresh to show focus changes
+					window.refresh();
+
 					return; // Don't dispatch Tab as keydown to the element
 				}
 
 				// Dispatch keydown event to the focused element
 				if let Some(element_id) = focused_element {
+					// Try to handle as input element first
+					if handle_input_key_event(
+						window_id,
+						element_id,
+						&keystroke.key,
+						keystroke.modifiers,
+						window,
+					) {
+						// Input element handled the key
+						return;
+					}
+
 					let event_data = EventData::Keyboard(KeyboardEventData {
 						key:    keystroke.key.clone(),
 						code:   keystroke.key.clone(),

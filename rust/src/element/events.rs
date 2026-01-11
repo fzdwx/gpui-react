@@ -9,20 +9,23 @@ use crate::{event_types::{EventData, FocusEventData, KeyboardEventData, MouseEve
 
 /// Flags indicating which event handlers are registered
 pub struct EventHandlerFlags {
-	pub has_click:       bool,
-	pub has_mouse_down:  bool,
-	pub has_mouse_up:    bool,
-	pub has_mouse_move:  bool,
-	pub has_mouse_enter: bool,
-	pub has_mouse_leave: bool,
-	pub has_key_down:    bool,
-	pub has_key_up:      bool,
-	pub has_scroll:      bool,
-	pub has_wheel:       bool,
-	pub has_focus:       bool,
-	pub has_blur:        bool,
+	pub has_click:        bool,
+	pub has_mouse_down:   bool,
+	pub has_mouse_up:     bool,
+	pub has_mouse_move:   bool,
+	pub has_mouse_enter:  bool,
+	pub has_mouse_leave:  bool,
+	pub has_key_down:     bool,
+	pub has_key_up:       bool,
+	pub has_scroll:       bool,
+	pub has_wheel:        bool,
+	pub has_focus:        bool,
+	pub has_blur:         bool,
+	pub has_input:        bool,
+	pub has_change:       bool,
+	pub has_before_input: bool,
 	/// Tab index for focus management (-1 = programmatic only, 0+ = tab order)
-	pub tab_index:       Option<i32>,
+	pub tab_index:        Option<i32>,
 }
 
 impl EventHandlerFlags {
@@ -43,6 +46,9 @@ impl EventHandlerFlags {
 			has_wheel: has(props::ON_WHEEL),
 			has_focus: has(props::ON_FOCUS),
 			has_blur: has(props::ON_BLUR),
+			has_input: has(props::ON_INPUT),
+			has_change: has(props::ON_CHANGE),
+			has_before_input: has(props::ON_BEFORE_INPUT),
 			tab_index,
 		}
 	}
