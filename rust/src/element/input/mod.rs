@@ -3,12 +3,14 @@
 //! A text input element that supports text editing, cursor, and selection.
 
 pub mod cursor;
+pub mod handler;
 pub mod state;
 
 use std::{collections::HashMap, sync::{Arc, Mutex}};
 
 pub use cursor::BlinkCursor;
-use gpui::{AnyElement, App, BorderStyle, Bounds, Element, ElementId, GlobalElementId, Hitbox, HitboxBehavior, Hsla, InspectorElementId, IntoElement, LayoutId, PaintQuad, Pixels, Window, div, point, prelude::*, px, rgb, size};
+use gpui::{App, BorderStyle, Bounds, Element, ElementId, Font, FontStyle, FontWeight, GlobalElementId, Hitbox, HitboxBehavior, Hsla, InspectorElementId, IntoElement, LayoutId, PaintQuad, Pixels, Point, ShapedLine, TextRun, Window, point, px, rgb, size};
+pub use handler::RootInputHandler;
 use lazy_static::lazy_static;
 pub use state::{InputState, InputType, TextChange};
 
@@ -25,6 +27,19 @@ lazy_static! {
 
 	/// Track which elements are currently selecting with mouse
 	static ref SELECTING: Mutex<HashMap<u64, bool>> = Mutex::new(HashMap::new());
+
+	/// Store text shaping info for click-to-cursor positioning
+	/// Key: element global_id, Value: (display_text, font_size, font_weight, text_origin_x)
+	static ref TEXT_SHAPING_INFO: Mutex<HashMap<u64, TextShapingInfo>> = Mutex::new(HashMap::new());
+}
+
+/// Text shaping info for click-to-cursor positioning
+#[derive(Clone)]
+pub struct TextShapingInfo {
+	pub display_text: String,
+	pub font_size: f32,
+	pub font_weight: u32,
+	pub text_origin_x: f32,
 }
 
 /// Get or create input state for an element
@@ -57,7 +72,11 @@ pub fn update_input_state(element_id: u64, state: InputState) {
 /// Get input state by element ID
 pub fn get_input_state(element_id: u64) -> Option<InputState> {
 	let states = INPUT_STATES.lock().unwrap();
-	states.get(&element_id).cloned()
+	let result = states.get(&element_id).cloned();
+	if result.is_none() {
+		log::trace!("[Input] get_input_state: no state for element_id={}", element_id);
+	}
+	result
 }
 
 /// Remove input state when element is removed
@@ -65,6 +84,17 @@ pub fn remove_input_state(element_id: u64) {
 	INPUT_STATES.lock().unwrap().remove(&element_id);
 	BLINK_CURSORS.lock().unwrap().remove(&element_id);
 	SELECTING.lock().unwrap().remove(&element_id);
+	TEXT_SHAPING_INFO.lock().unwrap().remove(&element_id);
+}
+
+/// Get text shaping info for an element
+pub fn get_text_shaping_info(element_id: u64) -> Option<TextShapingInfo> {
+	TEXT_SHAPING_INFO.lock().unwrap().get(&element_id).cloned()
+}
+
+/// Update text shaping info for an element
+pub fn update_text_shaping_info(element_id: u64, info: TextShapingInfo) {
+	TEXT_SHAPING_INFO.lock().unwrap().insert(element_id, info);
 }
 
 /// Get or create blink cursor for an element
@@ -100,14 +130,20 @@ pub struct ReactInputElement {
 	element:      Arc<ReactElement>,
 	window_id:    u64,
 	parent_style: Option<ElementStyle>,
-	text_child:   Option<AnyElement>,
 }
 
 /// State returned from request_layout
 pub struct InputLayoutState {
-	child_layout_id: Option<LayoutId>,
-	text_width:      f32,
-	input_type:      InputType,
+	child_layout_id:  Option<LayoutId>,
+	input_type:       InputType,
+	display_text:     String,
+	/// The actual content (not display text) - used for cursor calculation
+	content:          String,
+	/// Cursor position at layout time - ensures consistency with display_text
+	cursor_position:  usize,
+	text_color:       u32,
+	text_size:        f32,
+	font_weight:      Option<u32>,
 }
 
 /// State returned from prepaint
@@ -116,6 +152,8 @@ pub struct InputPrepaintState {
 	event_flags:  EventHandlerFlags,
 	input_state:  InputState,
 	blink_cursor: BlinkCursor,
+	shaped_line:  Option<ShapedLine>,
+	text_origin:  Point<Pixels>,
 }
 
 impl ReactInputElement {
@@ -124,7 +162,7 @@ impl ReactInputElement {
 		window_id: u64,
 		parent_style: Option<ElementStyle>,
 	) -> Self {
-		Self { element, window_id, parent_style, text_child: None }
+		Self { element, window_id, parent_style }
 	}
 
 	/// Get the value from element style props
@@ -161,6 +199,11 @@ impl Element for ReactInputElement {
 		let mut input_state =
 			get_or_create_input_state(self.element.global_id, self.get_value(), input_type);
 
+		log::debug!(
+			"[Input] request_layout: element_id={}, initial cursor={}, content={:?}",
+			self.element.global_id, input_state.cursor_position, input_state.content
+		);
+
 		// Update input type in case it changed
 		input_state.input_type = input_type;
 
@@ -168,8 +211,13 @@ impl Element for ReactInputElement {
 		if let Some(value) = self.get_value() {
 			// Only update if different (avoid cursor reset)
 			if input_state.content != value {
+				let old_cursor = input_state.cursor_position;
 				input_state.content = value.to_string();
 				input_state.cursor_position = input_state.cursor_position.min(value.len());
+				log::debug!(
+					"[Input] request_layout: value prop changed content, old_cursor={}, new_cursor={}, value={:?}",
+					old_cursor, input_state.cursor_position, value
+				);
 			}
 		}
 
@@ -191,14 +239,24 @@ impl Element for ReactInputElement {
 		update_input_state(self.element.global_id, input_state.clone());
 
 		// Determine display text (masked for password)
-		let display_text = if input_state.content.is_empty() {
+		let is_placeholder = input_state.content.is_empty();
+		let display_text = if is_placeholder {
 			input_state.placeholder.clone().unwrap_or_default()
 		} else {
 			input_state.display_text()
 		};
 
+		// Text styling
+		let text_color = if is_placeholder {
+			0x888888 // Gray for placeholder
+		} else {
+			effective.text_color.unwrap_or(0xffffff)
+		};
+		let text_size = effective.text_size.unwrap_or(14.0);
+		let font_weight = effective.font_weight;
+
 		// Build style
-		let mut style = self.element.build_gpui_style(Some(0x333333)); // Dark background for input
+		let mut style = self.element.build_gpui_style(Some(0x333333));
 
 		// Ensure padding for text and cursor
 		let padding = px(8.0);
@@ -219,42 +277,19 @@ impl Element for ReactInputElement {
 			));
 		}
 
-		// Calculate text width for cursor positioning
-		let text_width = display_text.len() as f32 * 8.0; // Approximate
+		// Request layout without text child - we'll paint text directly
+		let layout_id = window.request_layout(style, std::iter::empty(), cx);
 
-		// Create text child element
-		let child_layout_id = if !display_text.is_empty() {
-			let text_color = if input_state.content.is_empty() {
-				// Placeholder color (dimmed)
-				effective.text_color.unwrap_or(0x888888)
-			} else {
-				effective.text_color.unwrap_or(0xffffff)
-			};
-			let text_size = effective.text_size.unwrap_or(14.0);
-
-			let mut text_element =
-				div().text_color(rgb(text_color)).text_size(px(text_size)).child(display_text);
-
-			if let Some(weight) = effective.font_weight {
-				text_element = text_element.font_weight(gpui::FontWeight(weight as f32));
-			}
-
-			let mut child = text_element.into_any_element();
-			let layout_id = child.request_layout(window, cx);
-			self.text_child = Some(child);
-			Some(layout_id)
-		} else {
-			None
-		};
-
-		// Request our own layout
-		let layout_id = if let Some(child_id) = child_layout_id {
-			window.request_layout(style, std::iter::once(child_id), cx)
-		} else {
-			window.request_layout(style, std::iter::empty(), cx)
-		};
-
-		(layout_id, InputLayoutState { child_layout_id, text_width, input_type })
+		(layout_id, InputLayoutState {
+			child_layout_id: None,
+			input_type,
+			display_text,
+			content: input_state.content.clone(),
+			cursor_position: input_state.cursor_position,
+			text_color,
+			text_size,
+			font_weight,
+		})
 	}
 
 	fn prepaint(
@@ -264,25 +299,89 @@ impl Element for ReactInputElement {
 		bounds: Bounds<Pixels>,
 		request_layout: &mut Self::RequestLayoutState,
 		window: &mut Window,
-		cx: &mut App,
+		_cx: &mut App,
 	) -> Self::PrepaintState {
-		// Prepaint text child
-		if let Some(ref mut child) = self.text_child {
-			child.prepaint(window, cx);
-		}
-
-		// Get input state and blink cursor
+		// Get input state and blink cursor - this is the CURRENT state
 		let input_state =
 			get_or_create_input_state(self.element.global_id, None, request_layout.input_type);
 		let mut blink_cursor = get_or_create_blink_cursor(self.element.global_id);
+
+		// Update request_layout with current state to ensure consistency
+		// between shaped_line and cursor calculation in paint
+		request_layout.content = input_state.content.clone();
+		request_layout.cursor_position = input_state.cursor_position;
+
+		// Recalculate display_text with current content
+		let is_placeholder = input_state.content.is_empty();
+		let current_display_text = if is_placeholder {
+			input_state.placeholder.clone().unwrap_or_default()
+		} else {
+			input_state.display_text()
+		};
+		request_layout.display_text = current_display_text.clone();
 
 		// Update blink cursor with current time
 		let current_time_ms = std::time::SystemTime::now()
 			.duration_since(std::time::UNIX_EPOCH)
 			.map(|d| d.as_millis() as u64)
 			.unwrap_or(0);
-		blink_cursor.update(current_time_ms);
+		let needs_repaint = blink_cursor.update(current_time_ms);
 		update_blink_cursor(self.element.global_id, blink_cursor.clone());
+
+		// Schedule repaint for cursor blinking if focused
+		let is_focused = focus::is_focused(self.window_id, self.element.global_id);
+		if is_focused && needs_repaint {
+			window.refresh();
+		}
+
+		// Shape the text for accurate cursor positioning
+		let padding = px(8.0);
+		let text_origin = point(bounds.origin.x + padding, bounds.origin.y + px(4.0));
+
+		// Create font for text shaping
+		let font_weight_val = request_layout.font_weight.unwrap_or(400);
+		let font = Font {
+			family: "Zed Plex Mono".into(),
+			features: Default::default(),
+			fallbacks: None,
+			weight: FontWeight(font_weight_val as f32),
+			style: FontStyle::Normal,
+		};
+
+		let font_size = px(request_layout.text_size);
+		let text_color = Hsla::from(rgb(request_layout.text_color));
+
+		// Create text run for the display text - use current_display_text
+		let text_run = TextRun {
+			len: current_display_text.len(),
+			font,
+			color: text_color,
+			background_color: None,
+			underline: None,
+			strikethrough: None,
+		};
+
+		// Shape the line using GPUI's text system with current display text
+		let shaped_line = if !current_display_text.is_empty() {
+			Some(window
+				.text_system()
+				.shape_line(
+					current_display_text.into(),
+					font_size,
+					&[text_run],
+					None,
+				))
+		} else {
+			None
+		};
+
+		// Store text shaping info for mouse handlers
+		update_text_shaping_info(self.element.global_id, TextShapingInfo {
+			display_text: request_layout.display_text.clone(),
+			font_size: request_layout.text_size,
+			font_weight: font_weight_val,
+			text_origin_x: text_origin.x.into(),
+		});
 
 		// Build event flags - input always needs hitbox for interaction
 		let mut event_flags = EventHandlerFlags::from_handlers(
@@ -297,7 +396,7 @@ impl Element for ReactInputElement {
 		// Insert hitbox
 		let hitbox = Some(window.insert_hitbox(bounds, HitboxBehavior::Normal));
 
-		InputPrepaintState { hitbox, event_flags, input_state, blink_cursor }
+		InputPrepaintState { hitbox, event_flags, input_state, blink_cursor, shaped_line, text_origin }
 	}
 
 	fn paint(
@@ -305,34 +404,57 @@ impl Element for ReactInputElement {
 		_id: Option<&GlobalElementId>,
 		_inspector_id: Option<&InspectorElementId>,
 		bounds: Bounds<Pixels>,
-		_request_layout: &mut Self::RequestLayoutState,
+		request_layout: &mut Self::RequestLayoutState,
 		prepaint: &mut Self::PrepaintState,
 		window: &mut Window,
 		cx: &mut App,
 	) {
 		let style = self.element.build_gpui_style(Some(0x333333));
 		let is_focused = focus::is_focused(self.window_id, self.element.global_id);
-		let effective = self.element.effective_style(self.parent_style.as_ref());
-		let text_size = effective.text_size.unwrap_or(14.0);
-		let char_width = text_size * 0.6; // Approximate character width
-		let padding: f32 = 8.0;
+		let text_origin = prepaint.text_origin;
 
 		// Paint background
 		style.paint(bounds, window, cx, |window, cx| {
-			// Paint text child
-			if let Some(ref mut child) = self.text_child {
-				child.paint(window, cx);
+			// Paint text using shaped line
+			if let Some(ref shaped_line) = prepaint.shaped_line {
+				// Calculate vertical center for text using window's line height
+				let line_height = window.line_height();
+				let text_y = bounds.origin.y + (bounds.size.height - line_height) / 2.0;
+				let paint_origin = point(text_origin.x, text_y);
+
+				let _ = shaped_line.paint(paint_origin, line_height, window, cx);
 			}
 
 			// Only paint cursor and selection when focused
 			if is_focused {
 				// Paint selection highlight if any
 				if let Some((start, end)) = prepaint.input_state.selection {
-					let start_graphemes = prepaint.input_state.content[..start].chars().count();
-					let end_graphemes = prepaint.input_state.content[..end].chars().count();
-
-					let x_start = bounds.origin.x + px(start_graphemes as f32 * char_width + padding);
-					let x_end = bounds.origin.x + px(end_graphemes as f32 * char_width + padding);
+					// Get x positions from shaped line
+					// Use request_layout.content for consistency with shaped_line
+					let (x_start, x_end) = if let Some(ref shaped_line) = prepaint.shaped_line {
+						let content = &request_layout.content;
+						// Snap to valid char boundaries
+						let safe_start = {
+							let pos = start.min(content.len());
+							let mut p = pos;
+							while p > 0 && !content.is_char_boundary(p) { p -= 1; }
+							p
+						};
+						let safe_end = {
+							let pos = end.min(content.len());
+							let mut p = pos;
+							while p > 0 && !content.is_char_boundary(p) { p -= 1; }
+							p
+						};
+						// Convert byte positions to character indices
+						let start_chars = content[..safe_start].chars().count();
+						let end_chars = content[..safe_end].chars().count();
+						let start_x = shaped_line.x_for_index(start_chars);
+						let end_x = shaped_line.x_for_index(end_chars);
+						(text_origin.x + start_x, text_origin.x + end_x)
+					} else {
+						(text_origin.x, text_origin.x)
+					};
 
 					let selection_bounds = Bounds {
 						origin: point(x_start, bounds.origin.y + px(4.0)),
@@ -349,27 +471,107 @@ impl Element for ReactInputElement {
 					});
 				}
 
-				// Paint cursor (always visible when focused, no blink for now)
-				let cursor_graphemes = if prepaint.input_state.content.is_empty() {
-					0
-				} else {
-					prepaint.input_state.content[..prepaint.input_state.cursor_position].chars().count()
-				};
-				let cursor_x = bounds.origin.x + px(cursor_graphemes as f32 * char_width + padding);
+				// Paint IME composition underline (marked range)
+				if let Some((start, end)) = prepaint.input_state.marked_range {
+					if let Some(ref shaped_line) = prepaint.shaped_line {
+						// Use request_layout.content for consistency with shaped_line
+						let content = &request_layout.content;
+						// Snap to valid char boundaries
+						let safe_start = {
+							let pos = start.min(content.len());
+							let mut p = pos;
+							while p > 0 && !content.is_char_boundary(p) { p -= 1; }
+							p
+						};
+						let safe_end = {
+							let pos = end.min(content.len());
+							let mut p = pos;
+							while p > 0 && !content.is_char_boundary(p) { p -= 1; }
+							p
+						};
+						// Convert byte positions to character indices
+						let start_chars = content[..safe_start].chars().count();
+						let end_chars = content[..safe_end].chars().count();
+						let start_x = shaped_line.x_for_index(start_chars);
+						let end_x = shaped_line.x_for_index(end_chars);
 
-				let cursor_bounds = Bounds {
-					origin: point(cursor_x, bounds.origin.y + px(4.0)),
-					size:   size(px(cursor::CURSOR_WIDTH), bounds.size.height - px(8.0)),
-				};
+						let underline_y = bounds.origin.y + bounds.size.height - px(6.0);
+						let underline_bounds = Bounds {
+							origin: point(text_origin.x + start_x, underline_y),
+							size:   size(end_x - start_x, px(2.0)),
+						};
 
-				window.paint_quad(PaintQuad {
-					bounds:        cursor_bounds,
-					background:    Hsla::from(rgb(0xffffff)).into(),
-					corner_radii:  gpui::Corners::default(),
-					border_color:  Hsla::transparent_black(),
-					border_widths: gpui::Edges::default(),
-					border_style:  BorderStyle::default(),
-				});
+						window.paint_quad(PaintQuad {
+							bounds:        underline_bounds,
+							background:    Hsla::from(rgb(0x4a9eff)).into(),
+							corner_radii:  gpui::Corners::default(),
+							border_color:  Hsla::transparent_black(),
+							border_widths: gpui::Edges::default(),
+							border_style:  BorderStyle::default(),
+						});
+					}
+				}
+
+				// Paint cursor only when visible (blink animation)
+				if prepaint.blink_cursor.is_visible() {
+					// If content is empty (showing placeholder), cursor should be at the start
+					// Use request_layout data for consistency with shaped_line
+					let cursor_x = if request_layout.content.is_empty() {
+						text_origin.x
+					} else if let Some(ref shaped_line) = prepaint.shaped_line {
+						let cursor_pos = request_layout.cursor_position;
+						let content = &request_layout.content;
+
+						// Convert byte position to character count for x_for_index
+						// x_for_index expects a character/glyph index, not a byte index
+						// First, ensure cursor_pos is on a valid char boundary
+						let safe_cursor_pos = {
+							let pos = cursor_pos.min(content.len());
+							// Find a valid char boundary at or before pos
+							let mut safe_pos = pos;
+							while safe_pos > 0 && !content.is_char_boundary(safe_pos) {
+								safe_pos -= 1;
+							}
+							safe_pos
+						};
+
+						let char_index = if request_layout.input_type == InputType::Password {
+							// For password, each character becomes one bullet
+							content[..safe_cursor_pos]
+								.chars()
+								.count()
+						} else {
+							// Count characters up to cursor byte position
+							content[..safe_cursor_pos]
+								.chars()
+								.count()
+						};
+
+						log::debug!(
+							"[Input] paint cursor: cursor_pos={}, safe_cursor_pos={}, content_len={}, char_index={}, content={:?}",
+							cursor_pos, safe_cursor_pos, content.len(), char_index, content
+						);
+
+						// Use x_for_index with character index
+						text_origin.x + shaped_line.x_for_index(char_index)
+					} else {
+						text_origin.x
+					};
+
+					let cursor_bounds = Bounds {
+						origin: point(cursor_x, bounds.origin.y + px(4.0)),
+						size:   size(px(cursor::CURSOR_WIDTH), bounds.size.height - px(8.0)),
+					};
+
+					window.paint_quad(PaintQuad {
+						bounds:        cursor_bounds,
+						background:    Hsla::from(rgb(0xffffff)).into(),
+						corner_radii:  gpui::Corners::default(),
+						border_color:  Hsla::transparent_black(),
+						border_widths: gpui::Edges::default(),
+						border_style:  BorderStyle::default(),
+					});
+				}
 			}
 		});
 
@@ -405,7 +607,7 @@ impl ReactInputElement {
 	fn register_input_handlers(
 		&self,
 		hitbox: Option<&Hitbox>,
-		bounds: Bounds<Pixels>,
+		_bounds: Bounds<Pixels>,
 		window: &mut Window,
 	) {
 		let Some(hitbox) = hitbox else { return };
@@ -413,27 +615,67 @@ impl ReactInputElement {
 		let hitbox_clone = hitbox.clone();
 		let element_id = self.element.global_id;
 		let window_id = self.window_id;
-		let effective = self.element.effective_style(self.parent_style.as_ref());
-		let text_size = effective.text_size.unwrap_or(14.0);
-		let char_width = text_size * 0.6;
-		let padding: f32 = 8.0;
 
 		// Mouse down - set cursor position
 		window.on_mouse_event(move |event: &gpui::MouseDownEvent, phase, window, _cx| {
 			if phase == gpui::DispatchPhase::Bubble && hitbox_clone.is_hovered(window) {
-				// Calculate character position from click
-				let local_x: f32 = (event.position.x - bounds.origin.x - px(padding)).into();
-				let char_pos = (local_x / char_width).round().max(0.0) as usize;
+				// Get text shaping info for accurate positioning
+				let shaping_info = get_text_shaping_info(element_id);
+				let click_x: f32 = event.position.x.into();
 
 				// Update input state
 				if let Some(mut state) = get_input_state(element_id) {
-					// Convert char position to byte offset
-					let byte_offset = state
-						.content
-						.char_indices()
-						.nth(char_pos)
-						.map(|(idx, _)| idx)
-						.unwrap_or(state.content.len());
+					// Find cursor position from click
+					let byte_offset = if let Some(info) = shaping_info {
+						// Get local x relative to text origin
+						let local_x = click_x - info.text_origin_x;
+
+						if local_x <= 0.0 || info.display_text.is_empty() {
+							0
+						} else {
+							// Reshape text to get accurate positions
+							let font = Font {
+								family: "Zed Plex Mono".into(),
+								features: Default::default(),
+								fallbacks: None,
+								weight: FontWeight(info.font_weight as f32),
+								style: FontStyle::Normal,
+							};
+							let font_size = px(info.font_size);
+							let text_run = TextRun {
+								len: info.display_text.len(),
+								font,
+								color: Hsla::white(),
+								background_color: None,
+								underline: None,
+								strikethrough: None,
+							};
+
+							let shaped_line = window.text_system().shape_line(
+								info.display_text.clone().into(),
+								font_size,
+								&[text_run],
+								None,
+							);
+
+							// Use GPUI's built-in closest_index_for_x for accurate positioning
+							let closest_idx = shaped_line.closest_index_for_x(px(local_x));
+
+							// For password input, map display position back to content position
+							if state.input_type == InputType::Password {
+								// Each character is one bullet, so char index = byte position in content
+								let char_count = info.display_text[..closest_idx.min(info.display_text.len())].chars().count();
+								state.content.char_indices()
+									.nth(char_count)
+									.map(|(idx, _)| idx)
+									.unwrap_or(state.content.len())
+							} else {
+								closest_idx
+							}
+						}
+					} else {
+						0
+					};
 
 					state.set_cursor_from_offset(byte_offset);
 					update_input_state(element_id, state);
@@ -448,6 +690,7 @@ impl ReactInputElement {
 				}
 
 				// Set focus
+				log::debug!("[Input] MouseDown: setting focus window_id={}, element_id={}", window_id, element_id);
 				focus::set_focus(window_id, element_id);
 
 				// Request refresh
@@ -459,16 +702,57 @@ impl ReactInputElement {
 		let hitbox_clone = hitbox.clone();
 		window.on_mouse_event(move |event: &gpui::MouseMoveEvent, phase, window, _cx| {
 			if phase == gpui::DispatchPhase::Bubble && is_selecting(element_id) {
-				let local_x: f32 = (event.position.x - bounds.origin.x - px(padding)).into();
-				let char_pos = (local_x / char_width).round().max(0.0) as usize;
+				let shaping_info = get_text_shaping_info(element_id);
+				let click_x: f32 = event.position.x.into();
 
 				if let Some(mut state) = get_input_state(element_id) {
-					let byte_offset = state
-						.content
-						.char_indices()
-						.nth(char_pos)
-						.map(|(idx, _)| idx)
-						.unwrap_or(state.content.len());
+					let byte_offset = if let Some(info) = shaping_info {
+						let local_x = click_x - info.text_origin_x;
+
+						if local_x <= 0.0 || info.display_text.is_empty() {
+							0
+						} else {
+							// Reshape text for accurate positioning
+							let font = Font {
+								family: "Zed Plex Mono".into(),
+								features: Default::default(),
+								fallbacks: None,
+								weight: FontWeight(info.font_weight as f32),
+								style: FontStyle::Normal,
+							};
+							let font_size = px(info.font_size);
+							let text_run = TextRun {
+								len: info.display_text.len(),
+								font,
+								color: Hsla::white(),
+								background_color: None,
+								underline: None,
+								strikethrough: None,
+							};
+
+							let shaped_line = window.text_system().shape_line(
+								info.display_text.clone().into(),
+								font_size,
+								&[text_run],
+								None,
+							);
+
+							// Use GPUI's built-in closest_index_for_x for accurate positioning
+							let closest_idx = shaped_line.closest_index_for_x(px(local_x));
+
+							if state.input_type == InputType::Password {
+								let char_count = info.display_text[..closest_idx.min(info.display_text.len())].chars().count();
+								state.content.char_indices()
+									.nth(char_count)
+									.map(|(idx, _)| idx)
+									.unwrap_or(state.content.len())
+							} else {
+								closest_idx
+							}
+						}
+					} else {
+						0
+					};
 
 					state.extend_selection_to(byte_offset);
 					update_input_state(element_id, state);
@@ -553,13 +837,14 @@ pub fn handle_input_key_event(
 			}
 		}
 
-		// Regular character input
-		key if key.len() == 1 && !modifiers.control && !modifiers.alt => state.insert_text(key),
+		// NOTE: Regular character input is NOT handled here!
+		// It goes through the InputHandler (replace_text_in_range) for proper IME support.
+		// This includes single characters and space.
 
-		// Space
-		"space" => state.insert_text(" "),
-
-		_ => None,
+		_ => {
+			// Key not handled by input element, return false to let it bubble up
+			return false;
+		}
 	};
 
 	// Update cursor state

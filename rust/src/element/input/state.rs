@@ -410,6 +410,112 @@ impl InputState {
 		}
 		self.content.len()
 	}
+
+	/// Snap a byte offset to a valid UTF-8 char boundary
+	fn snap_to_char_boundary(&self, byte_offset: usize) -> usize {
+		if byte_offset >= self.content.len() {
+			return self.content.len();
+		}
+		if self.content.is_char_boundary(byte_offset) {
+			return byte_offset;
+		}
+		// Find the next valid char boundary
+		for i in byte_offset..=self.content.len() {
+			if self.content.is_char_boundary(i) {
+				return i;
+			}
+		}
+		self.content.len()
+	}
+
+	// UTF-16 conversion helpers for IME support
+
+	/// Convert UTF-8 byte offset to UTF-16 offset
+	pub fn offset_to_utf16(&self, byte_offset: usize) -> usize {
+		let mut utf16_offset = 0;
+		let mut utf8_count = 0;
+		for ch in self.content.chars() {
+			if utf8_count >= byte_offset {
+				break;
+			}
+			utf8_count += ch.len_utf8();
+			utf16_offset += ch.len_utf16();
+		}
+		utf16_offset
+	}
+
+	/// Convert UTF-16 offset to UTF-8 byte offset
+	pub fn offset_from_utf16(&self, utf16_offset: usize) -> usize {
+		let mut utf8_offset = 0;
+		let mut utf16_count = 0;
+		for ch in self.content.chars() {
+			if utf16_count >= utf16_offset {
+				break;
+			}
+			utf16_count += ch.len_utf16();
+			utf8_offset += ch.len_utf8();
+		}
+		utf8_offset
+	}
+
+	/// Convert UTF-8 byte range to UTF-16 range
+	pub fn range_to_utf16(&self, range: &std::ops::Range<usize>) -> std::ops::Range<usize> {
+		self.offset_to_utf16(range.start)..self.offset_to_utf16(range.end)
+	}
+
+	/// Convert UTF-16 range to UTF-8 byte range
+	pub fn range_from_utf16(&self, range_utf16: &std::ops::Range<usize>) -> std::ops::Range<usize> {
+		self.offset_from_utf16(range_utf16.start)..self.offset_from_utf16(range_utf16.end)
+	}
+
+	/// Replace text in a range (for IME support)
+	pub fn replace_in_range(&mut self, range: std::ops::Range<usize>, new_text: &str) -> Option<TextChange> {
+		if self.disabled || self.read_only {
+			return None;
+		}
+
+		let old_value = self.content.clone();
+
+		// Clamp range to valid bounds and ensure valid UTF-8 boundaries
+		let start = self.snap_to_char_boundary(range.start.min(self.content.len()));
+		let end = self.snap_to_char_boundary(range.end.min(self.content.len()));
+
+		log::debug!(
+			"[InputState] replace_in_range: range={:?}, snapped to {}..{}, new_text={:?} (len={}), content_before={:?}",
+			range, start, end, new_text, new_text.len(), self.content
+		);
+
+		self.content.replace_range(start..end, new_text);
+		self.cursor_position = start + new_text.len();
+		self.selection = None;
+
+		log::debug!(
+			"[InputState] replace_in_range: after replacement, content={:?}, cursor_position={}",
+			self.content, self.cursor_position
+		);
+
+		Some(TextChange {
+			old_value,
+			new_value: self.content.clone(),
+			cursor_position: self.cursor_position,
+			data: Some(new_text.to_string()),
+			input_type: "insertText",
+		})
+	}
+
+	/// Set marked range for IME composition
+	pub fn set_marked_range(&mut self, range: Option<(usize, usize)>) {
+		self.marked_range = range;
+	}
+
+	/// Get the selection range as a Range
+	pub fn selection_range(&self) -> std::ops::Range<usize> {
+		if let Some((start, end)) = self.selection {
+			start..end
+		} else {
+			self.cursor_position..self.cursor_position
+		}
+	}
 }
 
 #[cfg(test)]

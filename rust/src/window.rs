@@ -28,6 +28,9 @@ impl Window {
 		Self { h, state: Arc::new(WindowState::new()), window_id }
 	}
 
+	/// Get the GPUI window handle
+	pub fn handle(&self) -> AnyWindowHandle { self.h }
+
 	pub fn refresh(&self, app: &mut App) {
 		if let Err(e) = app.update_window(self.h, |_view, w, app| {
 			self.state.increment_render_count();
