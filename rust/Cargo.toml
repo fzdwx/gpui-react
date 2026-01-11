@@ -24,4 +24,7 @@ async-channel = "2.3"
 thiserror = "2"
 tokio = { version = "1", features = ["sync", "rt-multi-thread", "time"] }
 unicode-segmentation = "1.11"
-ropey = "1.6"
+ropey = { version = "=2.0.0-beta.1", features = [
+    "metric_lines_lf",
+    "metric_utf16",
+] }

@@ -185,6 +185,38 @@ export class RustLib {
         }
     }
 
+    /**
+     * Get the current value of an input element from Rust
+     * This is used to sync React state with Rust state for controlled inputs
+     */
+    public getInputValue(windowId: number, elementId: number): string {
+        let ffiState = this.getFfiState(windowId);
+        if (!ffiState) {
+            return "";
+        }
+
+        ffiState.clear();
+        const [windowIdBuffer, windowIdPtr] = ffiState.createInt64(BigInt(windowId));
+        const [elementIdBuffer, elementIdPtr] = ffiState.createInt64(BigInt(elementId));
+        const valuePtr = lib.symbols.gpui_get_input_value(windowIdPtr, elementIdPtr);
+
+        if (!valuePtr) {
+            return "";
+        }
+
+        try {
+            const cString = new CString(valuePtr);
+            const jsonStr = cString.toString();
+            const parsed = JSON.parse(jsonStr) as { value: string };
+            return parsed.value || "";
+        } catch (err) {
+            console.error("[JS] getInputValue error:", err);
+            return "";
+        } finally {
+            lib.symbols.gpui_free_event_string(valuePtr);
+        }
+    }
+
     getFfiState(windowId: number) {
         return this.ffiStateMap.get(windowId);
     }

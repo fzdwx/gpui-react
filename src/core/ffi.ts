@@ -42,4 +42,8 @@ export const lib = dlopen(libPath, {
         args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr],
         returns: FFIType.void,
     },
+    gpui_get_input_value: {
+        args: [FFIType.ptr, FFIType.ptr],
+        returns: FFIType.ptr,
+    },
 });

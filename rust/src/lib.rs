@@ -246,3 +246,36 @@ pub extern "C" fn gpui_poll_events(window_id_ptr: *const u8) -> *mut c_char {
 		}
 	}
 }
+
+/// Get the current value of an input element
+/// This is used to sync Rust's input state with React's value prop
+/// Returns a JSON string: {"value": "current value"} or empty object if not
+/// found
+#[unsafe(no_mangle)]
+pub extern "C" fn gpui_get_input_value(
+	window_id_ptr: *const u8,
+	element_id_ptr: *const u8,
+) -> *mut c_char {
+	unsafe {
+		let window_id = ptr_to_u64(window_id_ptr);
+		let element_id = ptr_to_u64(element_id_ptr);
+
+		let Some(window) = GLOBAL_STATE.get_window(window_id) else {
+			return std::ptr::null_mut();
+		};
+
+		let element_map =
+			window.state().element_map.lock().expect("Failed to acquire element_map lock");
+		if let Some(element) = element_map.get(&element_id) {
+			// Get the value from style props
+			let value = element.style.value.clone();
+			let json_str = serde_json::json!({ "value": value.unwrap_or_default() }).to_string();
+			match CString::new(json_str) {
+				Ok(c_string) => return c_string.into_raw(),
+				Err(_) => return std::ptr::null_mut(),
+			}
+		}
+
+		std::ptr::null_mut()
+	}
+}
