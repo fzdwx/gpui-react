@@ -30,6 +30,7 @@
         "event-demo": "bun run demo/event/index.ts",
         "drawing-demo": "bun run demo/drawing-board/index.ts",
         "canvas-demo": "bun run demo/canvas/index.ts",
+        "input-demo": "bun run demo/input/index.ts",
         "test": "bun run src/reconciler/__tests__/element-store.test.ts",
         "dev": "bun run build:rust && bun run demo",
         "format": "bun run format:rust && bun run format:ts",
