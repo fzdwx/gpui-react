@@ -1,24 +1,25 @@
 use std::sync::Arc;
 
-use gpui::{point, px, rgb, AlignContent, AlignItems, AlignSelf, AnyElement, BoxShadow, Fill, FlexDirection, FlexWrap, Hsla, InteractiveElement, IntoElement, JustifyContent, Overflow, ParentElement, Position, Rgba, Style};
+use gpui::{AlignContent, AlignItems, AlignSelf, AnyElement, BoxShadow, Context, Fill, FlexDirection, FlexWrap, Hsla, InteractiveElement, IntoElement, JustifyContent, Overflow, ParentElement, Position, Rgba, Style, Window, point, px, rgb};
 use serde_json::Value;
 
 pub mod canvas;
 pub mod div;
 pub mod events;
+pub mod focus;
+mod hover;
 pub mod img;
+mod input;
 pub mod span;
 pub mod text;
-mod input;
-mod hover;
-pub mod focus;
 
 pub use canvas::ReactCanvasElement;
 pub use div::ReactDivElement;
 pub use img::ReactImgElement;
 pub use span::ReactSpanElement;
 pub use text::ReactTextElement;
-use crate::element::input::input::ReactInputElement;
+
+use crate::{element::input::input::ReactInputElement, renderer::RootView};
 
 /// Pre-computed element kind to avoid string matching every frame
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -179,12 +180,12 @@ pub struct ElementStyle {
 	pub tab_index: Option<i32>,
 
 	// Input element properties
-	pub value:       Option<String>,
-	pub placeholder: Option<String>,
-	pub input_type:  Option<String>, // "text", "password", "number", "email"
-	pub disabled:    Option<bool>,
-	pub read_only:   Option<bool>,
-	pub max_length:  Option<usize>,
+	pub value:           Option<String>,
+	pub placeholder:     Option<String>,
+	pub input_type:      Option<String>, // "text", "password", "number", "email"
+	pub disabled:        Option<bool>,
+	pub read_only:       Option<bool>,
+	pub max_length:      Option<usize>,
 	pub multi_line:      Option<bool>,  // Enable multi-line mode
 	pub rows:            Option<usize>, // Number of visible rows
 	pub selection_color: Option<u32>,   // Selection background color

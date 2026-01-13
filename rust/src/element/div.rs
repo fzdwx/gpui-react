@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use gpui::{AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, Pixels, Window, div, prelude::*, px, rgb};
-
+use crate::renderer::RootView;
 use super::{ElementStyle, ReactElement, events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers}};
 
 /// A React element that implements GPUI's Element trait directly

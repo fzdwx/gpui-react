@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use gpui::{App, Background, BorderStyle, Bounds, Corners, Edges, Element, ElementId, GlobalElementId, Hitbox, Hsla, InspectorElementId, IntoElement, LayoutId, PaintQuad, Path, Pixels, Rgba, Size, Style, Window, point, px};
+use gpui::{App, Background, BorderStyle, Bounds, Corners, Edges, Element, ElementId, GlobalElementId, Hitbox, Hsla, InspectorElementId, IntoElement, LayoutId, PaintQuad, Path, Pixels, Rgba, Size, Style, Window, point, px, Context};
 use serde::Deserialize;
-
+use crate::renderer::RootView;
 use super::{ElementStyle, ReactElement, events::{EventHandlerFlags, insert_hitbox_if_needed, register_event_handlers}};
 
 /// Draw command types matching TypeScript definitions

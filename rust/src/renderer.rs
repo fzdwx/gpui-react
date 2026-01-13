@@ -184,7 +184,7 @@ impl Render for RootView {
 			log::warn!("RootView.render: window {} not found", self.window_id);
 			return div().child("Window not found").into_any_element();
 		};
-
+		
 		let tree = window_state
 			.state()
 			.element_tree

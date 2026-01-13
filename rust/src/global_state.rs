@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::{Arc, RwLock, atomic::{AtomicBool, Ordering}}};
 
-use gpui::{AnyWindowHandle, Global, WindowHandle};
+use gpui::{AnyWindowHandle, App, Global, WindowHandle};
 
 use crate::{renderer::RootView, window::Window};
 
