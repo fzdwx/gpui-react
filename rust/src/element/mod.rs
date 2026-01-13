@@ -7,12 +7,15 @@ pub mod canvas;
 pub mod div;
 pub mod events;
 pub mod img;
+pub mod input;
+pub mod input_element;
 pub mod span;
 pub mod text;
 
 pub use canvas::ReactCanvasElement;
 pub use div::ReactDivElement;
 pub use img::ReactImgElement;
+pub use input_element::{handle_input_key_event, ReactInputElement, RootInputHandler};
 pub use span::ReactSpanElement;
 pub use text::ReactTextElement;
 
@@ -710,7 +713,7 @@ pub fn create_element(
 		}
 		ElementKind::Div => ReactDivElement::new(element, window_id, parent_style).into_any_element(),
 		ElementKind::Input => {
-			panic!("not impl")
+			ReactInputElement::new(element, window_id, parent_style).into_any_element()
 		}
 		ElementKind::Span => ReactSpanElement::new(element, window_id, parent_style).into_any_element(),
 		ElementKind::Text => ReactTextElement::new(element, window_id, parent_style).into_any_element(),

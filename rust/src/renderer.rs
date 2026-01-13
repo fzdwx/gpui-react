@@ -1,6 +1,6 @@
 use gpui::{Application as GpuiApp, Entity, FocusHandle, InteractiveElement, KeyDownEvent, KeyUpEvent, Render, Task, Timer, Window, div, prelude::*, rgb};
 
-use crate::{element::{create_element, input::{RootInputHandler, handle_input_key_event}}, event_types::{EventData, FocusEventData, KeyboardEventData, types}, focus, global_state::GLOBAL_STATE, host_command, window::EventMessage};
+use crate::{element::{create_element, input_element::{RootInputHandler, handle_input_key_event}}, event_types::{EventData, FocusEventData, KeyboardEventData, types}, focus, global_state::GLOBAL_STATE, host_command, window::EventMessage};
 
 /// Dispatch an event to the event queue for JS polling
 /// This is thread-safe and doesn't require calling JS directly from Rust
