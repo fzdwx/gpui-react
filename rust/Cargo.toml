@@ -30,3 +30,5 @@ ropey = { version = "=2.0.0-beta.1", features = [
     "metric_lines_lf",
     "metric_utf16",
 ] }
+anyhow = "1.0.100"
+zed-sum-tree = "0.2.0"

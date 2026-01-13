@@ -5,7 +5,9 @@
 
 use gpui::{Bounds, DispatchPhase, Hitbox, HitboxBehavior, KeyDownEvent, KeyUpEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, ScrollWheelEvent, Window};
 
-use crate::{event_types::{EventData, FocusEventData, KeyboardEventData, MouseEventData, ScrollEventData, props, types}, focus, hover::get_hover_state, renderer::dispatch_event_to_js};
+use crate::{event_types::{props, types, EventData, FocusEventData, KeyboardEventData, MouseEventData, ScrollEventData}, renderer::dispatch_event_to_js};
+use crate::element::focus;
+use crate::element::hover::get_hover_state;
 
 /// Flags indicating which event handlers are registered
 pub struct EventHandlerFlags {

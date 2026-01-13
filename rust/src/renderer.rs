@@ -1,6 +1,7 @@
-use gpui::{Application as GpuiApp, Entity, FocusHandle, InteractiveElement, KeyDownEvent, KeyUpEvent, Render, Task, Timer, Window, div, prelude::*, rgb};
+use gpui::{div, prelude::*, rgb, Application as GpuiApp, Entity, FocusHandle, InteractiveElement, KeyDownEvent, KeyUpEvent, Render, Window};
 
-use crate::{element::{create_element, input_element::{RootInputHandler, handle_input_key_event}}, event_types::{EventData, FocusEventData, KeyboardEventData, types}, focus, global_state::GLOBAL_STATE, host_command, window::EventMessage};
+use crate::{element::create_element, event_types::{types, EventData, FocusEventData, KeyboardEventData}, global_state::GLOBAL_STATE, host_command, window::EventMessage};
+use crate::element::focus;
 
 /// Dispatch an event to the event queue for JS polling
 /// This is thread-safe and doesn't require calling JS directly from Rust
@@ -112,32 +113,17 @@ pub struct RootState {
 	pub render_count: u64,
 }
 
-/// Cursor blink interval in milliseconds
-const CURSOR_BLINK_INTERVAL_MS: u64 = 500;
-
 pub struct RootView {
 	state:             Entity<RootState>,
 	last_render:       u64,
 	window_id:         u64,
 	focus_handle:      Option<FocusHandle>,
 	focus_initialized: bool,
-	/// Task for cursor blink timer
-	blink_timer:       Option<Task<()>>,
-	/// Track last focused element to detect focus changes
-	last_focused:      Option<u64>,
 }
 
 impl RootView {
 	pub fn new(state: Entity<RootState>, window_id: u64, _w: f32, _h: f32) -> RootView {
-		return Self {
-			state,
-			last_render: 0,
-			window_id,
-			focus_handle: None,
-			focus_initialized: false,
-			blink_timer: None,
-			last_focused: None,
-		};
+		return Self { state, last_render: 0, window_id, focus_handle: None, focus_initialized: false };
 	}
 
 	fn get_or_create_focus_handle(&mut self, cx: &mut Context<Self>) -> FocusHandle {
@@ -179,59 +165,6 @@ impl RootView {
 			});
 		}
 	}
-
-	/// Start or restart the cursor blink timer
-	fn start_blink_timer(&mut self, _gpui_window: &mut Window, cx: &mut Context<Self>) {
-		use std::time::Duration;
-
-		// Cancel existing timer
-		self.blink_timer = None;
-
-		let window_id = self.window_id;
-
-		// Start new timer that refreshes window periodically for cursor blinking
-		let task = cx.spawn(async move |_this, mut async_cx| {
-			loop {
-				Timer::after(Duration::from_millis(CURSOR_BLINK_INTERVAL_MS)).await;
-				// Refresh the window to update cursor blink state
-				let result = async_cx.update(|cx| {
-					if let Some(window) = GLOBAL_STATE.get_window(window_id) {
-						// Trigger a refresh through the window handle
-						if let Err(e) = cx.update_window(window.handle(), |_view, w, _cx| {
-							w.refresh();
-						}) {
-							log::trace!("Blink timer: failed to update window: {:?}", e);
-							return false;
-						}
-					}
-					true
-				});
-				if result.is_err() || result.unwrap_or(true) == false {
-					// Window closed or update failed, stop timer
-					break;
-				}
-			}
-		});
-		self.blink_timer = Some(task);
-	}
-
-	/// Update blink timer based on focus state
-	fn update_blink_timer(&mut self, gpui_window: &mut Window, cx: &mut Context<Self>) {
-		let current_focused = focus::get_focused(self.window_id);
-
-		// Check if focus changed
-		if current_focused != self.last_focused {
-			self.last_focused = current_focused;
-
-			if current_focused.is_some() {
-				// An element is focused - start blink timer
-				self.start_blink_timer(gpui_window, cx);
-			} else {
-				// No element focused - stop blink timer
-				self.blink_timer = None;
-			}
-		}
-	}
 }
 
 impl Render for RootView {
@@ -242,7 +175,6 @@ impl Render for RootView {
 	) -> impl gpui::IntoElement {
 		let render_start = std::time::Instant::now();
 		self.update_state(cx);
-		self.update_blink_timer(gpui_window, cx);
 
 		let focus_handle = self.get_or_create_focus_handle(cx);
 		self.ensure_focus(gpui_window);
@@ -273,17 +205,12 @@ impl Render for RootView {
 		let render_duration = render_start.elapsed();
 		log::debug!("RootView.render completed in {:?}", render_duration);
 
-		// Register the input handler for IME support
-		// This uses the root focus handle, and RootInputHandler delegates to the
-		// focused input
-		gpui_window.handle_input(&focus_handle, RootInputHandler::new(self.window_id), cx);
-
 		// Wrap in a focusable div that handles keyboard events at the window level
 		div()
 			.id("gpui-root")
 			.size_full()
 			.track_focus(&focus_handle)
-			.on_key_down(move |event: &KeyDownEvent, window, _cx| {
+			.on_key_down(move |event: &KeyDownEvent, _window, _cx| {
 				let keystroke = &event.keystroke;
 				log::debug!(
 					"[Rust] Window {} KeyDown: key={}, shift={}",
@@ -294,13 +221,6 @@ impl Render for RootView {
 
 				// Get the currently focused element for this window
 				let focused_element = focus::get_focused(window_id);
-
-				log::debug!(
-					"[Rust] KeyDown: window_id={}, focused_element={:?}, key={}",
-					window_id,
-					focused_element,
-					keystroke.key
-				);
 
 				// Handle Tab key for focus navigation
 				if keystroke.key == "tab" {
@@ -342,33 +262,11 @@ impl Render for RootView {
 						);
 					}
 
-					// Refresh to show focus changes
-					window.refresh();
-
 					return; // Don't dispatch Tab as keydown to the element
 				}
 
 				// Dispatch keydown event to the focused element
 				if let Some(element_id) = focused_element {
-					log::debug!(
-						"[Rust] KeyDown: element_id={}, key={}, shift={}",
-						element_id,
-						keystroke.key,
-						keystroke.modifiers.shift
-					);
-					// Try to handle as input element first
-					if handle_input_key_event(
-						window_id,
-						element_id,
-						&keystroke.key,
-						keystroke.modifiers,
-						window,
-					) {
-						// Input element handled the key
-						log::debug!("[Rust] KeyDown: element_id={} handled key={}", element_id, keystroke.key);
-						return;
-					}
-
 					let event_data = EventData::Keyboard(KeyboardEventData {
 						key:    keystroke.key.clone(),
 						code:   keystroke.key.clone(),

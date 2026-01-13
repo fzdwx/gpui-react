@@ -2141,6 +2141,7 @@ dependencies = [
 name = "gpui-renderer"
 version = "0.1.10"
 dependencies = [
+ "anyhow",
  "async-channel 2.5.0",
  "gpui",
  "gpui-macros",
@@ -2154,6 +2155,7 @@ dependencies = [
  "tokio",
  "unicode-segmentation",
  "unicode-width",
+ "zed-sum-tree",
 ]
 
 [[package]]
@@ -6621,6 +6623,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 
 [[package]]
+name = "workspace-hack"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "beffa227304dbaea3ad6a06ac674f9bc83a3dec3b7f63eeb442de37e7cb6bb01"
+
+[[package]]
 name = "writeable"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6951,6 +6959,18 @@ dependencies = [
  "windows-capture",
  "x11",
  "xcb",
+]
+
+[[package]]
+name = "zed-sum-tree"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d490156d0d7311855564d6e1d6dccab992405a0c0e15e1c8ef18920c02177e35"
+dependencies = [
+ "arrayvec",
+ "log",
+ "rayon",
+ "workspace-hack",
 ]
 
 [[package]]

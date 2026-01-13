@@ -134,6 +134,7 @@ export interface StyleProps extends GPUIEventHandlerProps {
     type?: "text" | "password" | "number" | "email"; // Input type
     multiLine?: boolean; // Enable multi-line mode (textarea)
     rows?: number; // Number of visible rows for multi-line input
+    selectionColor?: string; // Selection background color
 
     // Hover styles (pseudo-class) - excludes event handlers
     _hover?: Omit<StyleProps, "_hover" | keyof GPUIEventHandlerProps>;
@@ -743,6 +744,9 @@ export function mapStyleToProps(props: StyleProps): Record<string, any> {
     }
     if (props.rows !== undefined) {
         result.rows = props.rows;
+    }
+    if (props.selectionColor !== undefined) {
+        result.selectionColor = parseColor(props.selectionColor);
     }
 
     return result;

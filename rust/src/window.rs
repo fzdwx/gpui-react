@@ -3,7 +3,6 @@ use std::{collections::{HashMap, VecDeque}, sync::{Arc, Mutex, atomic::{AtomicU6
 use gpui::{AnyWindowHandle, App, AppContext};
 
 use crate::element::{ElementKind, ElementStyle, ReactElement};
-use crate::element::input_element::InputStateRef;
 
 /// Event message to be sent to JS
 #[derive(Clone, Debug)]
@@ -180,8 +179,6 @@ pub struct WindowState {
 	pub render_count:    AtomicU64,
 	/// Event queue for JS polling (thread-safe)
 	pub event_queue:     Mutex<VecDeque<EventMessage>>,
-	/// Input states for input elements
-	pub input_states:    Mutex<HashMap<u64, InputStateRef>>,
 }
 
 impl WindowState {
@@ -192,7 +189,6 @@ impl WindowState {
 			element_tree:    Arc::new(Mutex::new(None)),
 			render_count:    AtomicU64::new(0),
 			event_queue:     Mutex::new(VecDeque::new()),
-			input_states:    Mutex::new(HashMap::new()),
 		}
 	}
 

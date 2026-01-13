@@ -4,19 +4,17 @@ mod element;
 mod event_types;
 mod ffi_helpers;
 mod ffi_types;
-mod focus;
 mod global_state;
 mod host_command;
-mod hover;
 mod logging;
 mod renderer;
 mod window;
 
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{c_char, CStr, CString};
 
 use tokio::sync::oneshot;
 
-use crate::{ffi_helpers::{ptr_to_u64, read_c_string, read_opt_c_string, validate_result_ptr}, ffi_types::{FfiResult, WindowCreateResult, WindowOptions}, global_state::GLOBAL_STATE, host_command::{HostCommand, is_bus_ready, send_host_command}, renderer::start_gpui_thread};
+use crate::{ffi_helpers::{ptr_to_u64, read_c_string, read_opt_c_string, validate_result_ptr}, ffi_types::{FfiResult, WindowCreateResult, WindowOptions}, global_state::GLOBAL_STATE, host_command::{is_bus_ready, send_host_command, HostCommand}, renderer::start_gpui_thread};
 
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_init(result: *mut FfiResult) {

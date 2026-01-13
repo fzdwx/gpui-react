@@ -1,23 +1,24 @@
 use std::sync::Arc;
 
-use gpui::{AlignContent, AlignItems, AlignSelf, AnyElement, BoxShadow, Fill, FlexDirection, FlexWrap, Hsla, InteractiveElement, IntoElement, JustifyContent, Overflow, ParentElement, Position, Rgba, Style, point, px, rgb};
+use gpui::{point, px, rgb, AlignContent, AlignItems, AlignSelf, AnyElement, BoxShadow, Fill, FlexDirection, FlexWrap, Hsla, InteractiveElement, IntoElement, JustifyContent, Overflow, ParentElement, Position, Rgba, Style};
 use serde_json::Value;
 
 pub mod canvas;
 pub mod div;
 pub mod events;
 pub mod img;
-pub mod input;
-pub mod input_element;
 pub mod span;
 pub mod text;
+mod input;
+mod hover;
+pub mod focus;
 
 pub use canvas::ReactCanvasElement;
 pub use div::ReactDivElement;
 pub use img::ReactImgElement;
-pub use input_element::{handle_input_key_event, ReactInputElement, RootInputHandler};
 pub use span::ReactSpanElement;
 pub use text::ReactTextElement;
+use crate::element::input::input::ReactInputElement;
 
 /// Pre-computed element kind to avoid string matching every frame
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -53,7 +54,7 @@ pub struct ReactElement {
 	pub text:              Option<String>,
 	pub children:          Vec<Arc<ReactElement>>,
 	pub style:             ElementStyle,
-	pub event_handlers:    Option<serde_json::Value>,
+	pub event_handlers:    Option<Value>,
 	/// Cached GPUI Style to avoid recomputing every frame
 	pub cached_gpui_style: Option<Style>,
 }
@@ -184,8 +185,9 @@ pub struct ElementStyle {
 	pub disabled:    Option<bool>,
 	pub read_only:   Option<bool>,
 	pub max_length:  Option<usize>,
-	pub multi_line:  Option<bool>,  // Enable multi-line mode
-	pub rows:        Option<usize>, // Number of visible rows
+	pub multi_line:      Option<bool>,  // Enable multi-line mode
+	pub rows:            Option<usize>, // Number of visible rows
+	pub selection_color: Option<u32>,   // Selection background color
 
 	// Hover style
 	pub hover_style: Option<Box<ElementStyle>>,
@@ -303,6 +305,7 @@ impl ElementStyle {
             max_length: style_obj.get("maxLength").and_then(|v| v.as_u64()).map(|v| v as usize),
             multi_line: style_obj.get("multiLine").and_then(|v| v.as_bool()),
             rows: style_obj.get("rows").and_then(|v| v.as_u64()).map(|v| v as usize),
+            selection_color: style_obj.get("selectionColor").and_then(|v| v.as_u64()).map(|v| v as u32),
 
             // Hover style
             hover_style,
