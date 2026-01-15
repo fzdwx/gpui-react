@@ -15,7 +15,7 @@ pub mod text;
 pub use canvas::ReactCanvasElement;
 pub use div::ReactDivElement;
 pub use img::ReactImgElement;
-pub use input_element::{handle_input_key_event, ReactInputElement, RootInputHandler};
+pub use input_element::{ReactInputElement, RootInputHandler, handle_input_key_event};
 pub use span::ReactSpanElement;
 pub use text::ReactTextElement;
 

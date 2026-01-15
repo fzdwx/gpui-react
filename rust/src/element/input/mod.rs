@@ -14,11 +14,10 @@ pub use indent::*;
 pub use mode::*;
 pub use movement::*;
 pub use rope_ext::*;
+pub use ropey::Rope;
 pub use selection::*;
 pub use state::*;
 pub use text_wrapper::*;
-
-pub use ropey::Rope;
 
 /// Cursor width in pixels.
 pub const CURSOR_WIDTH: gpui::Pixels = gpui::px(2.0);
