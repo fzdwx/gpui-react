@@ -283,7 +283,7 @@ impl Render for RootView {
 			.id("gpui-root")
 			.size_full()
 			.track_focus(&focus_handle)
-			.on_key_down(move |event: &KeyDownEvent, window, _cx| {
+			.on_key_down(move |event: &KeyDownEvent, window, cx| {
 				let keystroke = &event.keystroke;
 				log::debug!(
 					"[Rust] Window {} KeyDown: key={}, shift={}",
@@ -363,6 +363,7 @@ impl Render for RootView {
 						&keystroke.key,
 						keystroke.modifiers,
 						window,
+						cx,
 					) {
 						// Input element handled the key
 						log::debug!("[Rust] KeyDown: element_id={} handled key={}", element_id, keystroke.key);

@@ -5,7 +5,6 @@ mod mode;
 mod movement;
 mod rope_ext;
 mod selection;
-mod state;
 mod text_wrapper;
 
 pub use blink_cursor::*;
@@ -16,7 +15,6 @@ pub use movement::*;
 pub use rope_ext::*;
 pub use ropey::Rope;
 pub use selection::*;
-pub use state::*;
 pub use text_wrapper::*;
 
 /// Cursor width in pixels.

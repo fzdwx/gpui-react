@@ -3,6 +3,9 @@ use std::ops::Range;
 use ropey::{LineType, Rope, RopeSlice};
 use unicode_segmentation::UnicodeSegmentation;
 
+/// Check if a character is a word character (letter, digit, or underscore).
+fn is_word_char(c: char) -> bool { c.is_alphanumeric() || c == '_' }
+
 /// Line type to use for line operations.
 const LT: LineType = LineType::LF;
 
@@ -63,6 +66,12 @@ pub trait RopeExt {
 
 	/// Find the previous grapheme cluster boundary before the given offset.
 	fn prev_grapheme_boundary(&self, offset: usize) -> usize;
+
+	/// Find the next word boundary after the given offset.
+	fn next_word_boundary(&self, offset: usize) -> usize;
+
+	/// Find the previous word boundary before the given offset.
+	fn prev_word_boundary(&self, offset: usize) -> usize;
 
 	/// Replace text in the given range with new text.
 	fn replace(&mut self, range: Range<usize>, text: &str);
@@ -216,6 +225,54 @@ impl RopeExt for Rope {
 		}
 
 		prev_offset
+	}
+
+	fn next_word_boundary(&self, offset: usize) -> usize {
+		if offset >= self.len() {
+			return self.len();
+		}
+
+		let text = self.to_string();
+		let chars: Vec<char> = text.chars().collect();
+		let mut pos = self.offset_to_char_index(offset);
+
+		// Find word boundary based on word characters
+		while pos < chars.len() {
+			let c = chars[pos];
+			if !is_word_char(c) {
+				break;
+			}
+			pos += 1;
+		}
+
+		// Skip non-word characters
+		while pos < chars.len() && !is_word_char(chars[pos]) {
+			pos += 1;
+		}
+
+		self.char_index_to_offset(pos)
+	}
+
+	fn prev_word_boundary(&self, offset: usize) -> usize {
+		if offset == 0 {
+			return 0;
+		}
+
+		let text = self.to_string();
+		let chars: Vec<char> = text.chars().collect();
+		let mut pos = self.offset_to_char_index(offset);
+
+		// Skip non-word characters
+		while pos > 0 && !is_word_char(chars[pos - 1]) {
+			pos -= 1;
+		}
+
+		// Find word boundary
+		while pos > 0 && is_word_char(chars[pos - 1]) {
+			pos -= 1;
+		}
+
+		self.char_index_to_offset(pos)
 	}
 
 	fn replace(&mut self, range: Range<usize>, text: &str) {

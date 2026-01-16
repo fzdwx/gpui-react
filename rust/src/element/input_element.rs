@@ -1,9 +1,9 @@
 use std::{ops::Range, sync::Arc};
 
-use gpui::{App, Bounds, DispatchPhase, Element, ElementId, GlobalElementId, HitboxBehavior, InputHandler, IntoElement, LayoutId, Modifiers, MouseDownEvent, Pixels, Point, SharedString, Size, TextRun, UTF16Selection, Window, fill, px, rgb};
+use gpui::{App, AppContext, Bounds, ClipboardItem, DispatchPhase, Element, ElementId, GlobalElementId, HitboxBehavior, InputHandler, IntoElement, LayoutId, Modifiers, MouseDownEvent, Pixels, Point, SharedString, Size, TextRun, UTF16Selection, Window, fill, px, rgb};
 use ropey::Rope;
 
-use super::{ElementStyle, ReactElement, input::{CURSOR_WIDTH, InputMode, RopeExt, Selection}};
+use super::{ElementStyle, ReactElement, input::{CURSOR_WIDTH, Change, History, InputMode, RopeExt, Selection, select_word}};
 use crate::{event_types::{EventData, FocusEventData, InputEventData}, focus, global_state::GLOBAL_STATE, renderer::dispatch_event_to_js};
 
 /// Root input handler that delegates to the focused input element.
@@ -94,13 +94,6 @@ impl InputHandler for RootInputHandler {
 		}
 	}
 
-	fn unmark_text(&mut self, window: &mut Window, cx: &mut App) {
-		if let Some(mut state) = self.get_focused_input_state() {
-			state.unmark_text(window, cx);
-			self.dispatch_input_event(&state, "insertText");
-		}
-	}
-
 	fn replace_text_in_range(
 		&mut self,
 		range: Option<Range<usize>>,
@@ -155,6 +148,8 @@ impl InputHandler for RootInputHandler {
 					})
 					.with_masked(element.style.input_type.as_deref() == Some("password"))
 					.with_disabled(element.style.disabled.unwrap_or(false))
+					.with_history(History::default())
+					.with_history(History::new())
 			});
 
 			// Modify state directly
@@ -262,6 +257,7 @@ impl InputHandler for RootInputHandler {
 					masked:         element.style.input_type.as_deref() == Some("password"),
 					placeholder:    element.style.placeholder.clone().unwrap_or_default(),
 					disabled:       element.style.disabled.unwrap_or(false),
+					history:        History::new(),
 				}
 			});
 
@@ -293,6 +289,13 @@ impl InputHandler for RootInputHandler {
 
 		// Refresh to show composition text
 		window.refresh();
+	}
+
+	fn unmark_text(&mut self, window: &mut Window, cx: &mut App) {
+		if let Some(mut state) = self.get_focused_input_state() {
+			state.unmark_text(window, cx);
+			self.dispatch_input_event(&state, "insertText");
+		}
 	}
 
 	fn bounds_for_range(
@@ -394,6 +397,7 @@ pub struct InputState {
 	pub masked:         bool,
 	pub placeholder:    String,
 	pub disabled:       bool,
+	pub history:        History,
 }
 
 impl InputState {
@@ -409,6 +413,7 @@ impl InputState {
 			masked: false,
 			placeholder: String::new(),
 			disabled: false,
+			history: History::new(),
 		}
 	}
 
@@ -442,6 +447,12 @@ impl InputState {
 		self
 	}
 
+	/// Set history state (fluent)
+	pub fn with_history(mut self, history: History) -> Self {
+		self.history = history;
+		self
+	}
+
 	pub fn value(&self) -> String { self.text.to_string() }
 
 	pub fn selected_text(&self) -> String {
@@ -472,10 +483,15 @@ impl InputState {
 		let start = range.start.min(self.text.len_bytes());
 		let end = range.end.min(self.text.len_bytes());
 
+		let old_text = self.text.slice(range.clone()).to_string();
+
 		self.text.replace(start..end, text);
 		let new_cursor = start + text.len();
 		self.selection = Selection::cursor(new_cursor);
 		self.marked_range = None;
+
+		// Record change for undo
+		self.history.push(Change::new(range.clone(), old_text, text.to_string()));
 
 		// Update global state
 		self.sync_to_global_state();
@@ -524,6 +540,7 @@ pub fn handle_input_key_event(
 	key: &str,
 	modifiers: Modifiers,
 	window: &mut Window,
+	cx: &mut App,
 ) -> bool {
 	let Some(gpui_window) = GLOBAL_STATE.get_window(window_id) else {
 		return false;
@@ -599,9 +616,14 @@ pub fn handle_input_key_event(
 			true
 		}
 		"left" => {
-			if modifiers.shift {
-				let new_end = state.text.prev_grapheme_boundary(state.selection.end);
-				state.selection = Selection::new(state.selection.start, new_end);
+			if modifiers.control {
+				// Word boundary navigation
+				let new_pos = state.text.prev_word_boundary(state.selection.end);
+				if modifiers.shift {
+					state.selection = Selection::new(state.selection.start, new_pos);
+				} else {
+					state.selection = Selection::cursor(new_pos);
+				}
 			} else if !state.selection.is_empty() {
 				let (min, _) = state.selection.ordered();
 				state.selection = Selection::cursor(min);
@@ -612,9 +634,14 @@ pub fn handle_input_key_event(
 			true
 		}
 		"right" => {
-			if modifiers.shift {
-				let new_end = state.text.next_grapheme_boundary(state.selection.end);
-				state.selection = Selection::new(state.selection.start, new_end);
+			if modifiers.control {
+				// Word boundary navigation
+				let new_pos = state.text.next_word_boundary(state.selection.end);
+				if modifiers.shift {
+					state.selection = Selection::new(state.selection.start, new_pos);
+				} else {
+					state.selection = Selection::cursor(new_pos);
+				}
 			} else if !state.selection.is_empty() {
 				let (_, max) = state.selection.ordered();
 				state.selection = Selection::cursor(max);
@@ -644,9 +671,74 @@ pub fn handle_input_key_event(
 			}
 			true
 		}
-		"a" if modifiers.control || modifiers.platform => {
-			// Select all
+		"a" if modifiers.control => {
+			// Select all text
 			state.selection = Selection::new(0, state.text.len_bytes());
+			true
+		}
+		"v" if modifiers.control => {
+			// Paste from clipboard
+			if !state.disabled {
+				if let Some(clipboard) = cx.read_from_clipboard() {
+					if let Some(text) = clipboard.text() {
+						// For single-line inputs, remove newlines
+						let text = if state.mode.is_single_line() {
+							text.replace('\n', " ").replace('\r', "")
+						} else {
+							text
+						};
+						state.replace_text_in_range(None, &text, window, cx);
+					}
+				}
+			}
+			true
+		}
+		"c" if modifiers.control => {
+			// Copy selected text to clipboard
+			if !state.selection.is_empty() {
+				let selected = state.selected_text();
+				if !selected.is_empty() {
+					cx.write_to_clipboard(ClipboardItem::new_string(selected));
+				}
+			}
+			true
+		}
+		"z" if modifiers.control => {
+			// Undo last change
+			if let Some(change) = state.history.pop_undo() {
+				state.text.replace(change.old_range.clone(), &change.old_text);
+				state.selection = Selection::cursor(change.old_range.start + change.old_text.len());
+				dispatch_event_to_js(
+					window_id,
+					element_id,
+					"input",
+					EventData::Input(InputEventData {
+						value:        state.text.to_string(),
+						data:         None,
+						input_type:   "historyUndo".to_string(),
+						is_composing: false,
+					}),
+				);
+			}
+			true
+		}
+		"y" if modifiers.control => {
+			// Redo last undone change
+			if let Some(change) = state.history.pop_redo() {
+				state.text.replace(change.old_range.clone(), &change.new_text);
+				state.selection = Selection::cursor(change.old_range.start + change.new_text.len());
+				dispatch_event_to_js(
+					window_id,
+					element_id,
+					"input",
+					EventData::Input(InputEventData {
+						value:        state.text.to_string(),
+						data:         None,
+						input_type:   "historyRedo".to_string(),
+						is_composing: false,
+					}),
+				);
+			}
 			true
 		}
 		"enter" => {
@@ -810,7 +902,7 @@ impl Element for ReactInputElement {
 		// Register mouse click event for focus
 		{
 			let hitbox = hitbox.clone();
-			window.on_mouse_event(move |_event: &MouseDownEvent, phase, window, _cx| {
+			window.on_mouse_event(move |event: &MouseDownEvent, phase, window, _cx| {
 				if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
 					log::debug!("[Input] MouseDown: window_id={}, element_id={}", window_id, element_id);
 
@@ -838,6 +930,20 @@ impl Element for ReactInputElement {
 								"focus",
 								EventData::Focus(FocusEventData { related_target: blur_id }),
 							);
+						}
+					}
+
+					// Handle double-click for word selection
+					if event.click_count == 2 {
+						// Double-click: select word at cursor position
+						if let Some(gpui_window) = GLOBAL_STATE.get_window(window_id) {
+							if let Ok(mut input_states) = gpui_window.state().input_states.lock() {
+								if let Some(mut state) = input_states.get_mut(&element_id) {
+									let cursor_pos = state.selection.end;
+									let word_range = select_word(&state.text, cursor_pos);
+									state.selection = word_range;
+								}
+							}
 						}
 					}
 
